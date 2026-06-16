@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { T, fmt } from "../lib/theme";
-import { Panel, Field, HeroCard, Btn, Grid, Row } from "../components/ui";
+import { Panel, Field, HeroCard, Btn, Grid, Row, FormSection, Tabs } from "../components/ui";
 import { Patient, Ventilator, DailyEvolution, Asynchrony } from "../types";
 import * as C from "../lib/clinical";
 import { ASYNCHRONIES, ASYNC_BY_KEY } from "../data/asynchronies";
@@ -19,6 +19,7 @@ export default function PatientDetail() {
   const [evolutions, setEvolutions] = useState<DailyEvolution[]>([]);
   const [asyncs, setAsyncs] = useState<Asynchrony[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("admissao");
 
   const load = async () => {
     if (!id) return;
@@ -45,35 +46,50 @@ export default function PatientDetail() {
   const vent = ventilators.find((v) => v.id === patient.ventilator_id);
   const last = evolutions[evolutions.length - 1];
 
+  const tabs = [
+    { key: "admissao", label: "Admissão" },
+    { key: "evolucao", label: "Evolução" },
+    { key: "graficos", label: "Gráficos" },
+    { key: "desmame", label: "Desmame" },
+  ];
+
+  const hint = (msg: string) => <p style={{ color: T.dim, fontSize: 14 }}>{msg}</p>;
+
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <PatientHeader patient={patient} vent={vent} ventilators={ventilators} onUpdate={load} />
-      {last ? (
-        <Dashboard patient={patient} ev={last} />
-      ) : (
-        <AdmissionCard patient={patient} />
+      <ArchiveControl patient={patient} onUpdate={load} />
+
+      <Tabs tabs={tabs} active={tab} onChange={setTab} />
+
+      {tab === "admissao" && (
+        <div style={{ display: "grid", gap: 20 }}>
+          <AdmissionCard patient={patient} />
+          {vent && <VentilatorGuide vent={vent} mode={patient.current_mode} />}
+        </div>
       )}
 
-      <Grid min={340}>
-        <EvolutionForm
-          patient={patient}
-          ownerId={session!.user.id}
-          onSaved={load}
-        />
-        <ExtubationCard ev={last} />
-      </Grid>
+      {tab === "evolucao" && (
+        <div style={{ display: "grid", gap: 20 }}>
+          {last ? <Dashboard patient={patient} ev={last} /> : hint("Registre a primeira evolução para ver os 4 indicadores.")}
+          <Grid min={340}>
+            <EvolutionForm patient={patient} ownerId={session!.user.id} onSaved={load} />
+            <AsynchronyModule patientId={patient.id} ownerId={session!.user.id} asyncs={asyncs} onChange={load} />
+          </Grid>
+        </div>
+      )}
 
-      {evolutions.length >= 2 && <TrendCharts patient={patient} evolutions={evolutions} />}
+      {tab === "graficos" && (
+        evolutions.length >= 2
+          ? <TrendCharts patient={patient} evolutions={evolutions} />
+          : hint("São necessárias ao menos 2 evoluções para gerar as tendências.")
+      )}
 
-      <Grid min={340}>
-        <AsynchronyModule
-          patientId={patient.id}
-          ownerId={session!.user.id}
-          asyncs={asyncs}
-          onChange={load}
-        />
-        {vent && <VentilatorGuide vent={vent} mode={patient.current_mode} />}
-      </Grid>
+      {tab === "desmame" && (
+        last
+          ? <ExtubationCard ev={last} />
+          : hint("Registre uma evolução para avaliar a prontidão para extubação.")
+      )}
     </div>
   );
 }
@@ -158,6 +174,67 @@ function PatientHeader({
   );
 }
 
+// ---------- Alta / arquivamento do paciente ----------
+function ArchiveControl({ patient, onUpdate }: { patient: Patient; onUpdate: () => void }) {
+  const [choosing, setChoosing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const archived = patient.status === "archived";
+
+  const archive = async (reason: "death" | "extubation") => {
+    setBusy(true);
+    await supabase.from("patients").update({
+      status: "archived",
+      discharge_reason: reason,
+      discharge_date: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", patient.id);
+    setBusy(false);
+    setChoosing(false);
+    onUpdate();
+  };
+
+  const reactivate = async () => {
+    setBusy(true);
+    await supabase.from("patients").update({
+      status: "active",
+      discharge_reason: null,
+      discharge_date: null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", patient.id);
+    setBusy(false);
+    onUpdate();
+  };
+
+  if (archived) {
+    const label = patient.discharge_reason === "death" ? "Óbito" : "Extubação";
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, background: `${T.warn}14`, border: `1px solid ${T.warn}40`, borderRadius: 12, padding: "10px 16px" }}>
+        <span style={{ fontSize: 13, color: T.warn, fontWeight: 600 }}>
+          Paciente arquivado · {label}
+          {patient.discharge_date ? ` · ${new Date(patient.discharge_date).toLocaleDateString("pt-BR")}` : ""}
+          <span style={{ color: T.dim, fontWeight: 400 }}> · histórico em modo leitura</span>
+        </span>
+        <Btn variant="ghost" onClick={reactivate} disabled={busy}>Reativar</Btn>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+      {!choosing ? (
+        <Btn variant="ghost" onClick={() => setChoosing(true)}>Dar alta / Arquivar</Btn>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: T.dim }}>Motivo da alta:</span>
+          <Btn variant="ghost" onClick={() => archive("extubation")} disabled={busy}>Extubação</Btn>
+          <Btn variant="danger" onClick={() => archive("death")} disabled={busy}>Óbito</Btn>
+          <Btn variant="ghost" onClick={() => setChoosing(false)} disabled={busy}>Cancelar</Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- Dashboard 4 indicadores + sugestão ----------
 function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
   const pbwEst = C.pbwOrEstimate((patient.sex ?? "M") as "M" | "F", patient.height_cm);
@@ -174,6 +251,49 @@ function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
   const sPeep = C.suggestPeepFio2(pf, ev.spo2);
   const sVent = sVc ? C.suggestVentilation(pbwVal, sVc.target) : null;
 
+  // Conteúdo de apoio à decisão exibido quando o indicador sai da faixa (item 2).
+  // A validar pela equipe; não altera nenhuma fórmula nem os limites de classify.
+  const vcLow = obese ? 6 : 4;
+  const vcHigh = obese ? 8 : 6;
+  const vcTooLow = vcKg != null && vcKg < vcLow;
+  const sug = {
+    dp: {
+      ideal: "< 13 cmH₂O",
+      actions: [
+        "Reduzir o VC rumo a 6 ml/kg de peso predito (PBW)",
+        "Otimizar a PEEP (se a complacência melhora, a Driving Pressure cai)",
+        "Reavaliar a Pressão de Platô",
+      ],
+    },
+    pplat: {
+      ideal: "< 30 cmH₂O",
+      actions: [
+        "Reduzir o VC em passos de 1 ml/kg",
+        "Reavaliar a PEEP",
+        "Tratar fatores que reduzem a complacência",
+      ],
+    },
+    vc: {
+      ideal: `faixa ${vcLow}–${vcHigh} ml/kg sobre o peso predito`,
+      actions: vcTooLow
+        ? ["Avaliar aumento do VC rumo à faixa", "Checar hipoventilação"]
+        : [
+            "Reduzir o VC rumo à faixa",
+            "Confirmar o cálculo sobre o peso predito (PBW)",
+            "Vigiar a Pressão de Platô",
+          ],
+    },
+    pf: {
+      ideal: "≥ 300",
+      actions: [
+        "Aumentar a PEEP para recrutar (reavaliando o platô)",
+        "Titular a FiO₂ pela SpO₂/PaO₂",
+        "Considerar recrutamento e prona se P/F < 150",
+        "Tratar a causa de base",
+      ],
+    },
+  };
+
   const alerts: { s: "ok" | "warn" | "danger"; t: string }[] = [];
   if (vcKg != null && vcKg > 8) alerts.push({ s: "danger", t: `VC ${fmt(vcKg)} ml/kg acima de 8 — reduzir volume` });
   if (ev.pplat != null && ev.pplat >= 30) alerts.push({ s: "danger", t: `Pressão de platô ${fmt(ev.pplat, 0)} ≥ 30` });
@@ -183,10 +303,10 @@ function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>
-        <HeroCard label="DRIVING PRESSURE" value={fmt(dp, 0)} unit="cmH₂O" st={C.classify.dp(dp)} formula="Pplat − PEEP" />
-        <HeroCard label="PRESSÃO DE PLATÔ" value={fmt(ev.pplat, 0)} unit="cmH₂O" st={C.classify.pplat(ev.pplat)} formula="meta < 30" />
-        <HeroCard label="VC / PESO PREDITO" value={fmt(vcKg)} unit="ml/kg" st={C.classify.vcKg(vcKg, obese)} formula={obese ? "meta 6–8" : "meta 4–6"} />
-        <HeroCard label="RELAÇÃO P/F" value={fmt(pf, 0)} unit="" st={C.classify.pf(pf)} formula="PaO₂ / FiO₂" />
+        <HeroCard label="DRIVING PRESSURE" value={fmt(dp, 0)} unit="cmH₂O" st={C.classify.dp(dp)} formula="Pplat − PEEP" suggestion={sug.dp} />
+        <HeroCard label="PRESSÃO DE PLATÔ" value={fmt(ev.pplat, 0)} unit="cmH₂O" st={C.classify.pplat(ev.pplat)} formula="meta < 30" suggestion={sug.pplat} />
+        <HeroCard label="VC / PESO PREDITO" value={fmt(vcKg)} unit="ml/kg" st={C.classify.vcKg(vcKg, obese)} formula={obese ? "meta 6–8" : "meta 4–6"} suggestion={sug.vc} />
+        <HeroCard label="RELAÇÃO P/F" value={fmt(pf, 0)} unit="" st={C.classify.pf(pf)} formula="PaO₂ / FiO₂" suggestion={sug.pf} />
       </div>
 
       {alerts.length > 0 && (
@@ -312,6 +432,18 @@ const EV_FIELDS: { k: keyof DailyEvolution; label: string; unit?: string }[] = [
   { k: "dbp", label: "PAD", unit: "mmHg" }, { k: "lactate", label: "Lactato", unit: "mmol/L" },
 ];
 
+const FIELD_BY_KEY = Object.fromEntries(
+  EV_FIELDS.map((f) => [f.k as string, f])
+) as Record<string, (typeof EV_FIELDS)[number]>;
+
+// Agrupamento visual por seção (não altera os campos salvos no banco).
+const EV_SECTIONS: { title: string; color: string; keys: string[]; extra?: "tre" | "vaso" }[] = [
+  { title: "Parâmetros do ventilador", color: T.accent, keys: ["fr", "vc", "peep", "fio2", "ppico", "pplat", "flow"] },
+  { title: "Gasometria", color: T.ok, keys: ["ph", "pao2", "paco2", "spo2"] },
+  { title: "Desmame", color: T.purple, keys: ["pimax", "peak_cough_flow", "glasgow"], extra: "tre" },
+  { title: "Hemodinâmica", color: T.warn, keys: ["hr", "sbp", "dbp", "lactate"], extra: "vaso" },
+];
+
 function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerId: string; onSaved: () => void }) {
   const [vals, setVals] = useState<Record<string, string>>({});
   const [tre, setTre] = useState("");
@@ -344,14 +476,27 @@ function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerI
 
   return (
     <Panel title="Nova evolução" sub="Registra o estado atual e alimenta as tendências">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        {EV_FIELDS.map((f) => (
-          <Field key={f.k as string} label={f.label} unit={f.unit} value={vals[f.k as string] ?? ""} onChange={set(f.k as string)} />
+      <div style={{ display: "grid", gap: 12 }}>
+        {EV_SECTIONS.map((sec) => (
+          <FormSection key={sec.title} title={sec.title} color={sec.color}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+              {sec.keys.map((k) => {
+                const f = FIELD_BY_KEY[k];
+                return (
+                  <Field key={k} label={f.label} unit={f.unit} value={vals[k] ?? ""} onChange={set(k)} />
+                );
+              })}
+              {sec.extra === "tre" && (
+                <Field label="TRE" value={tre} onChange={setTre}
+                  options={[{ v: "", t: "—" }, { v: "pass", t: "Aprovado" }, { v: "fail", t: "Falhou" }]} />
+              )}
+              {sec.extra === "vaso" && (
+                <Field label="Vasopressor" value={vaso} onChange={setVaso}
+                  options={[{ v: "no", t: "Não" }, { v: "yes", t: "Sim" }]} />
+              )}
+            </div>
+          </FormSection>
         ))}
-        <Field label="TRE" value={tre} onChange={setTre}
-          options={[{ v: "", t: "—" }, { v: "pass", t: "Aprovado" }, { v: "fail", t: "Falhou" }]} />
-        <Field label="Vasopressor" value={vaso} onChange={setVaso}
-          options={[{ v: "no", t: "Não" }, { v: "yes", t: "Sim" }]} />
       </div>
       <div style={{ marginTop: 14 }}>
         <Btn onClick={save} disabled={saving}>{saving ? "Salvando…" : "Salvar evolução"}</Btn>
@@ -502,7 +647,7 @@ function AsynchronyModule({ patientId, ownerId, asyncs, onChange }: {
 }
 
 // ---------- Guia do ventilador ----------
-function VentilatorGuide({ vent, mode }: { vent: Ventilator; mode: string | null }) {
+export function VentilatorGuide({ vent, mode }: { vent: Ventilator; mode: string | null }) {
   const handling = vent.handling as Record<string, unknown>;
   const steps = (handling?.iniciar as string[]) ?? [];
   const tips = Object.entries(handling).filter(([k]) => k !== "iniciar");
