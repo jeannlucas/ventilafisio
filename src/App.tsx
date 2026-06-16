@@ -83,7 +83,8 @@ function TopBar() {
           Ventila<span style={{ color: T.accent }}>Fisio</span>
         </span>
       </Link>
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Avatar url={profile?.avatar_url} name={profile?.full_name ?? profile?.email} />
         <span style={{ fontSize: 12, color: T.dim, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {profile?.full_name ?? profile?.email ?? "Usuário"}
         </span>
@@ -104,6 +105,47 @@ function TopBar() {
         </button>
       </div>
     </header>
+  );
+}
+
+// Avatar do usuário: foto do Google se houver, senão a inicial num círculo.
+function Avatar({ url, name }: { url?: string | null; name?: string | null }) {
+  const [broken, setBroken] = useState(false);
+  const initial = (name?.trim()?.[0] ?? "U").toUpperCase();
+  const size = 28;
+  const base = {
+    width: size,
+    height: size,
+    borderRadius: "50%",
+    flexShrink: 0,
+    border: `1px solid ${T.line}`,
+  } as const;
+
+  if (url && !broken) {
+    return (
+      <img
+        src={url}
+        alt={name ?? "Usuário"}
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+        style={{ ...base, objectFit: "cover" }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        ...base,
+        display: "grid",
+        placeItems: "center",
+        background: `${T.accent}22`,
+        color: T.accent,
+        fontSize: 13,
+        fontWeight: 700,
+      }}
+    >
+      {initial}
+    </div>
   );
 }
 
