@@ -67,23 +67,27 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
 
   const createHospital = async (name: string): Promise<Hospital | null> => {
     if (!session?.user || !name.trim()) return null;
-    const { data, error } = await supabase
+    const trimmed = name.trim();
+    // Id gerado no cliente: evita o .select() de retorno, que aplicaria a
+    // policy de SELECT (is_hospital_member) antes de o membership existir.
+    const id = crypto.randomUUID();
+    const { error } = await supabase
       .from("hospitals")
-      .insert({ name: name.trim(), created_by: session.user.id })
-      .select()
-      .single();
-    if (error || !data) {
-      alert("Erro ao criar hospital: " + (error?.message ?? "desconhecido"));
+      .insert({ id, name: trimmed, created_by: session.user.id });
+    if (error) {
+      alert("Erro ao criar hospital: " + error.message);
       return null;
     }
-    const hospital = data as Hospital;
     // O criador entra como membro (a policy de insert permite o criador).
-    await supabase
+    const { error: mErr } = await supabase
       .from("hospital_members")
-      .insert({ hospital_id: hospital.id, user_id: session.user.id, role: "member" });
+      .insert({ hospital_id: id, user_id: session.user.id, role: "member" });
+    if (mErr) {
+      alert("Hospital criado, mas falhou ao adicionar você como membro: " + mErr.message);
+    }
     await refresh();
-    setActiveId(hospital.id);
-    return hospital;
+    setActiveId(id);
+    return { id, name: trimmed, created_by: session.user.id, created_at: new Date().toISOString() };
   };
 
   const addMember = async (email: string): Promise<{ error: string | null }> => {
