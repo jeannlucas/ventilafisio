@@ -18,6 +18,7 @@ export default function PatientDetail() {
   const [ventilators, setVentilators] = useState<Ventilator[]>([]);
   const [evolutions, setEvolutions] = useState<DailyEvolution[]>([]);
   const [asyncs, setAsyncs] = useState<Asynchrony[]>([]);
+  const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("admissao");
 
@@ -34,6 +35,13 @@ export default function PatientDetail() {
     setVentilators((v as Ventilator[]) ?? []);
     setEvolutions((ev as DailyEvolution[]) ?? []);
     setAsyncs((asy as Asynchrony[]) ?? []);
+    // Nomes dos autores das evoluções (RPC escopado por acesso).
+    const { data: au } = await supabase.rpc("evolution_authors", { p: id });
+    const map: Record<string, string> = {};
+    for (const r of (au as { owner_id: string; full_name: string | null }[]) ?? []) {
+      if (r.full_name) map[r.owner_id] = r.full_name;
+    }
+    setAuthors(map);
     setLoading(false);
   };
 
@@ -76,6 +84,7 @@ export default function PatientDetail() {
             <EvolutionForm patient={patient} ownerId={session!.user.id} onSaved={load} />
             <AsynchronyModule patientId={patient.id} ownerId={session!.user.id} asyncs={asyncs} onChange={load} />
           </Grid>
+          <EvolutionHistory evolutions={evolutions} authors={authors} />
         </div>
       )}
 
@@ -500,6 +509,42 @@ function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerI
       </div>
       <div style={{ marginTop: 14 }}>
         <Btn onClick={save} disabled={saving}>{saving ? "Salvando…" : "Salvar evolução"}</Btn>
+      </div>
+    </Panel>
+  );
+}
+
+// ---------- Histórico de evoluções (autor + data, passagem de plantão) ----------
+function EvolutionHistory({ evolutions, authors }: { evolutions: DailyEvolution[]; authors: Record<string, string> }) {
+  if (evolutions.length === 0) return null;
+  const ordered = [...evolutions].reverse(); // mais recente primeiro
+  return (
+    <Panel title="Histórico de evoluções" sub="Quem registrou e quando — apoio à passagem de plantão">
+      <div style={{ display: "grid", gap: 8 }}>
+        {ordered.map((e) => (
+          <div
+            key={e.id}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              borderTop: `1px solid ${T.line}`,
+              paddingTop: 8,
+            }}
+          >
+            <div style={{ fontSize: 13, color: T.txt }}>
+              {new Date(e.recorded_at).toLocaleString("pt-BR", {
+                day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
+              })}
+              {e.mode ? <span style={{ color: T.dim }}> · {e.mode}</span> : null}
+            </div>
+            <div style={{ fontSize: 12, color: T.dim }}>
+              {authors[e.owner_id] ?? "Profissional"}
+            </div>
+          </div>
+        ))}
       </div>
     </Panel>
   );
