@@ -19,7 +19,6 @@ interface HospitalCtx {
   loading: boolean;
   setActiveHospital: (id: string) => void;
   createHospital: (name: string) => Promise<Hospital | null>;
-  addMember: (email: string) => Promise<{ error: string | null }>;
   refresh: () => Promise<void>;
 }
 
@@ -90,15 +89,6 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     return { id, name: trimmed, created_by: session.user.id, created_at: new Date().toISOString() };
   };
 
-  const addMember = async (email: string): Promise<{ error: string | null }> => {
-    if (!activeHospitalId) return { error: "Selecione um hospital primeiro" };
-    const { error } = await supabase.rpc("add_hospital_member_by_email", {
-      h: activeHospitalId,
-      member_email: email.trim(),
-    });
-    return { error: error?.message ?? null };
-  };
-
   const activeHospital = hospitals.find((h) => h.id === activeHospitalId) ?? null;
 
   return (
@@ -110,7 +100,6 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
         loading,
         setActiveHospital,
         createHospital,
-        addMember,
         refresh,
       }}
     >

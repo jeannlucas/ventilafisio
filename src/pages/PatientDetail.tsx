@@ -66,7 +66,10 @@ export default function PatientDetail() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <PatientHeader patient={patient} vent={vent} ventilators={ventilators} onUpdate={load} />
-      <ArchiveControl patient={patient} onUpdate={load} />
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap-reverse", alignItems: "center" }}>
+        <ShareControl patient={patient} ownerId={session!.user.id} />
+        <ArchiveControl patient={patient} onUpdate={load} />
+      </div>
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
 
@@ -180,6 +183,42 @@ function PatientHeader({
         </div>
       </div>
     </Panel>
+  );
+}
+
+// ---------- Compartilhar paciente por link (passagem de plantão) ----------
+function ShareControl({ patient, ownerId }: { patient: Patient; ownerId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const share = async () => {
+    setBusy(true);
+    // Token gerado no cliente: sem .select() no insert (evita esbarrar no SELECT de RLS).
+    const token = crypto.randomUUID();
+    const { error } = await supabase.from("patient_shares").insert({
+      patient_id: patient.id,
+      token,
+      created_by: ownerId,
+    });
+    setBusy(false);
+    if (error) {
+      alert("Erro ao gerar link: " + error.message);
+      return;
+    }
+    const link = `${window.location.origin}/compartilhar/${token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.prompt("Copie o link de compartilhamento:", link);
+    }
+  };
+
+  return (
+    <Btn variant="ghost" onClick={share} disabled={busy}>
+      {copied ? "Link copiado ✓" : busy ? "Gerando…" : "Compartilhar / Passar plantão"}
+    </Btn>
   );
 }
 

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Routes, Route, Navigate, Link, NavLink } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { useHospital } from "./lib/hospital";
 import { T, font } from "./lib/theme";
@@ -9,9 +9,23 @@ import PatientDetail from "./pages/PatientDetail";
 import AdmitPatient from "./pages/AdmitPatient";
 import Archived from "./pages/Archived";
 import VentilatorLibrary from "./pages/VentilatorLibrary";
+import AcceptShare from "./pages/AcceptShare";
+
+const PENDING_SHARE_KEY = "ventila.pendingShare";
 
 export default function App() {
   const { session, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // Após login, retoma o link de compartilhamento que o usuário tentou abrir deslogado.
+  useEffect(() => {
+    if (!session) return;
+    const pending = localStorage.getItem(PENDING_SHARE_KEY);
+    if (pending) {
+      localStorage.removeItem(PENDING_SHARE_KEY);
+      navigate(pending);
+    }
+  }, [session, navigate]);
 
   if (loading) {
     return (
@@ -29,7 +43,13 @@ export default function App() {
     );
   }
 
-  if (!session) return <Login />;
+  if (!session) {
+    // Guarda o link de compartilhamento para retomar depois do login.
+    if (window.location.pathname.startsWith("/compartilhar")) {
+      localStorage.setItem(PENDING_SHARE_KEY, window.location.pathname);
+    }
+    return <Login />;
+  }
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", color: T.txt, fontFamily: font }}>
@@ -43,6 +63,7 @@ export default function App() {
           <Route path="/arquivados" element={<Archived />} />
           <Route path="/biblioteca" element={<VentilatorLibrary />} />
           <Route path="/paciente/:id" element={<PatientDetail />} />
+          <Route path="/compartilhar/:token" element={<AcceptShare />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -194,10 +215,9 @@ function GlobalTabs() {
 
 // Seletor de hospital ativo — acima de tudo. Trocar de hospital recarrega as listas.
 function HospitalBar() {
-  const { hospitals, activeHospitalId, activeHospital, setActiveHospital, createHospital, addMember } = useHospital();
-  const [mode, setMode] = useState<null | "new" | "member">(null);
+  const { hospitals, activeHospitalId, setActiveHospital, createHospital } = useHospital();
+  const [mode, setMode] = useState<null | "new">(null);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
 
   const inputStyle = {
     background: T.panel2,
@@ -225,11 +245,6 @@ function HospitalBar() {
     const h = await createHospital(name);
     if (h) { setName(""); setMode(null); }
   };
-  const submitMember = async () => {
-    const { error } = await addMember(email);
-    if (error) alert("Erro: " + error);
-    else { setEmail(""); setMode(null); alert("Membro adicionado."); }
-  };
 
   return (
     <div style={{ borderBottom: `1px solid ${T.line}`, background: T.panel2 }}>
@@ -250,12 +265,7 @@ function HospitalBar() {
         )}
 
         {mode === null && (
-          <>
-            <button onClick={() => setMode("new")} style={btn(hospitals.length === 0)}>+ Novo hospital</button>
-            {activeHospital && (
-              <button onClick={() => setMode("member")} style={btn()}>Adicionar membro</button>
-            )}
-          </>
+          <button onClick={() => setMode("new")} style={btn(hospitals.length === 0)}>+ Novo hospital</button>
         )}
 
         {mode === "new" && (
@@ -263,14 +273,6 @@ function HospitalBar() {
             <input placeholder="Nome do hospital" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
             <button onClick={submitNew} style={btn(true)} disabled={!name.trim()}>Criar</button>
             <button onClick={() => { setMode(null); setName(""); }} style={btn()}>Cancelar</button>
-          </div>
-        )}
-
-        {mode === "member" && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input placeholder="email do membro" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} autoFocus />
-            <button onClick={submitMember} style={btn(true)} disabled={!email.trim()}>Adicionar</button>
-            <button onClick={() => { setMode(null); setEmail(""); }} style={btn()}>Cancelar</button>
           </div>
         )}
       </div>
