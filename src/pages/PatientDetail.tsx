@@ -18,6 +18,7 @@ export default function PatientDetail() {
   const [ventilators, setVentilators] = useState<Ventilator[]>([]);
   const [evolutions, setEvolutions] = useState<DailyEvolution[]>([]);
   const [asyncs, setAsyncs] = useState<Asynchrony[]>([]);
+  const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("admissao");
 
@@ -34,6 +35,13 @@ export default function PatientDetail() {
     setVentilators((v as Ventilator[]) ?? []);
     setEvolutions((ev as DailyEvolution[]) ?? []);
     setAsyncs((asy as Asynchrony[]) ?? []);
+    // Nomes dos autores das evoluções (RPC escopado por acesso).
+    const { data: au } = await supabase.rpc("evolution_authors", { p: id });
+    const map: Record<string, string> = {};
+    for (const r of (au as { owner_id: string; full_name: string | null }[]) ?? []) {
+      if (r.full_name) map[r.owner_id] = r.full_name;
+    }
+    setAuthors(map);
     setLoading(false);
   };
 
@@ -58,7 +66,10 @@ export default function PatientDetail() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <PatientHeader patient={patient} vent={vent} ventilators={ventilators} onUpdate={load} />
-      <ArchiveControl patient={patient} onUpdate={load} />
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap-reverse", alignItems: "center" }}>
+        <ShareControl patient={patient} ownerId={session!.user.id} />
+        <ArchiveControl patient={patient} onUpdate={load} />
+      </div>
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
 
@@ -76,6 +87,7 @@ export default function PatientDetail() {
             <EvolutionForm patient={patient} ownerId={session!.user.id} onSaved={load} />
             <AsynchronyModule patientId={patient.id} ownerId={session!.user.id} asyncs={asyncs} onChange={load} />
           </Grid>
+          <EvolutionHistory evolutions={evolutions} authors={authors} />
         </div>
       )}
 
@@ -171,6 +183,42 @@ function PatientHeader({
         </div>
       </div>
     </Panel>
+  );
+}
+
+// ---------- Compartilhar paciente por link (passagem de plantão) ----------
+function ShareControl({ patient, ownerId }: { patient: Patient; ownerId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const share = async () => {
+    setBusy(true);
+    // Token gerado no cliente: sem .select() no insert (evita esbarrar no SELECT de RLS).
+    const token = crypto.randomUUID();
+    const { error } = await supabase.from("patient_shares").insert({
+      patient_id: patient.id,
+      token,
+      created_by: ownerId,
+    });
+    setBusy(false);
+    if (error) {
+      alert("Erro ao gerar link: " + error.message);
+      return;
+    }
+    const link = `${window.location.origin}/compartilhar/${token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.prompt("Copie o link de compartilhamento:", link);
+    }
+  };
+
+  return (
+    <Btn variant="ghost" onClick={share} disabled={busy}>
+      {copied ? "Link copiado ✓" : busy ? "Gerando…" : "Compartilhar / Passar plantão"}
+    </Btn>
   );
 }
 
@@ -302,7 +350,7 @@ function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12 }}>
         <HeroCard label="DRIVING PRESSURE" value={fmt(dp, 0)} unit="cmH₂O" st={C.classify.dp(dp)} formula="Pplat − PEEP" suggestion={sug.dp} />
         <HeroCard label="PRESSÃO DE PLATÔ" value={fmt(ev.pplat, 0)} unit="cmH₂O" st={C.classify.pplat(ev.pplat)} formula="meta < 30" suggestion={sug.pplat} />
         <HeroCard label="VC / PESO PREDITO" value={fmt(vcKg)} unit="ml/kg" st={C.classify.vcKg(vcKg, obese)} formula={obese ? "meta 6–8" : "meta 4–6"} suggestion={sug.vc} />
@@ -500,6 +548,42 @@ function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerI
       </div>
       <div style={{ marginTop: 14 }}>
         <Btn onClick={save} disabled={saving}>{saving ? "Salvando…" : "Salvar evolução"}</Btn>
+      </div>
+    </Panel>
+  );
+}
+
+// ---------- Histórico de evoluções (autor + data, passagem de plantão) ----------
+function EvolutionHistory({ evolutions, authors }: { evolutions: DailyEvolution[]; authors: Record<string, string> }) {
+  if (evolutions.length === 0) return null;
+  const ordered = [...evolutions].reverse(); // mais recente primeiro
+  return (
+    <Panel title="Histórico de evoluções" sub="Quem registrou e quando — apoio à passagem de plantão">
+      <div style={{ display: "grid", gap: 8 }}>
+        {ordered.map((e) => (
+          <div
+            key={e.id}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              borderTop: `1px solid ${T.line}`,
+              paddingTop: 8,
+            }}
+          >
+            <div style={{ fontSize: 13, color: T.txt }}>
+              {new Date(e.recorded_at).toLocaleString("pt-BR", {
+                day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
+              })}
+              {e.mode ? <span style={{ color: T.dim }}> · {e.mode}</span> : null}
+            </div>
+            <div style={{ fontSize: 12, color: T.dim }}>
+              {authors[e.owner_id] ?? "Profissional"}
+            </div>
+          </div>
+        ))}
       </div>
     </Panel>
   );

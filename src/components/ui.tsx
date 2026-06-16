@@ -362,7 +362,7 @@ export function Grid({ children, min = 320 }: { children: ReactNode; min?: numbe
 
 export function Row({ children, cols = 3 }: { children: ReactNode; cols?: number }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`, gap: 12 }}>
+    <div className="vf-row" style={{ ["--cols" as string]: cols } as CSSProperties}>
       {children}
     </div>
   );

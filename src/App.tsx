@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Routes, Route, Navigate, Link, NavLink } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { useHospital } from "./lib/hospital";
 import { T, font } from "./lib/theme";
@@ -9,9 +9,23 @@ import PatientDetail from "./pages/PatientDetail";
 import AdmitPatient from "./pages/AdmitPatient";
 import Archived from "./pages/Archived";
 import VentilatorLibrary from "./pages/VentilatorLibrary";
+import AcceptShare from "./pages/AcceptShare";
+
+const PENDING_SHARE_KEY = "ventila.pendingShare";
 
 export default function App() {
   const { session, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // Após login, retoma o link de compartilhamento que o usuário tentou abrir deslogado.
+  useEffect(() => {
+    if (!session) return;
+    const pending = localStorage.getItem(PENDING_SHARE_KEY);
+    if (pending) {
+      localStorage.removeItem(PENDING_SHARE_KEY);
+      navigate(pending);
+    }
+  }, [session, navigate]);
 
   if (loading) {
     return (
@@ -29,20 +43,27 @@ export default function App() {
     );
   }
 
-  if (!session) return <Login />;
+  if (!session) {
+    // Guarda o link de compartilhamento para retomar depois do login.
+    if (window.location.pathname.startsWith("/compartilhar")) {
+      localStorage.setItem(PENDING_SHARE_KEY, window.location.pathname);
+    }
+    return <Login />;
+  }
 
   return (
-    <div style={{ minHeight: "100vh", color: T.txt, fontFamily: font }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", color: T.txt, fontFamily: font }}>
       <TopBar />
       <HospitalBar />
       <GlobalTabs />
-      <main style={{ padding: "20px 22px 60px", maxWidth: 1320, margin: "0 auto" }}>
+      <main style={{ flex: 1, width: "100%", padding: "20px 22px 60px", maxWidth: 1320, margin: "0 auto" }}>
         <Routes>
           <Route path="/" element={<PatientList />} />
           <Route path="/admitir" element={<AdmitPatient />} />
           <Route path="/arquivados" element={<Archived />} />
           <Route path="/biblioteca" element={<VentilatorLibrary />} />
           <Route path="/paciente/:id" element={<PatientDetail />} />
+          <Route path="/compartilhar/:token" element={<AcceptShare />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -55,7 +76,16 @@ export default function App() {
           borderTop: `1px solid ${T.line}`,
         }}
       >
-        Desenvolvido por <strong style={{ color: T.txt }}>BigDev.Z</strong> — IT Consulting
+        Desenvolvido por{" "}
+        <a
+          href="https://www.instagram.com/bigdev.z/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: T.txt, fontWeight: 700, textDecoration: "none" }}
+        >
+          BigDev.Z
+        </a>{" "}
+        - IT Consulting
       </footer>
     </div>
   );
@@ -83,7 +113,8 @@ function TopBar() {
           Ventila<span style={{ color: T.accent }}>Fisio</span>
         </span>
       </Link>
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Avatar url={profile?.avatar_url} name={profile?.full_name ?? profile?.email} />
         <span style={{ fontSize: 12, color: T.dim, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {profile?.full_name ?? profile?.email ?? "Usuário"}
         </span>
@@ -104,6 +135,47 @@ function TopBar() {
         </button>
       </div>
     </header>
+  );
+}
+
+// Avatar do usuário: foto do Google se houver, senão a inicial num círculo.
+function Avatar({ url, name }: { url?: string | null; name?: string | null }) {
+  const [broken, setBroken] = useState(false);
+  const initial = (name?.trim()?.[0] ?? "U").toUpperCase();
+  const size = 28;
+  const base = {
+    width: size,
+    height: size,
+    borderRadius: "50%",
+    flexShrink: 0,
+    border: `1px solid ${T.line}`,
+  } as const;
+
+  if (url && !broken) {
+    return (
+      <img
+        src={url}
+        alt={name ?? "Usuário"}
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+        style={{ ...base, objectFit: "cover" }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        ...base,
+        display: "grid",
+        placeItems: "center",
+        background: `${T.accent}22`,
+        color: T.accent,
+        fontSize: 13,
+        fontWeight: 700,
+      }}
+    >
+      {initial}
+    </div>
   );
 }
 
@@ -143,10 +215,9 @@ function GlobalTabs() {
 
 // Seletor de hospital ativo — acima de tudo. Trocar de hospital recarrega as listas.
 function HospitalBar() {
-  const { hospitals, activeHospitalId, activeHospital, setActiveHospital, createHospital, addMember } = useHospital();
-  const [mode, setMode] = useState<null | "new" | "member">(null);
+  const { hospitals, activeHospitalId, setActiveHospital, createHospital } = useHospital();
+  const [mode, setMode] = useState<null | "new">(null);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
 
   const inputStyle = {
     background: T.panel2,
@@ -174,11 +245,6 @@ function HospitalBar() {
     const h = await createHospital(name);
     if (h) { setName(""); setMode(null); }
   };
-  const submitMember = async () => {
-    const { error } = await addMember(email);
-    if (error) alert("Erro: " + error);
-    else { setEmail(""); setMode(null); alert("Membro adicionado."); }
-  };
 
   return (
     <div style={{ borderBottom: `1px solid ${T.line}`, background: T.panel2 }}>
@@ -199,12 +265,7 @@ function HospitalBar() {
         )}
 
         {mode === null && (
-          <>
-            <button onClick={() => setMode("new")} style={btn(hospitals.length === 0)}>+ Novo hospital</button>
-            {activeHospital && (
-              <button onClick={() => setMode("member")} style={btn()}>Adicionar membro</button>
-            )}
-          </>
+          <button onClick={() => setMode("new")} style={btn(hospitals.length === 0)}>+ Novo hospital</button>
         )}
 
         {mode === "new" && (
@@ -212,14 +273,6 @@ function HospitalBar() {
             <input placeholder="Nome do hospital" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
             <button onClick={submitNew} style={btn(true)} disabled={!name.trim()}>Criar</button>
             <button onClick={() => { setMode(null); setName(""); }} style={btn()}>Cancelar</button>
-          </div>
-        )}
-
-        {mode === "member" && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input placeholder="email do membro" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} autoFocus />
-            <button onClick={submitMember} style={btn(true)} disabled={!email.trim()}>Adicionar</button>
-            <button onClick={() => { setMode(null); setEmail(""); }} style={btn()}>Cancelar</button>
           </div>
         )}
       </div>

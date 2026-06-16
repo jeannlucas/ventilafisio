@@ -4,10 +4,12 @@
 -- ============================================================
 -- Fonte fiel do banco. Reflete as migrations aplicadas:
 --   ventila_fisio_initial_schema, add_ventilator_mindray_sv300,
---   hospitals_and_sharing, harden_hospital_functions, patient_archiving.
+--   hospitals_and_sharing, harden_hospital_functions, patient_archiving,
+--   evolution_authors_fn, patient_sharing.
 -- Idempotente: pode ser reaplicado sobre um banco existente.
 -- Requer a extensão pgcrypto (gen_random_uuid), já habilitada no Supabase.
--- Visibilidade de pacientes/evolucoes/assincronias por MEMBERSHIP de hospital.
+-- Acesso a paciente (e filhos) por MEMBERSHIP de hospital OU acesso direto
+-- concedido via link de compartilhamento (patient_access).
 -- ============================================================
 
 -- ---------- PROFILES (espelha auth.users) ----------
@@ -57,15 +59,12 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- ---------- VENTILATORS (biblioteca, conteúdo curado) ----------
--- Conteúdo compartilhado entre todos os usuários (leitura).
 create table if not exists public.ventilators (
   id uuid primary key default gen_random_uuid(),
   brand text not null,
   model text not null,
   modes text[] not null default '{}',
-  -- mapa de nomenclatura: nome padrão -> rótulo do aparelho
   param_labels jsonb not null default '{}',
-  -- dicas de manuseio por parâmetro / passo a passo
   handling jsonb not null default '{}',
   notes text,
   verified boolean not null default false, -- vocês validam o conteúdo
@@ -99,8 +98,7 @@ create table if not exists public.hospital_members (
 alter table public.hospitals enable row level security;
 alter table public.hospital_members enable row level security;
 
--- Funções de apoio (security definer) para evitar recursão de RLS
--- ao cruzar hospital_members dentro das próprias policies.
+-- Funções de apoio (security definer) para evitar recursão de RLS.
 create or replace function public.is_hospital_member(h uuid)
 returns boolean language sql security definer stable set search_path = public as $$
   select exists (
@@ -175,42 +173,45 @@ create index if not exists idx_patients_status on public.patients (hospital_id, 
 
 alter table public.patients enable row level security;
 
--- Acesso a um paciente (e seus filhos) por membership do hospital dele.
+-- ---------- COMPARTILHAMENTO DE PACIENTE POR LINK ----------
+-- patient_shares: tokens gerados; patient_access: vínculo direto usuário<->paciente.
+create table if not exists public.patient_shares (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references public.patients (id) on delete cascade,
+  token text not null unique,
+  created_by uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.patient_access (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references public.patients (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (patient_id, user_id)
+);
+
+alter table public.patient_shares enable row level security;
+alter table public.patient_access enable row level security;
+
+-- Acesso direto concedido via link aceito.
+create or replace function public.has_patient_access(p uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from public.patient_access a
+    where a.patient_id = p and a.user_id = auth.uid()
+  );
+$$;
+
+-- Acesso a um paciente: membro do hospital dele OU acesso direto por link.
 create or replace function public.can_access_patient(p uuid)
 returns boolean language sql security definer stable set search_path = public as $$
-  select public.is_hospital_member((select hospital_id from public.patients where id = p));
+  select public.is_hospital_member((select hospital_id from public.patients where id = p))
+      or public.has_patient_access(p);
 $$;
 
--- Adiciona membro por email (contorna o RLS restritivo de profiles).
-create or replace function public.add_hospital_member_by_email(h uuid, member_email text)
-returns void language plpgsql security definer set search_path = public as $$
-declare uid uuid;
-begin
-  if not public.is_hospital_creator(h) then
-    raise exception 'Apenas o criador do hospital pode adicionar membros';
-  end if;
-  select id into uid from auth.users where lower(email) = lower(member_email) limit 1;
-  if uid is null then
-    raise exception 'Usuário não encontrado para o email informado';
-  end if;
-  insert into public.hospital_members (hospital_id, user_id, role)
-  values (h, uid, 'member')
-  on conflict (hospital_id, user_id) do nothing;
-end;
-$$;
-
--- Restringe a execução das funções security definer ao papel authenticated
--- (as policies de RLS rodam no contexto do usuário autenticado).
-revoke execute on function public.is_hospital_member(uuid) from anon, public;
-revoke execute on function public.is_hospital_creator(uuid) from anon, public;
-revoke execute on function public.can_access_patient(uuid) from anon, public;
-revoke execute on function public.add_hospital_member_by_email(uuid, text) from anon, public;
-grant execute on function public.is_hospital_member(uuid) to authenticated;
-grant execute on function public.is_hospital_creator(uuid) to authenticated;
-grant execute on function public.can_access_patient(uuid) to authenticated;
-grant execute on function public.add_hospital_member_by_email(uuid, text) to authenticated;
-
--- RLS de patients por membership. owner_id permanece como registro de quem criou.
+-- RLS de patients. SELECT/UPDATE por membership OU acesso direto.
+-- INSERT/DELETE permanecem só por membership (acesso por link não cria/apaga paciente).
 drop policy if exists "patients_select_own" on public.patients;
 drop policy if exists "patients_insert_own" on public.patients;
 drop policy if exists "patients_update_own" on public.patients;
@@ -218,16 +219,48 @@ drop policy if exists "patients_delete_own" on public.patients;
 
 drop policy if exists "patients_select_member" on public.patients;
 create policy "patients_select_member"
-  on public.patients for select using (public.is_hospital_member(hospital_id));
+  on public.patients for select
+  using (public.is_hospital_member(hospital_id) or public.has_patient_access(id));
 drop policy if exists "patients_insert_member" on public.patients;
 create policy "patients_insert_member"
   on public.patients for insert with check (public.is_hospital_member(hospital_id) and auth.uid() = owner_id);
 drop policy if exists "patients_update_member" on public.patients;
 create policy "patients_update_member"
-  on public.patients for update using (public.is_hospital_member(hospital_id));
+  on public.patients for update
+  using (public.is_hospital_member(hospital_id) or public.has_patient_access(id));
 drop policy if exists "patients_delete_member" on public.patients;
 create policy "patients_delete_member"
   on public.patients for delete using (public.is_hospital_member(hospital_id));
+
+-- RLS de patient_shares: ver/criar exige poder acessar o paciente.
+drop policy if exists "shares_select" on public.patient_shares;
+create policy "shares_select"
+  on public.patient_shares for select using (public.can_access_patient(patient_id));
+drop policy if exists "shares_insert" on public.patient_shares;
+create policy "shares_insert"
+  on public.patient_shares for insert with check (public.can_access_patient(patient_id) and created_by = auth.uid());
+
+-- RLS de patient_access: SOMENTE select. Sem policy de INSERT => deny.
+-- A inserção só ocorre via accept_patient_share (security definer).
+drop policy if exists "access_select" on public.patient_access;
+create policy "access_select"
+  on public.patient_access for select
+  using (user_id = auth.uid() or public.can_access_patient(patient_id));
+
+-- Aceite de compartilhamento: usuário logado troca um token válido por acesso.
+create or replace function public.accept_patient_share(share_token text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare pid uuid;
+begin
+  if auth.uid() is null then raise exception 'Necessário estar logado'; end if;
+  select patient_id into pid from public.patient_shares where token = share_token limit 1;
+  if pid is null then raise exception 'Link inválido ou expirado'; end if;
+  insert into public.patient_access (patient_id, user_id)
+  values (pid, auth.uid())
+  on conflict (patient_id, user_id) do nothing;
+  return pid;
+end;
+$$;
 
 -- ---------- DAILY EVOLUTIONS (registro diário) ----------
 create table if not exists public.daily_evolutions (
@@ -272,6 +305,16 @@ create policy "evolutions_delete_member"
 
 create index if not exists idx_evolutions_patient on public.daily_evolutions (patient_id, recorded_at desc);
 
+-- Autores das evoluções de um paciente acessível (nomes de profiles, escopado).
+create or replace function public.evolution_authors(p uuid)
+returns table(owner_id uuid, full_name text)
+language sql security definer stable set search_path = public as $$
+  select distinct d.owner_id, pr.full_name
+  from public.daily_evolutions d
+  join public.profiles pr on pr.id = d.owner_id
+  where d.patient_id = p and public.can_access_patient(p);
+$$;
+
 -- ---------- ASYNCHRONIES (registro de assincronias) ----------
 create table if not exists public.asynchronies (
   id uuid primary key default gen_random_uuid(),
@@ -300,6 +343,21 @@ create policy "asynchronies_insert_member"
 drop policy if exists "asynchronies_delete_member" on public.asynchronies;
 create policy "asynchronies_delete_member"
   on public.asynchronies for delete using (public.can_access_patient(patient_id));
+
+-- ---------- GRANTS das funções security definer ----------
+-- Execução restrita a authenticated (as policies rodam no contexto do usuário).
+revoke execute on function public.is_hospital_member(uuid) from anon, public;
+revoke execute on function public.is_hospital_creator(uuid) from anon, public;
+revoke execute on function public.can_access_patient(uuid) from anon, public;
+revoke execute on function public.has_patient_access(uuid) from anon, public;
+revoke execute on function public.accept_patient_share(text) from anon, public;
+revoke execute on function public.evolution_authors(uuid) from anon, public;
+grant execute on function public.is_hospital_member(uuid) to authenticated;
+grant execute on function public.is_hospital_creator(uuid) to authenticated;
+grant execute on function public.can_access_patient(uuid) to authenticated;
+grant execute on function public.has_patient_access(uuid) to authenticated;
+grant execute on function public.accept_patient_share(text) to authenticated;
+grant execute on function public.evolution_authors(uuid) to authenticated;
 
 -- ============================================================
 -- SEED: ventiladores (estrutura inicial :: CONTEÚDO A VALIDAR)
