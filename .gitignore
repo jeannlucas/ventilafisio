@@ -18,3 +18,4 @@ dist/
 *.log
 pnpm-debug.log*
 npm-debug.log*
+.mcp.json

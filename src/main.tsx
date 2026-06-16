@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./lib/auth";
+import { HospitalProvider } from "./lib/hospital";
 import App from "./App";
 import { T, font } from "./lib/theme";
 
@@ -21,7 +22,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <HospitalProvider>
+          <App />
+        </HospitalProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

@@ -1,4 +1,4 @@
-import { ReactNode, CSSProperties } from "react";
+import { ReactNode, CSSProperties, useState } from "react";
 import { T, statusColor, fmt } from "../lib/theme";
 import { Classified } from "../lib/clinical";
 
@@ -37,6 +37,43 @@ export function Panel({
         </h2>
         {sub && <p style={{ margin: "3px 0 0", fontSize: 11, color: T.dim }}>{sub}</p>}
       </div>
+      {children}
+    </section>
+  );
+}
+
+export function FormSection({
+  title,
+  color,
+  children,
+}: {
+  title: string;
+  color: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      style={{
+        borderLeft: `4px solid ${color}`,
+        border: `1px solid ${color}33`,
+        borderLeftWidth: 4,
+        background: `${color}0D`,
+        borderRadius: 10,
+        padding: 14,
+      }}
+    >
+      <h3
+        style={{
+          margin: "0 0 10px",
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: 0.6,
+          textTransform: "uppercase",
+          color,
+        }}
+      >
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -114,20 +151,29 @@ export function Field({
   );
 }
 
+export interface CardSuggestion {
+  ideal: string;
+  actions: string[];
+}
+
 export function HeroCard({
   label,
   value,
   unit,
   st,
   formula,
+  suggestion,
 }: {
   label: string;
   value: string;
   unit: string;
   st: Classified | null;
   formula: string;
+  suggestion?: CardSuggestion;
 }) {
   const color = st ? statusColor(st.s) : T.dim;
+  const [open, setOpen] = useState(false);
+  const showSuggestion = !!suggestion && (st?.s === "warn" || st?.s === "danger");
   return (
     <div
       style={{
@@ -174,6 +220,53 @@ export function HeroCard({
           </span>
         )}
       </div>
+
+      {showSuggestion && (
+        <>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              marginTop: 8,
+              alignSelf: "flex-start",
+              background: "transparent",
+              border: "none",
+              color,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              padding: 0,
+            }}
+          >
+            {open ? "Ocultar sugestão de ajuste ▴" : "Ver sugestão de ajuste ▾"}
+          </button>
+          {open && (
+            <div
+              style={{
+                marginTop: 8,
+                background: `${color}0D`,
+                border: `1px solid ${color}33`,
+                borderRadius: 10,
+                padding: "10px 12px",
+              }}
+            >
+              <div style={{ fontSize: 11, color: T.dim, letterSpacing: 0.3 }}>ALVO IDEAL</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.txt, margin: "2px 0 8px" }}>
+                {suggestion!.ideal}
+              </div>
+              <div style={{ fontSize: 11, color: T.dim, letterSpacing: 0.3, marginBottom: 4 }}>AÇÕES</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: T.txt, lineHeight: 1.6 }}>
+                {suggestion!.actions.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+              <p style={{ margin: "10px 0 0", fontSize: 10.5, color: T.dim, fontStyle: "italic" }}>
+                Apoio à decisão, não conduta automática.
+              </p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -211,6 +304,44 @@ export function Btn({
     >
       {children}
     </button>
+  );
+}
+
+export function Tabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: { key: string; label: string }[];
+  active: string;
+  onChange: (key: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", borderBottom: `1px solid ${T.line}` }}>
+      {tabs.map((t) => {
+        const on = t.key === active;
+        return (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: `2px solid ${on ? T.accent : "transparent"}`,
+              color: on ? T.txt : T.dim,
+              padding: "9px 14px",
+              marginBottom: -1,
+              fontSize: 13,
+              fontWeight: on ? 700 : 500,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

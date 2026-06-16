@@ -17,9 +17,17 @@ export interface Ventilator {
   verified: boolean;
 }
 
+export interface Hospital {
+  id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+}
+
 export interface Patient {
   id: string;
   owner_id: string;
+  hospital_id: string | null;
   name: string;
   age: number | null;
   sex: "M" | "F" | null;
@@ -32,6 +40,9 @@ export interface Patient {
   ventilator_id: string | null;
   current_mode: string | null;
   active: boolean;
+  status: "active" | "archived";
+  discharge_reason: "death" | "extubation" | null;
+  discharge_date: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -11,6 +11,7 @@ export const T = {
   danger: "#F87171",
   accent: "#38BDF8",
   accentDim: "#0EA5E9",
+  purple: "#A78BFA",
 };
 
 export const statusColor = (s?: "ok" | "warn" | "danger" | null) =>
