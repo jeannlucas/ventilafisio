@@ -32,11 +32,11 @@ export default function App() {
   if (!session) return <Login />;
 
   return (
-    <div style={{ minHeight: "100vh", color: T.txt, fontFamily: font }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", color: T.txt, fontFamily: font }}>
       <TopBar />
       <HospitalBar />
       <GlobalTabs />
-      <main style={{ padding: "20px 22px 60px", maxWidth: 1320, margin: "0 auto" }}>
+      <main style={{ flex: 1, width: "100%", padding: "20px 22px 60px", maxWidth: 1320, margin: "0 auto" }}>
         <Routes>
           <Route path="/" element={<PatientList />} />
           <Route path="/admitir" element={<AdmitPatient />} />
@@ -55,7 +55,16 @@ export default function App() {
           borderTop: `1px solid ${T.line}`,
         }}
       >
-        Desenvolvido por <strong style={{ color: T.txt }}>BigDev.Z</strong> — IT Consulting
+        Desenvolvido por{" "}
+        <a
+          href="https://www.instagram.com/bigdev.z/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: T.txt, fontWeight: 700, textDecoration: "none" }}
+        >
+          BigDev.Z
+        </a>{" "}
+        - IT Consulting
       </footer>
     </div>
   );

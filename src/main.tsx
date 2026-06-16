@@ -10,7 +10,8 @@ import { T, font } from "./lib/theme";
 const style = document.createElement("style");
 style.textContent = `
   * { box-sizing: border-box; }
-  html, body, #root { margin: 0; height: 100%; }
+  html, body { margin: 0; height: 100%; }
+  #root { margin: 0; min-height: 100%; display: flex; flex-direction: column; }
   body { background: ${T.bg}; font-family: ${font}; -webkit-font-smoothing: antialiased; }
   a { color: ${T.accent}; }
   input::placeholder { color: ${T.dim}; }
