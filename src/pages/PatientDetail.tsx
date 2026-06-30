@@ -642,36 +642,64 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
 }
 
 // ---------- Histórico de evoluções (autor + data, passagem de plantão) ----------
+
+const IMAGING_LABEL: Record<string, string> = Object.fromEntries(
+  IMAGING_FINDINGS.map((f) => [f.key, f.label])
+);
+const TUBE_LABEL: Record<string, string> = Object.fromEntries(FEEDING_TUBES.map((o) => [o.v, o.t]));
+const DIET_LABEL: Record<string, string> = Object.fromEntries(DIET_TYPES.map((o) => [o.v, o.t]));
+
+function boardSummary(e: DailyEvolution) {
+  const findings = [
+    ...(e.imaging?.xray ?? []),
+    ...(e.imaging?.ct ?? []),
+    ...(e.imaging?.mri ?? []),
+  ].map((k) => IMAGING_LABEL[k] ?? k);
+  const medsOn = IV_MED_CATEGORIES.filter(
+    (m) => e.iv_meds?.[m.key]?.on
+  ).map((m) => m.label);
+  const tube = e.feeding?.tube && e.feeding.tube !== "none" ? TUBE_LABEL[e.feeding.tube] : null;
+  const diet = e.feeding?.diet ? DIET_LABEL[e.feeding.diet] : null;
+  const hasContent = !!e.notes || findings.length > 0 || medsOn.length > 0 || !!tube || !!diet;
+  return { findings, medsOn, tube, diet, hasContent };
+}
+
 function EvolutionHistory({ evolutions, authors }: { evolutions: DailyEvolution[]; authors: Record<string, string> }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   if (evolutions.length === 0) return null;
-  const ordered = [...evolutions].reverse(); // mais recente primeiro
+  const ordered = [...evolutions].reverse();
   return (
-    <Panel title="Histórico de evoluções" sub="Quem registrou e quando — apoio à passagem de plantão">
+    <Panel title="Histórico de evoluções" sub="Quem registrou e quando (toque para ver o quadro clínico do dia)">
       <div style={{ display: "grid", gap: 8 }}>
-        {ordered.map((e) => (
-          <div
-            key={e.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              borderTop: `1px solid ${T.line}`,
-              paddingTop: 8,
-            }}
-          >
-            <div style={{ fontSize: 13, color: T.txt }}>
-              {new Date(e.recorded_at).toLocaleString("pt-BR", {
-                day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
-              })}
-              {e.mode ? <span style={{ color: T.dim }}> · {e.mode}</span> : null}
+        {ordered.map((e) => {
+          const b = boardSummary(e);
+          const open = openId === e.id;
+          return (
+            <div key={e.id} style={{ borderTop: `1px solid ${T.line}`, paddingTop: 8 }}>
+              <div
+                onClick={() => b.hasContent && setOpenId(open ? null : e.id)}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: b.hasContent ? "pointer" : "default" }}
+              >
+                <div style={{ fontSize: 13, color: T.txt }}>
+                  {b.hasContent ? <span style={{ color: T.dim }}>{open ? "▾ " : "▸ "}</span> : null}
+                  {new Date(e.recorded_at).toLocaleString("pt-BR", {
+                    day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
+                  })}
+                  {e.mode ? <span style={{ color: T.dim }}> · {e.mode}</span> : null}
+                </div>
+                <div style={{ fontSize: 12, color: T.dim }}>{authors[e.owner_id] ?? "Profissional"}</div>
+              </div>
+              {open && b.hasContent && (
+                <div style={{ marginTop: 8, display: "grid", gap: 6, fontSize: 13, color: T.txt, background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 10, padding: 12 }}>
+                  {e.notes && <div><span style={{ color: T.dim }}>Impressão: </span>{e.notes}</div>}
+                  {b.findings.length > 0 && <div><span style={{ color: T.dim }}>Imagem: </span>{b.findings.join(", ")}</div>}
+                  {b.medsOn.length > 0 && <div><span style={{ color: T.dim }}>Medicamentos: </span>{b.medsOn.join(", ")}</div>}
+                  {(b.tube || b.diet) && <div><span style={{ color: T.dim }}>Sonda/dieta: </span>{[b.tube, b.diet].filter(Boolean).join(" · ")}</div>}
+                </div>
+              )}
             </div>
-            <div style={{ fontSize: 12, color: T.dim }}>
-              {authors[e.owner_id] ?? "Profissional"}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Panel>
   );
