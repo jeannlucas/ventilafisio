@@ -101,6 +101,7 @@ export function Field({
   type = "number",
   options,
   placeholder,
+  multiline,
 }: {
   label: string;
   value: string;
@@ -109,6 +110,7 @@ export function Field({
   type?: string;
   options?: { v: string; t: string }[];
   placeholder?: string;
+  multiline?: boolean;
 }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -121,6 +123,14 @@ export function Field({
             </option>
           ))}
         </select>
+      ) : multiline ? (
+        <textarea
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          rows={3}
+          style={{ ...inputStyle, resize: "vertical", minHeight: 64 }}
+        />
       ) : (
         <div style={{ position: "relative" }}>
           <input
@@ -365,6 +375,77 @@ export function Row({ children, cols = 3 }: { children: ReactNode; cols?: number
     <div className="vf-row" style={{ ["--cols" as string]: cols } as CSSProperties}>
       {children}
     </div>
+  );
+}
+
+// Chips de seleção múltipla (achados de imagem). Um toque liga/desliga.
+export function ChipGroup({
+  options,
+  selected,
+  onToggle,
+}: {
+  options: { v: string; t: string }[];
+  selected: string[];
+  onToggle: (v: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {options.map((o) => {
+        const on = selected.includes(o.v);
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onToggle(o.v)}
+            style={{
+              fontSize: 12,
+              padding: "5px 11px",
+              borderRadius: 999,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              background: on ? `${T.accent}1A` : T.panel2,
+              border: `1px solid ${on ? T.accent : T.line}`,
+              color: on ? T.accent : T.dim,
+              fontWeight: on ? 700 : 500,
+            }}
+          >
+            {o.t}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Chip único liga/desliga (categoria de medicamento).
+export function ChipToggle({
+  label,
+  on,
+  onClick,
+}: {
+  label: string;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        fontSize: 13,
+        padding: "7px 13px",
+        borderRadius: 999,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        background: on ? `${T.warn}1A` : T.panel2,
+        border: `1px solid ${on ? T.warn : T.line}`,
+        color: on ? T.warn : T.dim,
+        fontWeight: on ? 700 : 500,
+      }}
+    >
+      {on ? "✓ " : ""}
+      {label}
+    </button>
   );
 }
 
