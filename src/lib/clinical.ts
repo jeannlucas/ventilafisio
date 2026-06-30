@@ -2,6 +2,7 @@
 // Cálculos clínicos de VM — Ventila Fisio
 // Fórmulas padrão. Apoio à decisão; não substitui julgamento clínico.
 // ============================================================
+import type { DailyEvolution } from "../types";
 
 export type Status = "ok" | "warn" | "danger";
 export interface Classified {
@@ -277,4 +278,43 @@ export function admissionSuggestion(
     ventilation,
     mode: currentMode || "VCV",
   };
+}
+
+// ============================================================
+// Correlação do quadro clínico com a ventilação (Tema A).
+// Lembretes editáveis derivados de campos estruturados (sem caçar texto livre).
+// Apoio à decisão; não é conduta automática.
+// ============================================================
+
+export interface Correlation {
+  level: "info" | "warn";
+  text: string;
+  source: string;
+}
+
+export function ventilationCorrelations(ev: DailyEvolution): Correlation[] {
+  const out: Correlation[] = [];
+  const meds = ev.iv_meds ?? {};
+  const img = ev.imaging ?? {};
+  const allFindings = [
+    ...(img.xray ?? []),
+    ...(img.ct ?? []),
+    ...(img.mri ?? []),
+  ];
+  const hasFinding = (k: string) => allFindings.includes(k);
+
+  if (meds.nmb?.on)
+    out.push({ level: "warn", source: "nmb", text: "Sob bloqueio neuromuscular: drive zerado, paciente não dispara. Use modo controlado e reavalie o trigger ao suspender." });
+  if (meds.sedation?.on)
+    out.push({ level: "info", source: "sedation", text: "Sedação ativa reduz o drive e o esforço; reavalie a sensibilidade do trigger e o nível de sedação." });
+  if (meds.bronchodilator?.on || hasFinding("hiperinsuflacao"))
+    out.push({ level: "warn", source: meds.bronchodilator?.on ? "bronchodilator" : "imaging_hiperinsuflacao", text: "Padrão obstrutivo: atenção a auto-PEEP. Vigie o tempo expiratório e prolongue a expiração se necessário." });
+  if (meds.vasopressor?.on)
+    out.push({ level: "info", source: "vasopressor", text: "Vasopressor em uso: PEEP alta reduz o retorno venoso. Titule a PEEP observando a hemodinâmica." });
+  if (hasFinding("infiltrado_bilateral"))
+    out.push({ level: "info", source: "imaging_sdra", text: "Infiltrado bilateral compatível com padrão SDRA: mantenha VC protetor e vigie a Driving Pressure." });
+  if (hasFinding("pneumotorax"))
+    out.push({ level: "warn", source: "imaging_pneumotorax", text: "Pneumotórax registrado: cuidado com pressões e PEEP; confirme a drenagem." });
+
+  return out;
 }
