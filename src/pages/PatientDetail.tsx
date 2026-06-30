@@ -349,6 +349,15 @@ function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
   if (dp != null && dp > 15) alerts.push({ s: "danger", t: `Driving Pressure ${fmt(dp, 0)} > 15` });
   if (mp != null && mp >= 17) alerts.push({ s: "warn", t: `Mechanical Power ${fmt(mp)} J/min elevada` });
 
+  // Painel único "Leitura do caso": alertas numéricos + correlações de
+  // drogas/imagem, ordenados por severidade (danger > warn > info).
+  const correlations = C.ventilationCorrelations(ev);
+  const sevRank = { danger: 0, warn: 1, info: 2 } as const;
+  const reading: { s: "danger" | "warn" | "info"; t: string }[] = [
+    ...alerts.map((a) => ({ s: a.s as "danger" | "warn" | "info", t: a.t })),
+    ...correlations.map((c) => ({ s: c.level as "warn" | "info", t: c.text })),
+  ].sort((a, b) => sevRank[a.s] - sevRank[b.s]);
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12 }}>
@@ -358,14 +367,20 @@ function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
         <HeroCard label="RELAÇÃO P/F" value={fmt(pf, 0)} unit="" st={C.classify.pf(pf)} formula="PaO₂ / FiO₂" suggestion={sug.pf} />
       </div>
 
-      {alerts.length > 0 && (
-        <div style={{ display: "grid", gap: 8 }}>
-          {alerts.map((a, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", background: `${color(a.s)}14`, border: `1px solid ${color(a.s)}40`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: color(a.s), fontWeight: 600 }}>
-              <span>⚠</span>{a.t}
-            </div>
-          ))}
-        </div>
+      {reading.length > 0 && (
+        <Panel title="Leitura do caso" sub="Alertas dos indicadores e correlações do quadro clínico com a ventilação">
+          <div style={{ display: "grid", gap: 8 }}>
+            {reading.map((a, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: `${color(a.s === "info" ? "ok" : a.s)}14`, border: `1px solid ${color(a.s === "info" ? "ok" : a.s)}40`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: color(a.s === "info" ? "ok" : a.s), fontWeight: 600 }}>
+                <span>{a.s === "danger" ? "⚠" : a.s === "warn" ? "⚠" : "ℹ"}</span>
+                <span style={{ color: T.txt, fontWeight: 500 }}>{a.t}</span>
+              </div>
+            ))}
+            <p style={{ margin: "4px 0 0", fontSize: 10.5, color: T.dim, fontStyle: "italic" }}>
+              Apoio à decisão, não conduta automática.
+            </p>
+          </div>
+        </Panel>
       )}
 
       {sVc && (
