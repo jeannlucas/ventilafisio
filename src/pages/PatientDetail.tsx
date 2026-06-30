@@ -3,8 +3,9 @@ import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { T, fmt } from "../lib/theme";
-import { Panel, Field, HeroCard, Btn, Grid, Row, FormSection, Tabs } from "../components/ui";
-import { Patient, Ventilator, DailyEvolution, Asynchrony } from "../types";
+import { Panel, Field, HeroCard, Btn, Grid, Row, FormSection, Tabs, ChipGroup, ChipToggle } from "../components/ui";
+import { Patient, Ventilator, DailyEvolution, Asynchrony, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
+import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
 import { ASYNCHRONIES, ASYNC_BY_KEY } from "../data/asynchronies";
 import {
@@ -84,7 +85,7 @@ export default function PatientDetail() {
         <div style={{ display: "grid", gap: 20 }}>
           {last ? <Dashboard patient={patient} ev={last} /> : hint("Registre a primeira evolução para ver os 4 indicadores.")}
           <Grid min={340}>
-            <EvolutionForm patient={patient} ownerId={session!.user.id} onSaved={load} />
+            <EvolutionForm patient={patient} ownerId={session!.user.id} previous={last} onSaved={load} />
             <AsynchronyModule patientId={patient.id} ownerId={session!.user.id} asyncs={asyncs} onChange={load} />
           </Grid>
           <EvolutionHistory evolutions={evolutions} authors={authors} />
@@ -489,15 +490,37 @@ const EV_SECTIONS: { title: string; color: string; keys: string[]; extra?: "tre"
   { title: "Parâmetros do ventilador", color: T.accent, keys: ["fr", "vc", "peep", "fio2", "ppico", "pplat", "flow"] },
   { title: "Gasometria", color: T.ok, keys: ["ph", "pao2", "paco2", "spo2"] },
   { title: "Desmame", color: T.purple, keys: ["pimax", "peak_cough_flow", "glasgow"], extra: "tre" },
-  { title: "Hemodinâmica", color: T.warn, keys: ["hr", "sbp", "dbp", "lactate"], extra: "vaso" },
+  { title: "Hemodinâmica", color: T.warn, keys: ["hr", "sbp", "dbp", "lactate"] },
 ];
 
-function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerId: string; onSaved: () => void }) {
+function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patient; ownerId: string; previous?: DailyEvolution; onSaved: () => void }) {
   const [vals, setVals] = useState<Record<string, string>>({});
   const [tre, setTre] = useState("");
-  const [vaso, setVaso] = useState("no");
+  const [notes, setNotes] = useState("");
+  // Carry-forward: herda o quadro clínico da última evolução (não os números do dia).
+  const [imaging, setImaging] = useState<ImagingData>(previous?.imaging ?? {});
+  const [meds, setMeds] = useState<IvMeds>(previous?.iv_meds ?? {});
+  const [feeding, setFeeding] = useState<Feeding>(previous?.feeding ?? {});
   const [saving, setSaving] = useState(false);
   const set = (k: string) => (v: string) => setVals((s) => ({ ...s, [k]: v }));
+
+  const toggleFinding = (modality: "xray" | "ct" | "mri", key: string) =>
+    setImaging((s) => {
+      const cur = s[modality] ?? [];
+      const next = cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key];
+      return { ...s, [modality]: next };
+    });
+  const toggleMed = (key: IvMedKey) =>
+    setMeds((s) => ({ ...s, [key]: { on: !s[key]?.on, note: s[key]?.note } }));
+  const setMedNote = (key: IvMedKey) => (v: string) =>
+    setMeds((s) => ({ ...s, [key]: { on: s[key]?.on ?? false, note: v } }));
+
+  const clearBoard = () => {
+    setImaging({});
+    setMeds({});
+    setFeeding({});
+    setNotes("");
+  };
 
   const save = async () => {
     setSaving(true);
@@ -506,7 +529,11 @@ function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerI
       owner_id: ownerId,
       mode: patient.current_mode,
       tre_result: tre || null,
-      vasopressor: vaso === "yes",
+      vasopressor: meds.vasopressor?.on ?? false,
+      notes: notes || null,
+      imaging,
+      iv_meds: meds,
+      feeding,
     };
     for (const f of EV_FIELDS) {
       const raw = vals[f.k as string];
@@ -521,6 +548,12 @@ function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerI
       onSaved();
     }
   };
+
+  const modalities: { key: "xray" | "ct" | "mri"; label: string }[] = [
+    { key: "xray", label: "Raio-X" },
+    { key: "ct", label: "Tomografia" },
+    { key: "mri", label: "Ressonância" },
+  ];
 
   return (
     <Panel title="Nova evolução" sub="Registra o estado atual e alimenta as tendências">
@@ -538,16 +571,56 @@ function EvolutionForm({ patient, ownerId, onSaved }: { patient: Patient; ownerI
                 <Field label="TRE" value={tre} onChange={setTre}
                   options={[{ v: "", t: "—" }, { v: "pass", t: "Aprovado" }, { v: "fail", t: "Falhou" }]} />
               )}
-              {sec.extra === "vaso" && (
-                <Field label="Vasopressor" value={vaso} onChange={setVaso}
-                  options={[{ v: "no", t: "Não" }, { v: "yes", t: "Sim" }]} />
-              )}
             </div>
           </FormSection>
         ))}
+
+        <FormSection title="Evolução clínica" color={T.accent}>
+          <Field label="Impressão geral do quadro" value={notes} onChange={setNotes} multiline placeholder="Evolução escrita, análise geral do quadro…" />
+        </FormSection>
+
+        <FormSection title="Exames de imagem" color={T.purple}>
+          <div style={{ display: "grid", gap: 10 }}>
+            {modalities.map((m) => (
+              <div key={m.key}>
+                <div style={{ fontSize: 11, color: T.dim, marginBottom: 6 }}>{m.label}</div>
+                <ChipGroup
+                  options={IMAGING_FINDINGS.filter((f) => f.modality === m.key).map((f) => ({ v: f.key, t: f.label }))}
+                  selected={imaging[m.key] ?? []}
+                  onToggle={(v) => toggleFinding(m.key, v)}
+                />
+              </div>
+            ))}
+            <Field label="Observação (opcional)" value={imaging.note ?? ""} onChange={(v) => setImaging((s) => ({ ...s, note: v }))} multiline placeholder="Detalhe do laudo, se necessário" />
+          </div>
+        </FormSection>
+
+        <FormSection title="Medicamentos venosos" color={T.warn}>
+          <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {IV_MED_CATEGORIES.map((m) => (
+                <ChipToggle key={m.key} label={m.label} on={!!meds[m.key]?.on} onClick={() => toggleMed(m.key)} />
+              ))}
+            </div>
+            {IV_MED_CATEGORIES.filter((m) => meds[m.key]?.on).map((m) => (
+              <Field key={m.key} label={`${m.label} (obs)`} value={meds[m.key]?.note ?? ""} onChange={setMedNote(m.key)} type="text" placeholder="droga / dose (opcional)" />
+            ))}
+            <Field label="Outros" value={meds.other ?? ""} onChange={(v) => setMeds((s) => ({ ...s, other: v }))} type="text" placeholder="outras drogas venosas" />
+          </div>
+        </FormSection>
+
+        <FormSection title="Sonda e dieta" color={T.ok}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+            <Field label="Sonda" value={feeding.tube ?? "none"} onChange={(v) => setFeeding((s) => ({ ...s, tube: v as Feeding["tube"] }))} options={FEEDING_TUBES} />
+            <Field label="Dieta" value={feeding.diet ?? "fasting"} onChange={(v) => setFeeding((s) => ({ ...s, diet: v as Feeding["diet"] }))} options={DIET_TYPES} />
+          </div>
+        </FormSection>
       </div>
-      <div style={{ marginTop: 14 }}>
+      <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center" }}>
         <Btn onClick={save} disabled={saving}>{saving ? "Salvando…" : "Salvar evolução"}</Btn>
+        <button type="button" onClick={clearBoard} style={{ background: "transparent", border: "none", color: T.dim, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          Limpar quadro / começar do zero
+        </button>
       </div>
     </Panel>
   );
