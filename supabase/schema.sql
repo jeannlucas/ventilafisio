@@ -283,6 +283,12 @@ create table if not exists public.daily_evolutions (
   created_at timestamptz not null default now()
 );
 
+-- Quadro clínico expandido (Tema A): imagem, medicamentos venosos, sonda/dieta.
+-- jsonb por flexibilidade; são campos de exibição e correlação, não de gráfico.
+alter table public.daily_evolutions add column if not exists imaging jsonb not null default '{}';
+alter table public.daily_evolutions add column if not exists iv_meds jsonb not null default '{}';
+alter table public.daily_evolutions add column if not exists feeding jsonb not null default '{}';
+
 alter table public.daily_evolutions enable row level security;
 
 drop policy if exists "evolutions_select_own" on public.daily_evolutions;

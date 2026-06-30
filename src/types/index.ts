@@ -47,6 +47,38 @@ export interface Patient {
   updated_at: string;
 }
 
+export interface ImagingData {
+  xray?: string[];
+  ct?: string[];
+  mri?: string[];
+  note?: string;
+}
+
+export interface IvMedEntry {
+  on: boolean;
+  note?: string;
+}
+
+export interface IvMeds {
+  sedation?: IvMedEntry;
+  analgesia?: IvMedEntry;
+  nmb?: IvMedEntry;
+  vasopressor?: IvMedEntry;
+  bronchodilator?: IvMedEntry;
+  other?: string;
+}
+
+// Categorias de medicamento (exclui `other`, que é texto livre).
+export type IvMedKey = "sedation" | "analgesia" | "nmb" | "vasopressor" | "bronchodilator";
+
+export type FeedingTube = "none" | "sng" | "sne" | "gtt";
+export type DietType = "fasting" | "enteral" | "oral" | "parenteral";
+
+export interface Feeding {
+  tube?: FeedingTube;
+  diet?: DietType;
+}
+
 export interface DailyEvolution {
   id: string;
   patient_id: string;
@@ -76,6 +108,9 @@ export interface DailyEvolution {
   lactate: number | null;
   vasopressor: boolean | null;
   notes: string | null;
+  imaging: ImagingData;
+  iv_meds: IvMeds;
+  feeding: Feeding;
 }
 
 export interface Asynchrony {
