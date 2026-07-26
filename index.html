@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <!-- Os tres sao necessarios: o Safari ignora o favicon SVG e cai no .ico,
+         e a tela de inicio do iOS so aceita o PNG. Gerados por
+         scripts/gerar-icones.py a partir da mesma geometria do SVG. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#0B0F14" />
     <meta name="description" content="Apoio à decisão em ventilação mecânica na UTI. Prova de conceito, não substitui o julgamento clínico." />
     <title>Ventila Fisio · BigDev.Z</title>
