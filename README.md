@@ -94,12 +94,39 @@ pnpm build      # tsc --noEmit && vite build
 pnpm preview    # serve o build
 ```
 
-Deploy em qualquer host de site estático. Lembre de cadastrar a URL de produção
-nas *Redirect URLs* do Supabase e nas *Authorized redirect URIs* do Google.
+## 5. Publicação
+
+O roteamento é do cliente (`BrowserRouter`), então o host **precisa** devolver o
+`index.html` para qualquer caminho. Sem isso, abrir `/paciente/:id` ou
+`/compartilhar/:token` direto na URL devolve 404, e o link de passagem de
+plantão só é usado assim.
+
+Para Vercel isso já está resolvido pelo `vercel.json` na raiz. Em outro host, o
+equivalente é: `_redirects` com `/* /index.html 200` na Netlify, ou
+`try_files $uri /index.html` no nginx.
+
+Lembre de cadastrar a URL de produção nas *Redirect URLs* do Supabase e nas
+*Authorized redirect URIs* do Google.
+
+### Ícones
+
+São três arquivos em `public/`, e os três são necessários: o Safari ignora o
+favicon SVG e cai no `.ico`, e a tela de início do iOS só aceita o PNG.
+
+O `favicon.ico` e o `apple-touch-icon.png` são gerados a partir da mesma
+geometria do SVG. Se mexer no `public/favicon.svg`, ajuste as constantes do
+script e rode de novo:
+
+```bash
+python3 scripts/gerar-icones.py
+```
 
 ## Estrutura
 
 ```
+vercel.json                      devolve index.html em qualquer rota (SPA)
+scripts/gerar-icones.py          gera favicon.ico e apple-touch-icon.png
+public/favicon.svg               ícone do app, curva de pressão-tempo
 supabase/schema.sql              tabelas, RLS, funções e seed
 src/main.tsx                     bootstrap, estilos globais, tela de config ausente
 src/App.tsx                      layout, barra de hospital, abas e rotas
