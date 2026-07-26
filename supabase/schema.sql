@@ -415,6 +415,31 @@ grant execute on function public.accept_patient_share(text) to authenticated;
 grant execute on function public.evolution_authors(uuid) to authenticated;
 
 -- ============================================================
+-- COLUNAS SEM USO NO APP (auditoria de 26/07/2026)
+-- ============================================================
+-- Nenhuma delas é lida nem escrita por linha alguma de src/. Foram retiradas
+-- dos tipos TypeScript, mas NÃO são derrubadas aqui: drop column apaga dado e
+-- é decisão do Jeann, não minha.
+--
+--   patients.active            substituída por patients.status
+--   patients.admission_date    nunca preenchida
+--   patients.intubation_date   nunca preenchida
+--   patients.comorbidities     nunca preenchida
+--   daily_evolutions.hco3      não existe campo no formulário
+--   daily_evolutions.be        não existe campo no formulário
+--   asynchronies.evolution_id  nunca preenchida
+--   asynchronies.notes         nunca preenchida
+--   profiles.role              nenhuma regra de autorização a usa
+--
+-- Caso decida remover, confira antes que não há dado real gravado:
+--   select count(*) from public.patients where comorbidities <> '{}';
+--   select count(*) from public.daily_evolutions where hco3 is not null or be is not null;
+--
+-- ventilators.notes é caso diferente: TEM conteúdo curado (o seed abaixo
+-- preenche), mas nenhuma tela mostra. Ou passa a ser exibida, ou sai. Decisão
+-- de produto, ficou registrada no relatório.
+
+-- ============================================================
 -- SEED: ventiladores (estrutura inicial :: CONTEÚDO A VALIDAR)
 -- ATENÇÃO: marcados verified=false. Você e seu mentor devem
 -- revisar nomenclatura e manuseio antes de uso clínico real.
