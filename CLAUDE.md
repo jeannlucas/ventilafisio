@@ -8,8 +8,13 @@ pelo próprio README.
 MANUTENÇÃO.
 
 Estado em 26/07/2026, depois da auditoria: a suíte roda e passa.
-`pnpm test` devolve **148 testes em 7 arquivos**, e `pnpm exec tsc --noEmit`
+`pnpm test` devolve **154 testes em 8 arquivos**, e `pnpm exec tsc --noEmit`
 sai limpo. A suíte foi rodada 10 vezes seguidas com resultado idêntico.
+
+Atenção ao escrever teste novo: o `tsconfig.json` não inclui os tipos de Node,
+então `node:fs` e `__dirname` passam no vitest mas **quebram o `pnpm build`**,
+que roda `tsc --noEmit` antes. Para ler arquivo em teste, use o `?raw` do Vite
+(exemplo em `src/favicon.test.ts`).
 
 ## Branches
 - Principal: `main`
