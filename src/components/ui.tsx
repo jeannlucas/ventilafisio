@@ -281,6 +281,36 @@ export function HeroCard({
   );
 }
 
+/**
+ * Mensagem de falha visível na tela. Antes, o erro do Supabase era descartado
+ * e o botão simplesmente não fazia nada, sem o usuário saber por quê.
+ * role="alert" faz o leitor de tela anunciar sem precisar de foco.
+ */
+export function Alert({
+  children,
+  tone = "danger",
+}: {
+  children: ReactNode;
+  tone?: "danger" | "warn";
+}) {
+  const color = tone === "danger" ? T.danger : T.warn;
+  return (
+    <div
+      role="alert"
+      style={{
+        fontSize: 13,
+        color: T.txt,
+        background: `${color}14`,
+        border: `1px solid ${color}40`,
+        borderRadius: 10,
+        padding: "10px 14px",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Btn({
   children,
   onClick,
@@ -327,12 +357,14 @@ export function Tabs({
   onChange: (key: string) => void;
 }) {
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", borderBottom: `1px solid ${T.line}` }}>
+    <div role="tablist" style={{ display: "flex", gap: 6, flexWrap: "wrap", borderBottom: `1px solid ${T.line}` }}>
       {tabs.map((t) => {
         const on = t.key === active;
         return (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={on}
             onClick={() => onChange(t.key)}
             style={{
               background: "transparent",

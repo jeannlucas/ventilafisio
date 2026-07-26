@@ -3,7 +3,9 @@ import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { T, fmt } from "../lib/theme";
-import { Panel, Field, HeroCard, Btn, Grid, Row, FormSection, Tabs, ChipGroup, ChipToggle } from "../components/ui";
+import { Panel, Field, HeroCard, Btn, Grid, Row, FormSection, Tabs, ChipGroup, ChipToggle, Alert } from "../components/ui";
+import { invalidMeasurements, inconsistentMeasurements } from "../lib/measurement-limits";
+import VentilatorGuide from "../components/VentilatorGuide";
 import { Patient, Ventilator, DailyEvolution, Asynchrony, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
@@ -21,17 +23,30 @@ export default function PatientDetail() {
   const [asyncs, setAsyncs] = useState<Asynchrony[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState("admissao");
 
   const load = async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: p }, { data: v }, { data: ev }, { data: asy }] = await Promise.all([
+    setLoadError(null);
+    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }] = await Promise.all([
       supabase.from("patients").select("*").eq("id", id).single(),
       supabase.from("ventilators").select("*").order("brand"),
       supabase.from("daily_evolutions").select("*").eq("patient_id", id).order("recorded_at", { ascending: true }),
       supabase.from("asynchronies").select("*").eq("patient_id", id).order("recorded_at", { ascending: false }),
     ]);
+    // Sem este ramo, paciente inacessível deixava patient em null e a tela
+    // ficava em "Carregando…" para sempre.
+    if (patientError || !p) {
+      setPatient(null);
+      setLoadError(
+        patientError?.message ??
+          "Ele pode ter sido removido, ou você pode não ter acesso a ele."
+      );
+      setLoading(false);
+      return;
+    }
     setPatient(p as Patient);
     setVentilators((v as Ventilator[]) ?? []);
     setEvolutions((ev as DailyEvolution[]) ?? []);
@@ -50,7 +65,14 @@ export default function PatientDetail() {
     load();
   }, [id]);
 
-  if (loading || !patient) return <p style={{ color: T.dim }}>Carregando…</p>;
+  if (loading) return <p style={{ color: T.dim }}>Carregando…</p>;
+  if (!patient) {
+    return (
+      <Alert>
+        Não foi possível abrir este paciente. {loadError}
+      </Alert>
+    );
+  }
 
   const vent = ventilators.find((v) => v.id === patient.ventilator_id);
   const last = evolutions[evolutions.length - 1];
@@ -119,6 +141,10 @@ function PatientHeader({
   const [editing, setEditing] = useState(false);
   const [ventId, setVentId] = useState(patient.ventilator_id ?? "");
   const [mode, setMode] = useState(patient.current_mode ?? "VCV");
+  const [height, setHeight] = useState(patient.height_cm != null ? String(patient.height_cm) : "");
+  const [weight, setWeight] = useState(patient.weight_kg != null ? String(patient.weight_kg) : "");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const selVent = ventilators.find((v) => v.id === ventId);
   const modes = selVent?.modes ?? ["VCV", "PCV", "PSV", "SIMV", "CPAP"];
 
@@ -126,11 +152,25 @@ function PatientHeader({
   const bmiVal = C.bmi(patient.weight_kg, patient.height_cm);
 
   const save = async () => {
-    await supabase.from("patients").update({
+    const problemas = invalidMeasurements({ height_cm: height, weight_kg: weight });
+    if (problemas.length > 0) {
+      setError(problemas.map((p) => p.message).join(" "));
+      return;
+    }
+    setSaving(true);
+    const { error: saveError } = await supabase.from("patients").update({
       ventilator_id: ventId || null,
       current_mode: mode,
+      height_cm: height.trim() ? Number(height) : null,
+      weight_kg: weight.trim() ? Number(weight) : null,
       updated_at: new Date().toISOString(),
     }).eq("id", patient.id);
+    setSaving(false);
+    if (saveError) {
+      setError(saveError.message);
+      return;
+    }
+    setError(null);
     setEditing(false);
     onUpdate();
   };
@@ -166,18 +206,23 @@ function PatientHeader({
                 onClick={() => setEditing(true)}
                 style={{ marginTop: 6, background: "transparent", border: `1px solid ${T.line}`, color: T.dim, borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
               >
-                Trocar ventilador/modo
+                Editar dados, ventilador e modo
               </button>
             </>
           ) : (
-            <div style={{ display: "grid", gap: 8, minWidth: 220 }}>
+            <div style={{ display: "grid", gap: 8, minWidth: 240, textAlign: "left" }}>
+              {/* Altura e peso só podiam ser informados na admissão, enquanto a
+                  tela pedia para corrigi-los depois para refinar o PBW. */}
+              <Field label="Altura" unit="cm" value={height} onChange={setHeight} />
+              <Field label="Peso" unit="kg" value={weight} onChange={setWeight} />
               <Field label="Ventilador" value={ventId} onChange={setVentId}
                 options={ventilators.map((v) => ({ v: v.id, t: `${v.brand} ${v.model}` }))} />
               <Field label="Modo" value={mode} onChange={setMode}
                 options={modes.map((m) => ({ v: m, t: m }))} />
+              {error && <Alert>{error}</Alert>}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <Btn variant="ghost" onClick={() => setEditing(false)}>Cancelar</Btn>
-                <Btn onClick={save}>Salvar</Btn>
+                <Btn onClick={save} disabled={saving}>Salvar</Btn>
               </div>
             </div>
           )}
@@ -191,21 +236,26 @@ function PatientHeader({
 function ShareControl({ patient, ownerId }: { patient: Patient; ownerId: string }) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const share = async () => {
     setBusy(true);
+    setError(null);
     // Token gerado no cliente: sem .select() no insert (evita esbarrar no SELECT de RLS).
     const token = crypto.randomUUID();
-    const { error } = await supabase.from("patient_shares").insert({
+    const { error: shareError } = await supabase.from("patient_shares").insert({
       patient_id: patient.id,
       token,
       created_by: ownerId,
     });
     setBusy(false);
-    if (error) {
-      alert("Erro ao gerar link: " + error.message);
+    if (shareError) {
+      setError(shareError.message);
       return;
     }
+    setMessage(`Link gerado. Ele vale por 7 dias e pode ser revogado a qualquer momento.`);
     const link = `${window.location.origin}/compartilhar/${token}`;
     try {
       await navigator.clipboard.writeText(link);
@@ -216,10 +266,59 @@ function ShareControl({ patient, ownerId }: { patient: Patient; ownerId: string 
     }
   };
 
+  // Antes não havia revogação: nem policy de DELETE, nem botão. Concedido o
+  // acesso a um paciente, ele nunca mais saía.
+  const revoke = async () => {
+    setBusy(true);
+    setError(null);
+    const { error: sharesError } = await supabase
+      .from("patient_shares")
+      .delete()
+      .eq("patient_id", patient.id);
+    const { error: accessError } = await supabase
+      .from("patient_access")
+      .delete()
+      .eq("patient_id", patient.id);
+    setBusy(false);
+    setConfirmingRevoke(false);
+    const falha = sharesError ?? accessError;
+    if (falha) {
+      setError(falha.message);
+      return;
+    }
+    setMessage("Links pendentes cancelados e acessos compartilhados removidos.");
+  };
+
   return (
-    <Btn variant="ghost" onClick={share} disabled={busy}>
-      {copied ? "Link copiado ✓" : busy ? "Gerando…" : "Compartilhar / Passar plantão"}
-    </Btn>
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <Btn variant="ghost" onClick={share} disabled={busy}>
+          {copied ? "Link copiado ✓" : busy ? "Gerando…" : "Compartilhar / Passar plantão"}
+        </Btn>
+        {!confirmingRevoke ? (
+          <Btn variant="ghost" onClick={() => setConfirmingRevoke(true)} disabled={busy}>
+            Revogar acessos
+          </Btn>
+        ) : (
+          <>
+            <Btn variant="danger" onClick={revoke} disabled={busy}>
+              Confirmar revogação
+            </Btn>
+            <Btn variant="ghost" onClick={() => setConfirmingRevoke(false)} disabled={busy}>
+              Cancelar
+            </Btn>
+          </>
+        )}
+      </div>
+      {confirmingRevoke && (
+        <span style={{ fontSize: 12, color: T.dim }}>
+          Cancela os links pendentes e tira o paciente de quem já aceitou. Membros
+          do hospital continuam vendo.
+        </span>
+      )}
+      {error && <Alert>{error}</Alert>}
+      {!error && message && <span style={{ fontSize: 12, color: T.ok }}>{message}</span>}
+    </div>
   );
 }
 
@@ -227,30 +326,41 @@ function ShareControl({ patient, ownerId }: { patient: Patient; ownerId: string 
 function ArchiveControl({ patient, onUpdate }: { patient: Patient; onUpdate: () => void }) {
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const archived = patient.status === "archived";
 
   const archive = async (reason: "death" | "extubation") => {
     setBusy(true);
-    await supabase.from("patients").update({
+    const { error: archiveError } = await supabase.from("patients").update({
       status: "archived",
       discharge_reason: reason,
       discharge_date: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", patient.id);
     setBusy(false);
+    if (archiveError) {
+      setError(archiveError.message);
+      return;
+    }
+    setError(null);
     setChoosing(false);
     onUpdate();
   };
 
   const reactivate = async () => {
     setBusy(true);
-    await supabase.from("patients").update({
+    const { error: reactivateError } = await supabase.from("patients").update({
       status: "active",
       discharge_reason: null,
       discharge_date: null,
       updated_at: new Date().toISOString(),
     }).eq("id", patient.id);
     setBusy(false);
+    if (reactivateError) {
+      setError(reactivateError.message);
+      return;
+    }
+    setError(null);
     onUpdate();
   };
 
@@ -264,22 +374,26 @@ function ArchiveControl({ patient, onUpdate }: { patient: Patient; onUpdate: () 
           <span style={{ color: T.dim, fontWeight: 400 }}> · histórico em modo leitura</span>
         </span>
         <Btn variant="ghost" onClick={reactivate} disabled={busy}>Reativar</Btn>
+        {error && <Alert>{error}</Alert>}
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-      {!choosing ? (
-        <Btn variant="ghost" onClick={() => setChoosing(true)}>Dar alta / Arquivar</Btn>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: T.dim }}>Motivo da alta:</span>
-          <Btn variant="ghost" onClick={() => archive("extubation")} disabled={busy}>Extubação</Btn>
-          <Btn variant="danger" onClick={() => archive("death")} disabled={busy}>Óbito</Btn>
-          <Btn variant="ghost" onClick={() => setChoosing(false)} disabled={busy}>Cancelar</Btn>
-        </div>
-      )}
+    <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+        {!choosing ? (
+          <Btn variant="ghost" onClick={() => setChoosing(true)}>Dar alta / Arquivar</Btn>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: T.dim }}>Motivo da alta:</span>
+            <Btn variant="ghost" onClick={() => archive("extubation")} disabled={busy}>Extubação</Btn>
+            <Btn variant="danger" onClick={() => archive("death")} disabled={busy}>Óbito</Btn>
+            <Btn variant="ghost" onClick={() => setChoosing(false)} disabled={busy}>Cancelar</Btn>
+          </div>
+        )}
+      </div>
+      {error && <Alert>{error}</Alert>}
     </div>
   );
 }
@@ -517,6 +631,7 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
   const [meds, setMeds] = useState<IvMeds>(previous?.iv_meds ?? {});
   const [feeding, setFeeding] = useState<Feeding>(previous?.feeding ?? {});
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
   const set = (k: string) => (v: string) => setVals((s) => ({ ...s, [k]: v }));
 
   const toggleFinding = (modality: "xray" | "ct" | "mri", key: string) =>
@@ -538,13 +653,26 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
   };
 
   const save = async () => {
+    // Medida impossível não pode entrar no banco: era daqui que saíam a P/F
+    // infinita, o IMC infinito e a driving pressure negativa.
+    const problemas = [
+      ...invalidMeasurements(vals),
+      ...inconsistentMeasurements(vals),
+    ];
+    if (problemas.length > 0) {
+      setErrors(problemas.map((p) => p.message));
+      return;
+    }
+    setErrors([]);
     setSaving(true);
     const payload: Record<string, unknown> = {
       patient_id: patient.id,
       owner_id: ownerId,
       mode: patient.current_mode,
       tre_result: tre || null,
-      vasopressor: meds.vasopressor?.on ?? false,
+      // null quando o chip nunca foi tocado: "não avaliado" não pode virar
+      // "sem vasopressor", que a triagem de extubação conta como critério atendido.
+      vasopressor: meds.vasopressor?.on ?? null,
       notes: notes || null,
       imaging,
       iv_meds: meds,
@@ -556,12 +684,13 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
     }
     const { error } = await supabase.from("daily_evolutions").insert(payload);
     setSaving(false);
-    if (error) alert("Erro: " + error.message);
-    else {
-      setVals({});
-      setTre("");
-      onSaved();
+    if (error) {
+      setErrors([error.message]);
+      return;
     }
+    setVals({});
+    setTre("");
+    onSaved();
   };
 
   const modalities: { key: "xray" | "ct" | "mri"; label: string }[] = [
@@ -631,6 +760,15 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
           </div>
         </FormSection>
       </div>
+      {errors.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <Alert>
+            <div style={{ display: "grid", gap: 4 }}>
+              {errors.map((e) => <span key={e}>{e}</span>)}
+            </div>
+          </Alert>
+        </div>
+      )}
       <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center" }}>
         <Btn onClick={save} disabled={saving}>{saving ? "Salvando…" : "Salvar evolução"}</Btn>
         <button type="button" onClick={clearBoard} style={{ background: "transparent", border: "none", color: T.dim, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
@@ -714,27 +852,39 @@ function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
     glasgow: ev.glasgow, vasopressor: ev.vasopressor, treResult: ev.tre_result,
     peakCoughFlow: ev.peak_cough_flow,
   });
-  const map = {
+  const veredito = {
     favorable: { c: T.ok, t: "Critérios favoráveis para extubação" },
-    borderline: { c: T.warn, t: "Critérios parciais — reavaliar" },
+    borderline: { c: T.warn, t: "Critérios parciais, reavaliar" },
     unfavorable: { c: T.danger, t: "Critérios desfavoráveis" },
+    insufficient: { c: T.dim, t: "Dados insuficientes para triagem" },
   }[r.level];
 
   return (
-    <Panel title="Prontidão para extubação" accent={map.c}
-      sub="Triagem objetiva a partir da última evolução — não é indicação de extubar">
+    <Panel title="Prontidão para extubação" accent={veredito.c}
+      sub="Triagem objetiva a partir da última evolução, não é indicação de extubar">
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: map.c }}>
-          {r.level === "favorable" ? "✓" : "⚠"} {map.t}
+        <span style={{ fontSize: 15, fontWeight: 700, color: veredito.c }}>
+          {r.level === "favorable" ? "✓" : r.level === "insufficient" ? "ℹ" : "⚠"} {veredito.t}
         </span>
-        <span style={{ fontSize: 13, color: T.dim, marginLeft: "auto" }}>{r.score}/{r.max}</span>
+        <span style={{ fontSize: 13, color: T.dim, marginLeft: "auto" }}>
+          {r.score}/{r.max} critérios atendidos
+        </span>
       </div>
+      {r.level === "insufficient" && (
+        <p style={{ margin: "0 0 12px", fontSize: 12, color: T.dim }}>
+          Registre ao menos {C.MIN_CRITERIOS_AVALIADOS} critérios objetivos na evolução para o
+          app conseguir triar. O que está abaixo é o que já foi medido.
+        </p>
+      )}
       <div style={{ display: "grid", gap: 6 }}>
         {r.met.map((m) => (
           <div key={m} style={{ fontSize: 13, color: T.ok }}>✓ {m}</div>
         ))}
-        {r.pending.map((m) => (
-          <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m}</div>
+        {r.failed.map((m) => (
+          <div key={m} style={{ fontSize: 13, color: T.danger }}>✗ {m}</div>
+        ))}
+        {r.notMeasured.map((m) => (
+          <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m} <span style={{ fontSize: 11 }}>(não medido)</span></div>
         ))}
       </div>
     </Panel>
@@ -838,52 +988,6 @@ function AsynchronyModule({ patientId, ownerId, asyncs, onChange }: {
                 {new Date(a.recorded_at).toLocaleDateString("pt-BR")}
               </span>
               <button onClick={() => remove(a.id)} style={{ background: "none", border: "none", color: T.danger, cursor: "pointer", fontSize: 12 }}>remover</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </Panel>
-  );
-}
-
-// ---------- Guia do ventilador ----------
-export function VentilatorGuide({ vent, mode }: { vent: Ventilator; mode: string | null }) {
-  const handling = vent.handling as Record<string, unknown>;
-  const steps = (handling?.iniciar as string[]) ?? [];
-  const tips = Object.entries(handling).filter(([k]) => k !== "iniciar");
-
-  return (
-    <Panel title={`${vent.brand} ${vent.model}`} sub={`Manuseio · modo atual: ${mode ?? "—"}`}>
-      {!vent.verified && (
-        <div style={{ fontSize: 11, color: T.warn, background: `${T.warn}14`, border: `1px solid ${T.warn}40`, borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
-          Conteúdo não validado — confirme a nomenclatura na tela do aparelho antes do uso clínico.
-        </div>
-      )}
-      {vent.param_labels && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: T.dim, marginBottom: 6 }}>Nomenclatura neste aparelho:</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {Object.entries(vent.param_labels).map(([k, v]) => (
-              <span key={k} style={{ fontSize: 11, background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 999, padding: "3px 9px", color: T.txt }}>
-                {k} → <strong>{v as string}</strong>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      {steps.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: T.dim, marginBottom: 6 }}>Passo a passo inicial:</div>
-          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: T.txt, lineHeight: 1.7 }}>
-            {steps.map((s) => <li key={s}>{s}</li>)}
-          </ol>
-        </div>
-      )}
-      {tips.length > 0 && (
-        <div style={{ display: "grid", gap: 6 }}>
-          {tips.map(([k, v]) => (
-            <div key={k} style={{ fontSize: 13, color: T.txt }}>
-              <span style={{ color: T.accent }}>{k.replace(/_/g, " ")}:</span> {v as string}
             </div>
           ))}
         </div>

@@ -3,7 +3,9 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./lib/auth";
 import { HospitalProvider } from "./lib/hospital";
+import { supabaseConfigured } from "./lib/supabase";
 import App from "./App";
+import ConfigMissing from "./pages/ConfigMissing";
 import { T, font } from "./lib/theme";
 
 // Estilos globais mínimos
@@ -25,14 +27,20 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// Sem configuração não adianta montar auth nem roteador: nenhuma requisição
+// funcionaria e o usuário veria só uma tela vazia.
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <HospitalProvider>
-          <App />
-        </HospitalProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    {supabaseConfigured ? (
+      <BrowserRouter>
+        <AuthProvider>
+          <HospitalProvider>
+            <App />
+          </HospitalProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    ) : (
+      <ConfigMissing />
+    )}
   </React.StrictMode>
 );

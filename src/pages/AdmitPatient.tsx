@@ -4,7 +4,8 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useHospital } from "../lib/hospital";
 import { T } from "../lib/theme";
-import { Panel, Field, Btn, Row } from "../components/ui";
+import { Panel, Field, Btn, Row, Alert } from "../components/ui";
+import { invalidMeasurements } from "../lib/measurement-limits";
 import { Ventilator } from "../types";
 
 export default function AdmitPatient() {
@@ -23,6 +24,7 @@ export default function AdmitPatient() {
     current_mode: "VCV",
   });
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
   const set = (k: string) => (v: string) => setF((s) => ({ ...s, [k]: v }));
 
   useEffect(() => {
@@ -42,6 +44,18 @@ export default function AdmitPatient() {
 
   const save = async () => {
     if (!f.name.trim() || !activeHospitalId) return;
+    // Altura zero aqui virava IMC infinito no dashboard e estendia o alvo de
+    // volume corrente como se o paciente fosse obeso.
+    const problemas = invalidMeasurements({
+      height_cm: f.height_cm,
+      weight_kg: f.weight_kg,
+      age: f.age,
+    });
+    if (problemas.length > 0) {
+      setErrors(problemas.map((p) => p.message));
+      return;
+    }
+    setErrors([]);
     setSaving(true);
     const { data, error } = await supabase
       .from("patients")
@@ -61,7 +75,7 @@ export default function AdmitPatient() {
       .single();
     setSaving(false);
     if (error || !data) {
-      alert("Erro ao salvar: " + (error?.message ?? "desconhecido"));
+      setErrors([error?.message ?? "Não foi possível admitir o paciente."]);
       return;
     }
     navigate(`/paciente/${(data as { id: string }).id}`);
@@ -113,6 +127,13 @@ export default function AdmitPatient() {
             options={modes.map((m) => ({ v: m, t: m }))}
           />
         </Row>
+        {errors.length > 0 && (
+          <Alert>
+            <div style={{ display: "grid", gap: 4 }}>
+              {errors.map((e) => <span key={e}>{e}</span>)}
+            </div>
+          </Alert>
+        )}
         <div>
           <Btn onClick={save} disabled={saving || !f.name.trim()}>
             {saving ? "Salvando…" : "Admitir paciente"}

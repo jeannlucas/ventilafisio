@@ -1,5 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { ventilationCorrelations } from "./clinical";
+import {
+  pbw,
+  pbwOrEstimate,
+  AVG_HEIGHT,
+  bmi,
+  pfRatio,
+  vcPerKg,
+  drivingPressure,
+  mechanicalPower,
+  cStat,
+  cDyn,
+  raw,
+  tobin,
+  map,
+  classify,
+  extubationReadiness,
+  suggestVc,
+  suggestPeepFio2,
+  suggestVentilation,
+  admissionSuggestion,
+  ventilationCorrelations,
+} from "./clinical";
 import type { DailyEvolution } from "../types";
 
 // Evolução mínima: só os campos que o motor lê importam.
@@ -7,6 +28,512 @@ function ev(partial: Partial<DailyEvolution>): DailyEvolution {
   return { imaging: {}, iv_meds: {}, feeding: {}, ...partial } as DailyEvolution;
 }
 
+// ============================================================
+// Peso predito e antropometria
+// ============================================================
+describe("pbw", () => {
+  it("aplica a fórmula ARDSnet masculina", () => {
+    // 50 + 0.91 * (170 - 152.4)
+    expect(pbw("M", 170)).toBeCloseTo(66.016, 3);
+  });
+
+  it("aplica a fórmula ARDSnet feminina", () => {
+    // 45.5 + 0.91 * (160 - 152.4)
+    expect(pbw("F", 160)).toBeCloseTo(52.416, 3);
+  });
+
+  it("devolve null sem altura", () => {
+    expect(pbw("M", null)).toBeNull();
+    expect(pbw("M", undefined)).toBeNull();
+  });
+
+  it("altura zero ou negativa é impossível e não vira peso predito", () => {
+    expect(pbw("M", 0)).toBeNull();
+    expect(pbw("F", -10)).toBeNull();
+  });
+});
+
+describe("pbwOrEstimate", () => {
+  it("usa a altura informada e marca como não estimado", () => {
+    const r = pbwOrEstimate("M", 170);
+    expect(r.estimated).toBe(false);
+    expect(r.value).toBeCloseTo(66.016, 3);
+  });
+
+  it("cai na altura média do sexo e marca como estimado", () => {
+    const m = pbwOrEstimate("M", null);
+    expect(m.estimated).toBe(true);
+    expect(m.value).toBeCloseTo(pbw("M", AVG_HEIGHT.M)!, 6);
+
+    const f = pbwOrEstimate("F", null);
+    expect(f.estimated).toBe(true);
+    expect(f.value).toBeCloseTo(pbw("F", AVG_HEIGHT.F)!, 6);
+  });
+
+  it("altura impossível cai na estimativa em vez de propagar lixo", () => {
+    const r = pbwOrEstimate("M", 0);
+    expect(r.estimated).toBe(true);
+    expect(Number.isFinite(r.value)).toBe(true);
+  });
+});
+
+describe("bmi", () => {
+  it("calcula peso sobre altura ao quadrado", () => {
+    expect(bmi(70, 170)).toBeCloseTo(24.221, 3);
+  });
+
+  it("devolve null sem peso ou sem altura", () => {
+    expect(bmi(null, 170)).toBeNull();
+    expect(bmi(70, null)).toBeNull();
+  });
+
+  // Defeito B2: altura zero produzia Infinity, e Infinity >= 30 classificava
+  // o paciente como obeso, subindo o alvo de VC de 4-6 para 6-8 ml/kg.
+  it("altura zero não produz IMC infinito", () => {
+    expect(bmi(70, 0)).toBeNull();
+  });
+
+  it("altura negativa não produz IMC", () => {
+    expect(bmi(70, -170)).toBeNull();
+  });
+});
+
+// ============================================================
+// Trocas gasosas e mecânica
+// ============================================================
+describe("pfRatio", () => {
+  it("divide a PaO2 pela fração inspirada", () => {
+    expect(pfRatio(100, 50)).toBe(200);
+    expect(pfRatio(90, 30)).toBe(300);
+  });
+
+  it("devolve null sem PaO2 ou sem FiO2", () => {
+    expect(pfRatio(null, 50)).toBeNull();
+    expect(pfRatio(100, null)).toBeNull();
+  });
+
+  // Defeito B1: FiO2 zero produzia Infinity, e classify.pf(Infinity) devolvia
+  // "Normal" em verde para um paciente gravemente hipoxêmico.
+  it("FiO2 zero não produz relação infinita", () => {
+    expect(pfRatio(60, 0)).toBeNull();
+  });
+
+  it("FiO2 negativa não produz relação", () => {
+    expect(pfRatio(60, -21)).toBeNull();
+  });
+});
+
+describe("vcPerKg", () => {
+  it("divide o volume corrente pelo peso predito", () => {
+    expect(vcPerKg(420, 70)).toBe(6);
+  });
+
+  it("devolve null sem volume ou sem peso predito", () => {
+    expect(vcPerKg(null, 70)).toBeNull();
+    expect(vcPerKg(420, null)).toBeNull();
+  });
+
+  it("peso predito zero não produz volume por quilo infinito", () => {
+    expect(vcPerKg(420, 0)).toBeNull();
+  });
+});
+
+describe("drivingPressure", () => {
+  it("subtrai a PEEP do platô", () => {
+    expect(drivingPressure(28, 10)).toBe(18);
+  });
+
+  it("devolve null sem platô ou sem PEEP", () => {
+    expect(drivingPressure(null, 10)).toBeNull();
+    expect(drivingPressure(28, null)).toBeNull();
+  });
+
+  // Defeito B3: platô menor que PEEP é fisicamente impossível, mas devolvia
+  // um número negativo que classify.dp rotulava como "Ideal" em verde.
+  it("platô abaixo da PEEP é impossível e não vira driving pressure", () => {
+    expect(drivingPressure(10, 18)).toBeNull();
+  });
+
+  it("platô igual à PEEP não vira driving pressure zero", () => {
+    expect(drivingPressure(15, 15)).toBeNull();
+  });
+});
+
+describe("mechanicalPower", () => {
+  it("aplica a fórmula de Gattinoni simplificada com VC em litros", () => {
+    // 0.098 * 20 * 0.4 * (30 - 0.5 * 15)
+    expect(mechanicalPower(20, 400, 30, 15)).toBeCloseTo(17.64, 5);
+  });
+
+  it("devolve null com qualquer parcela ausente", () => {
+    expect(mechanicalPower(null, 400, 30, 15)).toBeNull();
+    expect(mechanicalPower(20, null, 30, 15)).toBeNull();
+    expect(mechanicalPower(20, 400, null, 15)).toBeNull();
+    expect(mechanicalPower(20, 400, 30, null)).toBeNull();
+  });
+});
+
+describe("cStat", () => {
+  it("divide o volume corrente pela driving pressure", () => {
+    expect(cStat(400, 28, 8)).toBe(20);
+  });
+
+  it("devolve null quando a driving pressure não existe", () => {
+    expect(cStat(400, 15, 15)).toBeNull();
+  });
+
+  // Defeito B3: complacência negativa era plotada no gráfico de tendência.
+  it("platô abaixo da PEEP não produz complacência negativa", () => {
+    expect(cStat(400, 10, 18)).toBeNull();
+  });
+});
+
+describe("cDyn", () => {
+  it("divide o volume corrente pela diferença entre pico e PEEP", () => {
+    expect(cDyn(400, 30, 10)).toBe(20);
+  });
+
+  it("devolve null quando pico e PEEP se anulam", () => {
+    expect(cDyn(400, 15, 15)).toBeNull();
+  });
+
+  it("pico abaixo da PEEP não produz complacência negativa", () => {
+    expect(cDyn(400, 10, 18)).toBeNull();
+  });
+});
+
+describe("raw", () => {
+  it("divide a diferença entre pico e platô pelo fluxo", () => {
+    expect(raw(30, 24, 60)).toBeCloseTo(0.1, 6);
+  });
+
+  it("devolve null com fluxo zero", () => {
+    expect(raw(30, 24, 0)).toBeNull();
+  });
+
+  it("pico abaixo do platô é impossível e não vira resistência negativa", () => {
+    expect(raw(24, 30, 60)).toBeNull();
+  });
+});
+
+describe("tobin", () => {
+  it("divide a frequência pelo volume corrente em litros", () => {
+    expect(tobin(20, 400)).toBe(50);
+  });
+
+  it("devolve null com volume corrente zero", () => {
+    expect(tobin(20, 0)).toBeNull();
+  });
+
+  it("volume corrente negativo não produz índice", () => {
+    expect(tobin(20, -400)).toBeNull();
+  });
+});
+
+describe("map", () => {
+  it("aplica a média de uma sistólica e duas diastólicas", () => {
+    expect(map(120, 60)).toBe(80);
+  });
+
+  it("devolve null sem sistólica ou sem diastólica", () => {
+    expect(map(null, 60)).toBeNull();
+    expect(map(120, null)).toBeNull();
+  });
+});
+
+// ============================================================
+// Classificações: os limites clínicos. Nenhum destes números muda.
+// ============================================================
+describe("classify.pf", () => {
+  it("classifica pelas faixas de SDRA", () => {
+    expect(classify.pf(300)).toEqual({ s: "ok", t: "Normal" });
+    expect(classify.pf(299)).toEqual({ s: "warn", t: "Leve" });
+    expect(classify.pf(200)).toEqual({ s: "warn", t: "Leve" });
+    expect(classify.pf(199)).toEqual({ s: "warn", t: "Moderada" });
+    expect(classify.pf(100)).toEqual({ s: "warn", t: "Moderada" });
+    expect(classify.pf(99)).toEqual({ s: "danger", t: "Grave" });
+  });
+
+  it("devolve null sem valor", () => {
+    expect(classify.pf(null)).toBeNull();
+  });
+
+  // Defeito B1: um valor não finito era rotulado como "Normal" em verde.
+  it("valor não finito não é classificado como normal", () => {
+    expect(classify.pf(Infinity)).toBeNull();
+  });
+});
+
+describe("classify.vcKg", () => {
+  it("usa a faixa protetora 4 a 6 para o não obeso", () => {
+    expect(classify.vcKg(3.9)).toEqual({ s: "danger", t: "Muito baixo" });
+    expect(classify.vcKg(4)).toEqual({ s: "ok", t: "Ideal" });
+    expect(classify.vcKg(6)).toEqual({ s: "ok", t: "Ideal" });
+    expect(classify.vcKg(7)).toEqual({ s: "warn", t: "Aceitável" });
+    expect(classify.vcKg(8.1)).toEqual({ s: "danger", t: "Alto" });
+  });
+
+  it("estende a faixa ideal até 8 para o obeso", () => {
+    expect(classify.vcKg(7, true)).toEqual({ s: "ok", t: "Ideal" });
+    expect(classify.vcKg(8, true)).toEqual({ s: "ok", t: "Ideal" });
+    expect(classify.vcKg(8.1, true)).toEqual({ s: "danger", t: "Alto" });
+  });
+
+  it("devolve null sem valor", () => {
+    expect(classify.vcKg(null)).toBeNull();
+  });
+});
+
+describe("classify.pplat", () => {
+  it("marca risco de lesão a partir de 30", () => {
+    expect(classify.pplat(29)).toEqual({ s: "ok", t: "Adequado" });
+    expect(classify.pplat(30)).toEqual({ s: "danger", t: "Risco de lesão" });
+  });
+});
+
+describe("classify.dp", () => {
+  it("classifica pelas faixas de driving pressure", () => {
+    expect(classify.dp(12)).toEqual({ s: "ok", t: "Ideal" });
+    expect(classify.dp(13)).toEqual({ s: "warn", t: "Atenção" });
+    expect(classify.dp(15)).toEqual({ s: "warn", t: "Atenção" });
+    expect(classify.dp(16)).toEqual({ s: "danger", t: "Alto risco" });
+  });
+
+  // Defeito B3: driving pressure negativa era rotulada como "Ideal" em verde.
+  it("driving pressure negativa não é classificada como ideal", () => {
+    expect(classify.dp(-8)).toBeNull();
+  });
+});
+
+describe("classify.mp", () => {
+  it("marca potência elevada a partir de 17", () => {
+    expect(classify.mp(16.9)).toEqual({ s: "ok", t: "Adequado" });
+    expect(classify.mp(17)).toEqual({ s: "danger", t: "Elevado" });
+  });
+});
+
+describe("classify.tobin", () => {
+  it("marca desfavorável a partir de 105", () => {
+    expect(classify.tobin(104)).toEqual({ s: "ok", t: "Favorável" });
+    expect(classify.tobin(105)).toEqual({ s: "warn", t: "Desfavorável" });
+  });
+});
+
+describe("classify.pimax", () => {
+  it("classifica pelas faixas de pressão inspiratória máxima", () => {
+    expect(classify.pimax(-30)).toEqual({ s: "ok", t: "Ideal" });
+    expect(classify.pimax(-25)).toEqual({ s: "warn", t: "Aceitável" });
+    expect(classify.pimax(-20)).toEqual({ s: "warn", t: "Aceitável" });
+    expect(classify.pimax(-19)).toEqual({ s: "danger", t: "Insuficiente" });
+  });
+});
+
+// ============================================================
+// Prontidão para extubação
+// ============================================================
+describe("extubationReadiness", () => {
+  const completoFavoravel = {
+    fio2: 30,
+    peep: 5,
+    tobinVal: 60,
+    pimaxVal: -35,
+    glasgow: 15,
+    vasopressor: false,
+    treResult: "pass",
+    peakCoughFlow: 80,
+  };
+
+  it("marca favorável quando todos os critérios avaliados passam", () => {
+    const r = extubationReadiness(completoFavoravel);
+    expect(r.level).toBe("favorable");
+    expect(r.score).toBe(8);
+    expect(r.max).toBe(8);
+  });
+
+  it("TRE falhado é bloqueador mesmo com todo o resto favorável", () => {
+    const r = extubationReadiness({ ...completoFavoravel, treResult: "fail" });
+    expect(r.level).toBe("unfavorable");
+  });
+
+  it("marca desfavorável quando a maioria dos critérios avaliados falha", () => {
+    const r = extubationReadiness({
+      fio2: 80,
+      peep: 14,
+      tobinVal: 130,
+      pimaxVal: -10,
+      glasgow: 6,
+      vasopressor: true,
+    });
+    expect(r.level).toBe("unfavorable");
+  });
+
+  // Defeito B4: uma evolução em branco devolvia "borderline", que a tela
+  // mostra como "Critérios parciais, reavaliar". Ausência de dado não é
+  // avaliação parcial. O corte de 4 critérios já existia na função.
+  it("dado nenhum não vira veredito de triagem", () => {
+    expect(extubationReadiness({}).level).toBe("insufficient");
+  });
+
+  it("menos de quatro critérios avaliados é dado insuficiente", () => {
+    expect(extubationReadiness({ fio2: 30 }).level).toBe("insufficient");
+    expect(extubationReadiness({ fio2: 30, peep: 5, glasgow: 15 }).level).toBe(
+      "insufficient"
+    );
+  });
+
+  it("a partir de quatro critérios avaliados volta a haver veredito", () => {
+    const r = extubationReadiness({
+      fio2: 30,
+      peep: 5,
+      glasgow: 15,
+      tobinVal: 60,
+    });
+    expect(r.level).toBe("favorable");
+  });
+
+  // Defeito B5: a lista de pendentes juntava critério REPROVADO com critério
+  // NUNCA MEDIDO, e na tela os dois apareciam idênticos.
+  it("separa critério reprovado de critério não medido", () => {
+    const r = extubationReadiness({
+      fio2: 30,
+      peep: 5,
+      glasgow: 15,
+      tobinVal: 130,
+    });
+    expect(r.failed).toEqual(["Tobin < 105"]);
+    expect(r.notMeasured).toEqual([
+      "PImax ≤ -20",
+      "Sem vasopressor elevado",
+      "TRE aprovado",
+      "Tosse eficaz (PCF ≥ 60 L/min)",
+    ]);
+  });
+
+  it("conta como atendido apenas o que foi medido", () => {
+    const r = extubationReadiness({ vasopressor: false });
+    expect(r.met).toEqual(["Sem vasopressor elevado"]);
+    expect(r.score).toBe(1);
+  });
+});
+
+// ============================================================
+// Motor de sugestão
+// ============================================================
+describe("suggestVc", () => {
+  it("usa a faixa protetora 4 a 6 com alvo 6 para o não obeso", () => {
+    const s = suggestVc(70, false)!;
+    expect(s).toMatchObject({ obese: false, lowKg: 4, highKg: 6, targetKg: 6 });
+    expect(s.low).toBe(280);
+    expect(s.high).toBe(420);
+    expect(s.target).toBe(420);
+    expect(s.ml6).toBe(420);
+    expect(s.ml8).toBe(560);
+  });
+
+  it("usa a faixa 6 a 8 com alvo 7 para o obeso", () => {
+    const s = suggestVc(70, true)!;
+    expect(s).toMatchObject({ obese: true, lowKg: 6, highKg: 8, targetKg: 7 });
+    expect(s.low).toBe(420);
+    expect(s.high).toBe(560);
+    expect(s.target).toBe(490);
+  });
+
+  it("devolve null sem peso predito", () => {
+    expect(suggestVc(null, false)).toBeNull();
+  });
+});
+
+describe("suggestPeepFio2", () => {
+  it("sem gasometria e sem oximetria devolve o preset de admissão", () => {
+    expect(suggestPeepFio2(null, null)).toEqual({
+      fio2: 100,
+      peep: 5,
+      admission: true,
+    });
+  });
+
+  it("desce na tabela ARDSnet conforme a relação P/F", () => {
+    expect(suggestPeepFio2(350, null)).toMatchObject({ fio2: 30, peep: 5 });
+    expect(suggestPeepFio2(250, null)).toMatchObject({ fio2: 40, peep: 5 });
+    expect(suggestPeepFio2(150, null)).toMatchObject({ fio2: 60, peep: 10 });
+    expect(suggestPeepFio2(50, null)).toMatchObject({ fio2: 80, peep: 14 });
+  });
+
+  it("sobe a FiO2 um degrau quando a saturação está abaixo de 90", () => {
+    expect(suggestPeepFio2(350, 85)).toMatchObject({ fio2: 40, peep: 5 });
+  });
+
+  it("sem gasometria mas com oximetria parte de FiO2 40", () => {
+    expect(suggestPeepFio2(null, 95)).toMatchObject({
+      fio2: 40,
+      peep: 5,
+      admission: false,
+    });
+  });
+});
+
+describe("suggestVentilation", () => {
+  it("deriva a frequência do volume-minuto de 100 ml por kg de peso predito", () => {
+    const s = suggestVentilation(70, 420)!;
+    expect(s.veL).toBeCloseTo(7, 6);
+    expect(s.fr).toBe(17);
+  });
+
+  it("limita a frequência ao piso de 12", () => {
+    expect(suggestVentilation(70, 1000)!.fr).toBe(12);
+  });
+
+  it("limita a frequência ao teto de 35", () => {
+    expect(suggestVentilation(70, 100)!.fr).toBe(35);
+  });
+
+  it("devolve null sem peso predito ou sem volume alvo", () => {
+    expect(suggestVentilation(null, 420)).toBeNull();
+    expect(suggestVentilation(70, null)).toBeNull();
+  });
+});
+
+describe("admissionSuggestion", () => {
+  it("com altura e peso completos não sinaliza estimativa", () => {
+    const s = admissionSuggestion("M", 170, 70, null, null, "PCV");
+    expect(s.pbwEstimated).toBe(false);
+    expect(s.obeseUnknown).toBe(false);
+    expect(s.obese).toBe(false);
+    expect(s.mode).toBe("PCV");
+  });
+
+  it("sem altura estima o peso predito e sinaliza", () => {
+    const s = admissionSuggestion("F", null, null, null, null, null);
+    expect(s.pbwEstimated).toBe(true);
+    expect(s.obeseUnknown).toBe(true);
+    expect(s.mode).toBe("VCV");
+  });
+
+  it("assume a faixa protetora quando não há IMC", () => {
+    const s = admissionSuggestion("M", 170, null, null, null, null);
+    expect(s.obeseUnknown).toBe(true);
+    expect(s.obese).toBe(false);
+    expect(s.vc).toMatchObject({ lowKg: 4, highKg: 6 });
+  });
+
+  it("reconhece o obeso pelo IMC e estende a faixa de volume", () => {
+    const s = admissionSuggestion("M", 170, 95, null, null, null);
+    expect(s.obese).toBe(true);
+    expect(s.vc).toMatchObject({ lowKg: 6, highKg: 8 });
+  });
+
+  // Defeito B2: altura zero produzia IMC infinito e classificava como obeso,
+  // estendendo o alvo de volume corrente para 6 a 8 ml/kg.
+  it("altura impossível não classifica o paciente como obeso", () => {
+    const s = admissionSuggestion("M", 0, 70, null, null, null);
+    expect(s.obese).toBe(false);
+    expect(s.obeseUnknown).toBe(true);
+  });
+});
+
+// ============================================================
+// Correlação do quadro clínico com a ventilação
+// ============================================================
 describe("ventilationCorrelations", () => {
   it("não gera correlação quando não há dados", () => {
     expect(ventilationCorrelations(ev({}))).toEqual([]);
