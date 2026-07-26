@@ -235,21 +235,26 @@ function PatientHeader({
 function ShareControl({ patient, ownerId }: { patient: Patient; ownerId: string }) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const share = async () => {
     setBusy(true);
+    setError(null);
     // Token gerado no cliente: sem .select() no insert (evita esbarrar no SELECT de RLS).
     const token = crypto.randomUUID();
-    const { error } = await supabase.from("patient_shares").insert({
+    const { error: shareError } = await supabase.from("patient_shares").insert({
       patient_id: patient.id,
       token,
       created_by: ownerId,
     });
     setBusy(false);
-    if (error) {
-      alert("Erro ao gerar link: " + error.message);
+    if (shareError) {
+      setError(shareError.message);
       return;
     }
+    setMessage(`Link gerado. Ele vale por 7 dias e pode ser revogado a qualquer momento.`);
     const link = `${window.location.origin}/compartilhar/${token}`;
     try {
       await navigator.clipboard.writeText(link);
@@ -260,10 +265,59 @@ function ShareControl({ patient, ownerId }: { patient: Patient; ownerId: string 
     }
   };
 
+  // Antes não havia revogação: nem policy de DELETE, nem botão. Concedido o
+  // acesso a um paciente, ele nunca mais saía.
+  const revoke = async () => {
+    setBusy(true);
+    setError(null);
+    const { error: sharesError } = await supabase
+      .from("patient_shares")
+      .delete()
+      .eq("patient_id", patient.id);
+    const { error: accessError } = await supabase
+      .from("patient_access")
+      .delete()
+      .eq("patient_id", patient.id);
+    setBusy(false);
+    setConfirmingRevoke(false);
+    const falha = sharesError ?? accessError;
+    if (falha) {
+      setError(falha.message);
+      return;
+    }
+    setMessage("Links pendentes cancelados e acessos compartilhados removidos.");
+  };
+
   return (
-    <Btn variant="ghost" onClick={share} disabled={busy}>
-      {copied ? "Link copiado ✓" : busy ? "Gerando…" : "Compartilhar / Passar plantão"}
-    </Btn>
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <Btn variant="ghost" onClick={share} disabled={busy}>
+          {copied ? "Link copiado ✓" : busy ? "Gerando…" : "Compartilhar / Passar plantão"}
+        </Btn>
+        {!confirmingRevoke ? (
+          <Btn variant="ghost" onClick={() => setConfirmingRevoke(true)} disabled={busy}>
+            Revogar acessos
+          </Btn>
+        ) : (
+          <>
+            <Btn variant="danger" onClick={revoke} disabled={busy}>
+              Confirmar revogação
+            </Btn>
+            <Btn variant="ghost" onClick={() => setConfirmingRevoke(false)} disabled={busy}>
+              Cancelar
+            </Btn>
+          </>
+        )}
+      </div>
+      {confirmingRevoke && (
+        <span style={{ fontSize: 12, color: T.dim }}>
+          Cancela os links pendentes e tira o paciente de quem já aceitou. Membros
+          do hospital continuam vendo.
+        </span>
+      )}
+      {error && <Alert>{error}</Alert>}
+      {!error && message && <span style={{ fontSize: 12, color: T.ok }}>{message}</span>}
+    </div>
   );
 }
 

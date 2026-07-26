@@ -12,8 +12,10 @@ const db = {
   asynchronies: [] as Record<string, unknown>[],
   updateError: null as { message: string } | null,
   insertError: null as { message: string } | null,
+  deleteError: null as { message: string } | null,
   lastUpdate: null as Record<string, unknown> | null,
   lastInsert: null as Record<string, unknown> | null,
+  deletedFrom: [] as string[],
 };
 
 function rowsOf(table: string) {
@@ -47,7 +49,12 @@ vi.mock("../lib/supabase", () => ({
           db.lastInsert = values;
           return Promise.resolve({ error: db.insertError });
         },
-        delete: () => ({ eq: () => Promise.resolve({ error: db.updateError }) }),
+        delete: () => ({
+          eq: () => {
+            db.deletedFrom.push(table);
+            return Promise.resolve({ error: db.deleteError });
+          },
+        }),
         then: (resolve: (v: unknown) => unknown) => resolve(rowsOf(table)),
       };
       return chain;
@@ -107,8 +114,12 @@ beforeEach(() => {
   db.asynchronies = [];
   db.updateError = null;
   db.insertError = null;
+  db.deleteError = null;
   db.lastUpdate = null;
   db.lastInsert = null;
+  db.deletedFrom = [];
+  // jsdom não implementa a área de transferência.
+  Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
 });
 
 // ============================================================
@@ -208,6 +219,51 @@ describe("erro de escrita", () => {
     await userEvent.click(screen.getByRole("button", { name: /extubação/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/permission denied/i);
+  });
+});
+
+// ============================================================
+// A2: link de plantão era permanente e não havia como revogar
+// ============================================================
+describe("compartilhamento", () => {
+  it("avisa o prazo de validade ao gerar o link", async () => {
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    await userEvent.click(screen.getByRole("button", { name: /compartilhar/i }));
+
+    await waitFor(() => expect(db.lastInsert).not.toBeNull());
+    expect(await screen.findByText(/7 dias/i)).toBeInTheDocument();
+  });
+
+  it("revoga links pendentes e acessos já concedidos", async () => {
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    await userEvent.click(screen.getByRole("button", { name: /revogar acessos/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirmar revoga/i }));
+
+    await waitFor(() => expect(db.deletedFrom).toContain("patient_shares"));
+    expect(db.deletedFrom).toContain("patient_access");
+  });
+
+  it("mostra a falha quando o banco recusa a revogação", async () => {
+    db.deleteError = { message: "permission denied" };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    await userEvent.click(screen.getByRole("button", { name: /revogar acessos/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirmar revoga/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/permission denied/i);
+  });
+
+  it("não revoga nada sem a confirmação", async () => {
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    await userEvent.click(screen.getByRole("button", { name: /revogar acessos/i }));
+    expect(db.deletedFrom).toEqual([]);
   });
 });
 

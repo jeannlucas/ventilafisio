@@ -74,9 +74,13 @@ create table if not exists public.ventilators (
 alter table public.ventilators enable row level security;
 
 drop policy if exists "ventilators_read_all" on public.ventilators;
+-- `to authenticated` no lugar de auth.role(): o helper é legado no Supabase e
+-- em projeto novo pode não resolver, o que deixaria a biblioteca vazia para
+-- todo mundo. A cláusula TO é a forma nativa do Postgres.
 create policy "ventilators_read_all"
   on public.ventilators for select
-  using (auth.role() = 'authenticated');
+  to authenticated
+  using (true);
 
 -- ---------- HOSPITAIS (compartilhamento por hospital) ----------
 create table if not exists public.hospitals (
@@ -183,6 +187,14 @@ create table if not exists public.patient_shares (
   created_at timestamptz not null default now()
 );
 
+-- Link de plantão passa a expirar. Antes não havia prazo nem forma de revogar,
+-- e mesmo assim accept_patient_share dizia "Link inválido ou expirado":
+-- prometia uma expiração que não existia. Prazo definido pelo Jeann.
+-- ATENÇÃO ao reaplicar: linhas antigas recebem now() + 7 dias, ou seja, links
+-- já emitidos ganham 7 dias novos a partir da aplicação.
+alter table public.patient_shares
+  add column if not exists expires_at timestamptz not null default (now() + interval '7 days');
+
 create table if not exists public.patient_access (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid not null references public.patients (id) on delete cascade,
@@ -225,9 +237,25 @@ drop policy if exists "patients_insert_member" on public.patients;
 create policy "patients_insert_member"
   on public.patients for insert with check (public.is_hospital_member(hospital_id) and auth.uid() = owner_id);
 drop policy if exists "patients_update_member" on public.patients;
+-- WITH CHECK explícito. Sem ele o Postgres reaproveita o USING para validar a
+-- linha NOVA, e has_patient_access(id) continua verdadeiro qualquer que seja o
+-- hospital_id gravado: quem recebeu um link de plantão conseguia mover o
+-- paciente para um hospital do qual ele é membro, dando acesso a todo aquele
+-- hospital.
 create policy "patients_update_member"
   on public.patients for update
-  using (public.is_hospital_member(hospital_id) or public.has_patient_access(id));
+  using (public.is_hospital_member(hospital_id) or public.has_patient_access(id))
+  with check (public.is_hospital_member(hospital_id) or public.has_patient_access(id));
+
+-- Segunda barreira, no nível de coluna: o app nunca troca hospital nem dono de
+-- um paciente, então a API não precisa poder escrever nessas colunas. Isto
+-- fecha o caso que a policy sozinha não expressa (coluna que não pode mudar).
+revoke update on public.patients from authenticated;
+grant update (
+  ventilator_id, current_mode, height_cm, weight_kg,
+  name, age, sex, diagnosis, admission_date, intubation_date, comorbidities,
+  status, discharge_reason, discharge_date, updated_at
+) on public.patients to authenticated;
 drop policy if exists "patients_delete_member" on public.patients;
 create policy "patients_delete_member"
   on public.patients for delete using (public.is_hospital_member(hospital_id));
@@ -240,12 +268,28 @@ drop policy if exists "shares_insert" on public.patient_shares;
 create policy "shares_insert"
   on public.patient_shares for insert with check (public.can_access_patient(patient_id) and created_by = auth.uid());
 
--- RLS de patient_access: SOMENTE select. Sem policy de INSERT => deny.
+-- Revogar um link ainda não usado. Antes não havia policy de DELETE, então
+-- link emitido era permanente e nem o autor conseguia cancelar.
+drop policy if exists "shares_delete" on public.patient_shares;
+create policy "shares_delete"
+  on public.patient_shares for delete using (public.can_access_patient(patient_id));
+
+-- RLS de patient_access: sem policy de INSERT => deny.
 -- A inserção só ocorre via accept_patient_share (security definer).
 drop policy if exists "access_select" on public.patient_access;
 create policy "access_select"
   on public.patient_access for select
   using (user_id = auth.uid() or public.can_access_patient(patient_id));
+
+-- Revogar acesso já concedido: o próprio usuário sai da lista, ou um membro do
+-- hospital do paciente retira alguém. Um convidado por link não revoga outro.
+drop policy if exists "access_delete" on public.patient_access;
+create policy "access_delete"
+  on public.patient_access for delete
+  using (
+    user_id = auth.uid()
+    or public.is_hospital_member((select hospital_id from public.patients where id = patient_id))
+  );
 
 -- Aceite de compartilhamento: usuário logado troca um token válido por acesso.
 create or replace function public.accept_patient_share(share_token text)
@@ -253,7 +297,12 @@ returns uuid language plpgsql security definer set search_path = public as $$
 declare pid uuid;
 begin
   if auth.uid() is null then raise exception 'Necessário estar logado'; end if;
-  select patient_id into pid from public.patient_shares where token = share_token limit 1;
+  -- A checagem de expiração faltava: a mensagem já falava em link expirado,
+  -- mas nenhum link expirava de fato.
+  select patient_id into pid
+    from public.patient_shares
+    where token = share_token and expires_at > now()
+    limit 1;
   if pid is null then raise exception 'Link inválido ou expirado'; end if;
   insert into public.patient_access (patient_id, user_id)
   values (pid, auth.uid())
