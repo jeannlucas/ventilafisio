@@ -8,7 +8,7 @@ pelo próprio README.
 MANUTENÇÃO.
 
 Estado em 26/07/2026, depois da auditoria: a suíte roda e passa.
-`pnpm test` devolve **154 testes em 8 arquivos**, e `pnpm exec tsc --noEmit`
+`pnpm test` devolve **156 testes em 8 arquivos**, e `pnpm exec tsc --noEmit`
 sai limpo. A suíte foi rodada 10 vezes seguidas com resultado idêntico.
 
 Atenção ao escrever teste novo: o `tsconfig.json` não inclui os tipos de Node,
@@ -19,8 +19,15 @@ que roda `tsc --noEmit` antes. Para ler arquivo em teste, use o `?raw` do Vite
 ## Branches
 - Principal: `main`
 - Integração: `dev`
-- Deploy automático na principal: nenhuma configuração no repositório.
 - Promoção para a principal e deploy são do Jeann, nunca meus.
+
+## Host
+Vercel. O `vercel.json` na raiz devolve `index.html` em qualquer rota, e é
+obrigatório: o roteamento é do cliente, então sem ele `/paciente/:id` e
+`/compartilhar/:token` dão 404 quando abertos direto na URL. Comprovado com
+host estático puro: `/` responde 200 e `/compartilhar/algo` responde 404.
+Na Vercel o filesystem tem precedência sobre `rewrites`, então o catch-all
+não engole os arquivos de `public/`.
 
 ## Stack
 - Vite + React, `react-router-dom`
@@ -87,3 +94,8 @@ não instrução vigente.
 7. **Colunas sem uso** estão listadas no fim do `schema.sql`. Foram tiradas dos
    tipos TypeScript, mas continuam no banco de propósito: derrubar coluna apaga
    dado e é decisão do Jeann.
+8. **Ícone são três arquivos, não um.** Safari ignora o favicon SVG e cai no
+   `.ico`; a tela de início do iOS só aceita PNG. `favicon.ico` e
+   `apple-touch-icon.png` são gerados por `scripts/gerar-icones.py`, que
+   redesenha a geometria do SVG com Pillow (não há conversor SVG para PNG na
+   máquina). Mexeu no SVG, rode o script.
