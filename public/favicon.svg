@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Ventila Fisio">
+  <title>Ventila Fisio</title>
+  <!-- Cores vindas de src/lib/theme.ts: T.bg (#0B0F14) e T.accent (#38BDF8). -->
+  <rect width="32" height="32" rx="7" fill="#0B0F14"/>
+  <!-- Curva de pressão-tempo de um ciclo em VCV: rampa inspiratória, platô,
+       queda expiratória e retorno à PEEP (que fica acima do zero). -->
+  <path d="M4 21 L10 11 L18 11 L21 21 L28 21"
+        fill="none"
+        stroke="#38BDF8"
+        stroke-width="2.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>
