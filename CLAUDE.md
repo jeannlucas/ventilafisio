@@ -41,8 +41,8 @@ que é contexto de trabalho anterior, não instrução vigente.
    envolva cálculo ou recomendação nasce com teste, sem exceção.
 
 ## Vocabulário de domínio
-- **Ventilação mecânica** — suporte respiratório artificial em UTI.
-- **POC** — prova de conceito. O projeto não é produto validado clinicamente.
+- **Ventilação mecânica**: suporte respiratório artificial em UTI.
+- **POC**: prova de conceito. O projeto não é produto validado clinicamente.
 
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
