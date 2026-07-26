@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { T } from "../lib/theme";
 import { Grid } from "../components/ui";
-import { VentilatorGuide } from "./PatientDetail";
+import VentilatorGuide from "../components/VentilatorGuide";
 import { Ventilator } from "../types";
 
 export default function VentilatorLibrary() {
