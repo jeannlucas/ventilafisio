@@ -544,7 +544,9 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
       owner_id: ownerId,
       mode: patient.current_mode,
       tre_result: tre || null,
-      vasopressor: meds.vasopressor?.on ?? false,
+      // null quando o chip nunca foi tocado: "não avaliado" não pode virar
+      // "sem vasopressor", que a triagem de extubação conta como critério atendido.
+      vasopressor: meds.vasopressor?.on ?? null,
       notes: notes || null,
       imaging,
       iv_meds: meds,
@@ -714,27 +716,39 @@ function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
     glasgow: ev.glasgow, vasopressor: ev.vasopressor, treResult: ev.tre_result,
     peakCoughFlow: ev.peak_cough_flow,
   });
-  const map = {
+  const veredito = {
     favorable: { c: T.ok, t: "Critérios favoráveis para extubação" },
-    borderline: { c: T.warn, t: "Critérios parciais — reavaliar" },
+    borderline: { c: T.warn, t: "Critérios parciais, reavaliar" },
     unfavorable: { c: T.danger, t: "Critérios desfavoráveis" },
+    insufficient: { c: T.dim, t: "Dados insuficientes para triagem" },
   }[r.level];
 
   return (
-    <Panel title="Prontidão para extubação" accent={map.c}
-      sub="Triagem objetiva a partir da última evolução — não é indicação de extubar">
+    <Panel title="Prontidão para extubação" accent={veredito.c}
+      sub="Triagem objetiva a partir da última evolução, não é indicação de extubar">
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: map.c }}>
-          {r.level === "favorable" ? "✓" : "⚠"} {map.t}
+        <span style={{ fontSize: 15, fontWeight: 700, color: veredito.c }}>
+          {r.level === "favorable" ? "✓" : r.level === "insufficient" ? "ℹ" : "⚠"} {veredito.t}
         </span>
-        <span style={{ fontSize: 13, color: T.dim, marginLeft: "auto" }}>{r.score}/{r.max}</span>
+        <span style={{ fontSize: 13, color: T.dim, marginLeft: "auto" }}>
+          {r.score}/{r.max} critérios atendidos
+        </span>
       </div>
+      {r.level === "insufficient" && (
+        <p style={{ margin: "0 0 12px", fontSize: 12, color: T.dim }}>
+          Registre ao menos {C.MIN_CRITERIOS_AVALIADOS} critérios objetivos na evolução para o
+          app conseguir triar. O que está abaixo é o que já foi medido.
+        </p>
+      )}
       <div style={{ display: "grid", gap: 6 }}>
         {r.met.map((m) => (
           <div key={m} style={{ fontSize: 13, color: T.ok }}>✓ {m}</div>
         ))}
-        {r.pending.map((m) => (
-          <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m}</div>
+        {r.failed.map((m) => (
+          <div key={m} style={{ fontSize: 13, color: T.danger }}>✗ {m}</div>
+        ))}
+        {r.notMeasured.map((m) => (
+          <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m} <span style={{ fontSize: 11 }}>(não medido)</span></div>
         ))}
       </div>
     </Panel>
