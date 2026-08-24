@@ -69,6 +69,29 @@ Consequências práticas:
 - Antes de qualquer commit, revisar o diff procurando segredo e PII. Em dúvida,
   não commitar e falar com o Jeann.
 
+## Exceção de auditoria registrada
+`pnpm-workspace.yaml` tem um `auditConfig.ignoreGhsas` com uma entrada:
+**GHSA-5xrq-8626-4rwp**, crítica, no Vitest 2.1.9 (corrigida a partir do 3.2.6).
+
+Fica no `pnpm-workspace.yaml`, e não no `package.json`, porque o pnpm 11 parou
+de ler o campo `pnpm` do `package.json` e migrou as configurações para lá. Se
+você puser em `pnpm.auditConfig`, o pnpm avisa que ignorou e a exceção não vale.
+
+Por que ela não barra o CI: a falha é leitura e execução arbitrária de arquivo
+**quando o servidor de UI do Vitest está escutando**. Aqui esse servidor não
+existe. O `@vitest/ui` não está instalado (confira no `package.json`), o script
+de teste é `vitest run` sem `--ui`, e o Vitest é devDependency, então nada disso
+chega ao navegador de ninguém. Verificado em 24/08/2026.
+
+A exceção é **pelo identificador da falha, nunca pelo pacote ou pelo caminho**:
+se surgir outra crítica no Vitest, ela barra normalmente. Mesma regra do
+`.gitleaks.toml` dos outros projetos.
+
+Quando revisitar: subir o Vitest para 3.x resolve de vez e permite apagar a
+exceção. É mudança de versão maior, mexe nos 156 testes, e por isso não foi
+feita junto com a auditoria, com o projeto pausado. No dia em que o
+desenvolvimento voltar, é a primeira coisa da fila.
+
 ## Stack
 - Vite + React, `react-router-dom`
 - TypeScript (o build roda `tsc --noEmit` antes)

@@ -1,0 +1,177 @@
+name: Seguranca
+
+# Duas perguntas, uma por job: alguma dependencia tem falha conhecida, e algum
+# segredo entrou no historico. Nenhum dos dois roda a suite: isso e trabalho de
+# CI de teste, que este projeto ainda nao tem.
+#
+# O agendamento semanal e o motivo principal deste arquivo existir. Falha nova
+# aparece em dependencia que NAO mudou: sem o cron, codigo parado nunca seria
+# reavaliado, e e justamente o codigo parado que fica velho.
+#
+# A branch de producao entra no filtro de push porque e ela que esta no ar.
+# Promocao sem varredura e o pior lugar para economizar.
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  schedule:
+    # Segunda-feira, 09:00 UTC (06:00 em Brasilia).
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: seguranca-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencias:
+    # A contagem sai como saida do job para o aviso do Discord poder dizer
+    # QUANTAS, em vez de um "workflow failed" generico.
+    outputs:
+      criticas: ${{ steps.contagem.outputs.criticas }}
+      altas: ${{ steps.contagem.outputs.altas }}
+    name: Dependencias (pnpm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # O relatorio sai sempre, mesmo passando: e ele que mostra o que esta
+      # acumulando abaixo do limite de falha.
+      - name: Relatorio de falhas conhecidas
+        run: |
+          pnpm audit --json > audit.json || true
+          {
+            echo "### pnpm audit"
+            echo
+            jq -r '"| severidade | quantidade |\n|---|---|\n| critica | \(.metadata.vulnerabilities.critical) |\n| alta | \(.metadata.vulnerabilities.high) |\n| media | \(.metadata.vulnerabilities.moderate) |\n| baixa | \(.metadata.vulnerabilities.low) |"' audit.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar a contagem para o aviso
+        id: contagem
+        run: |
+          echo "criticas=$(jq -r '.metadata.vulnerabilities.critical // 0' audit.json)" >> "$GITHUB_OUTPUT"
+          echo "altas=$(jq -r '.metadata.vulnerabilities.high // 0' audit.json)" >> "$GITHUB_OUTPUT"
+
+      # Falha SO em critica, de proposito. Barrar em alta deixaria o CI vermelho
+      # de forma permanente por causa de dependencia transitiva, e CI que vive
+      # vermelho para de ser lido. Alta e media entram na fila normal.
+      - name: Barrar falha critica
+        run: pnpm audit --audit-level=critical
+
+  segredos:
+    name: Segredos no historico (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout com historico completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      # --redact para que um segredo real nunca seja impresso no log da
+      # execucao, que fica visivel bem depois de o segredo ser trocado.
+      - name: Varrer o historico
+        run: gitleaks git . --redact --no-banner --verbose
+
+  notificar:
+    name: Avisar no Discord
+    runs-on: ubuntu-latest
+    needs: [dependencias, segredos]
+    # always() porque o aviso mais importante e justamente o do job que falhou.
+    if: always()
+    steps:
+      - name: Montar e enviar a mensagem
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          PROJETO: "Ventila Fisio"
+          RESULTADO_0: ${{ needs.dependencias.result }}
+          RESULTADO_SEGREDOS: ${{ needs.segredos.result }}
+          CRITICAS_0: ${{ needs.dependencias.outputs.criticas }}
+          ALTAS_0: ${{ needs.dependencias.outputs.altas }}
+          EVENTO: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # Sem o segredo configurado, o passo e um no-op. Ele NAO falha: quem
+          # nao usa Discord nao deve ver CI vermelho por causa disso.
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "DISCORD_WEBHOOK nao configurado. Nada a enviar."
+            exit 0
+          fi
+
+          falhou=0
+          [ "$RESULTADO_0" = "success" ] || falhou=1
+          [ "$RESULTADO_SEGREDOS" = "success" ] || falhou=1
+
+          criticas=$(( ${CRITICAS_0:-0} ))
+          altas=$(( ${ALTAS_0:-0} ))
+
+          # A regra de quando falar. Mensagem so quando existe decisao a tomar:
+          # canal que recebe "tudo certo" toda semana fica mudo em duas semanas,
+          # e ai o aviso que importa passa em branco junto.
+          if [ "$falhou" -eq 1 ]; then
+            titulo="Portao de seguranca barrou"
+            cor=15158332
+            texto="A varredura falhou em **$PROJETO** na branch \`$BRANCH\`. Enquanto nao resolver, nao promova."
+          elif [ "$EVENTO" = "schedule" ] && [ "$criticas" -gt 0 ]; then
+            titulo="Varredura semanal encontrou falha CRITICA"
+            cor=15844367
+            texto="**$PROJETO** tem falha CRITICA em dependencia, sem ninguem ter mexido no codigo. O total de altas vai nos campos abaixo, como contexto."
+          else
+            echo "Nada que exija aviso (evento=$EVENTO, criticas=$criticas, altas=$altas)."
+            exit 0
+          fi
+
+          corpo="$(jq -nc \
+            --arg titulo "$titulo" --arg texto "$texto" \
+            --arg criticas "$criticas" --arg altas "$altas" \
+            --arg branch "$BRANCH" --arg evento "$EVENTO" \
+            --arg url "$RUN_URL" --argjson cor "$cor" \
+            '{embeds: [{title: $titulo, description: $texto, color: $cor, url: $url,
+              fields: [
+                {name: "Criticas", value: $criticas, inline: true},
+                {name: "Altas", value: $altas, inline: true},
+                {name: "Branch", value: $branch, inline: true},
+                {name: "Disparo", value: $evento, inline: true}
+              ], footer: {text: "Varredura de seguranca"}}]}')"
+
+          codigo="$(curl -sS -o /tmp/discord.out -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' --data "$corpo" "$WEBHOOK")"
+
+          # 204 e a resposta normal do Discord para webhook aceito.
+          if [ "$codigo" = "204" ] || [ "$codigo" = "200" ]; then
+            echo "Aviso enviado ao Discord."
+          else
+            echo "O Discord recusou o aviso: HTTP $codigo"
+            cat /tmp/discord.out
+            exit 1
+          fi

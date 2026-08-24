@@ -1,3 +1,20 @@
+# Excecao de auditoria, registrada em 24/08/2026.
+#
+# GHSA-5xrq-8626-4rwp, critica, no Vitest 2.1.9 (corrigida a partir do 3.2.6):
+# leitura e execucao arbitraria de arquivo QUANDO o servidor de UI do Vitest
+# esta escutando. Aqui esse servidor nao existe: o @vitest/ui nao esta
+# instalado, o script de teste e "vitest run" sem --ui, e o Vitest e
+# devDependency, entao nada disso chega ao navegador de ninguem.
+#
+# A excecao e pelo IDENTIFICADOR da falha, nunca pelo pacote nem pelo caminho:
+# critica nova no Vitest continua barrando. Mesma regra do .gitleaks.toml dos
+# outros projetos da BigDev.Z.
+#
+# Subir o Vitest para 3.x resolve de vez e permite apagar isto daqui.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-5xrq-8626-4rwp
+
 allowBuilds:
   esbuild: true
 onlyBuiltDependencies:

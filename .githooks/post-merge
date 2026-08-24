@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# Atualiza o painel de vulnerabilidades quando uma atividade entra na integracao.
+#
+# POR QUE ESTE ARQUIVO E VERSIONADO
+# ---------------------------------
+# Este projeto fixa core.hooksPath=.githooks, e esse caminho e relativo a arvore
+# de trabalho. Hook nao versionado so existiria na arvore principal e nao
+# dispararia em merge feito de dentro de um git worktree. Versionado, ele existe
+# em toda arvore.
+#
+# ELE E INOCUO ONDE A FERRAMENTA NAO EXISTE
+# -----------------------------------------
+# A logica mora fora do repositorio, numa ferramenta local que fala com um
+# DefectDojo em localhost. Se o arquivo nao estiver presente e executavel, este
+# hook sai calado, sem erro e sem mensagem. Em outra maquina, ou em CI, ele e um
+# no-op: nada a configurar, nada a remover. A propria ferramenta ainda checa se
+# o painel esta de pe antes de fazer qualquer coisa, e desiste em 3 segundos.
+FERRAMENTA="$HOME/Documents/Projetos/.ferramentas/defectdojo/hook-post-merge.sh"
+[ -x "$FERRAMENTA" ] || exit 0
+exec "$FERRAMENTA" "ventila" "dev"
