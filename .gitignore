@@ -12,6 +12,11 @@ dist/
 .env.*
 !.env.example
 
+# Worktrees de trabalho paralelo e da varredura de seguranca local, que cria
+# .worktrees/scan-<branch> e remove no fim. Sem esta regra a varredura suja a
+# arvore, e worktree solto e como nasce copia de repositorio com .env dentro.
+.worktrees/
+
 # Sistema operacional / editor
 .DS_Store
 
