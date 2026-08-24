@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Apoio à decisão em ventilação mecânica na UTI — POC. Desenvolvido por BigDev.Z — IT Consulting.",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

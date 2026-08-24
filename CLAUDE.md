@@ -21,6 +21,27 @@ que roda `tsc --noEmit` antes. Para ler arquivo em teste, use o `?raw` do Vite
 - Integração: `dev`
 - Promoção para a principal e deploy são do Jeann, nunca meus.
 
+### A ordem da promoção, sem exceção
+
+```
+1. git push origin dev
+2. git checkout main && git merge --ff-only dev
+3. git push origin main
+```
+
+O passo 1 vir primeiro é o que garante que a `dev` do GitHub nunca fique atrás
+da `main`. O `.githooks/pre-push` recusa o push da `main` enquanto a `dev` local
+estiver à frente da `origin/dev` (escape: `git push --no-verify`).
+
+O `--ff-only` no passo 2 é igualmente obrigatório, e passou a valer em
+24/08/2026. Antes disso a promoção era `git merge dev`, que cria um commit de
+merge **só na `main`**: a `dev` nunca o recebia de volta, e a `main` ia ficando
+à frente da `dev` sem que faltasse código nenhum (as árvores eram idênticas, só
+a topologia divergia). O efeito prático é que o invariante `dev >= main` deixava
+de valer e um `merge --ff-only` futuro falharia. Medido em 24/08/2026: a `main`
+estava 1 commit à frente da `dev` aqui. Foi corrigido avançando a `dev` até a
+`main`, sem criar commit, e desde então a promoção é `--ff-only`.
+
 ## Host
 Vercel. O `vercel.json` na raiz devolve `index.html` em qualquer rota, e é
 obrigatório: o roteamento é do cliente, então sem ele `/paciente/:id` e
@@ -28,6 +49,25 @@ obrigatório: o roteamento é do cliente, então sem ele `/paciente/:id` e
 host estático puro: `/` responde 200 e `/compartilhar/algo` responde 404.
 Na Vercel o filesystem tem precedência sobre `rewrites`, então o catch-all
 não engole os arquivos de `public/`.
+
+## Segurança neste repositório
+**Este repositório é PÚBLICO.** Tudo que entra aqui fica visível para qualquer
+pessoa, e o histórico do git não esquece: apagar num commit seguinte não desfaz
+a exposição.
+
+Consequências práticas:
+- **Nada de segredo, em nenhuma hipótese.** Sem chave, sem token, sem senha, sem
+  string de conexão. A chave `anon` do Supabase é pública por desenho; a
+  `service_role` NUNCA pode aparecer aqui, nem no cliente, nem em teste, nem em
+  comentário, nem em exemplo.
+- **Nada de dado real de paciente.** Nem em teste, nem em fixture, nem em
+  captura de tela, nem em mensagem de commit. É POC clínica: o dado de exemplo
+  é sempre inventado.
+- O `.gitignore` ignora `.env` e `.env.*`, liberando só `.env.example`. Se
+  precisar de variável nova, ela entra no `.env.example` com placeholder óbvio,
+  nunca com o valor.
+- Antes de qualquer commit, revisar o diff procurando segredo e PII. Em dúvida,
+  não commitar e falar com o Jeann.
 
 ## Stack
 - Vite + React, `react-router-dom`

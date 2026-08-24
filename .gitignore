@@ -5,14 +5,20 @@ node_modules/
 dist/
 
 # Variaveis de ambiente (segredos)
-.env.local
-.env*.local
+# ATENCAO: este repositorio e PUBLICO. Qualquer .env commitado aqui vira
+# publico junto. A regra e ampla de proposito: ignora tudo que comece com
+# .env e reabre apenas o .env.example, que e template com placeholder.
+.env
+.env.*
+!.env.example
 
 # Sistema operacional / editor
 .DS_Store
 
-# Configuracao local do Claude Code
-.claude/
+# Configuracao local do Claude Code. So o arquivo pessoal e ignorado: se um
+# dia existir .claude/settings.json ou .claude/rules/ neste projeto, eles sao
+# contexto compartilhado e devem ser versionados como o resto do codigo.
+.claude/settings.local.json
 
 # Logs
 *.log
