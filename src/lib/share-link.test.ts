@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { PENDING_SHARE_KEY, safePendingSharePath } from "./share-link";
 
-const TOKEN = "3f8a1c22-9d47-4e6b-8b0a-5c1e2d7f9a10";
-const VALIDO = `/compartilhar/${TOKEN}`;
+const UUID_FIXO = "3f8a1c22-9d47-4e6b-8b0a-5c1e2d7f9a10";
+const VALIDO = `/compartilhar/${UUID_FIXO}`;
 
 // O link de plantão é guardado no localStorage quando o usuário abre um
 // compartilhamento deslogado, e retomado depois do login. O valor guardado vem
@@ -14,7 +14,7 @@ describe("safePendingSharePath", () => {
   });
 
   it("aceita o uuid em maiúsculas, porque a URL preserva o caso", () => {
-    const alto = `/compartilhar/${TOKEN.toUpperCase()}`;
+    const alto = `/compartilhar/${UUID_FIXO.toUpperCase()}`;
     expect(safePendingSharePath(alto)).toBe(alto);
   });
 
@@ -28,9 +28,9 @@ describe("safePendingSharePath", () => {
     ["/compartilhar/../\\exemplo-malicioso.test", "subida de diretório com barra invertida"],
     ["/compartilhar//exemplo-malicioso.test", "barra dupla depois do prefixo"],
     ["https://exemplo-malicioso.test/compartilhar/x", "URL absoluta"],
-    ["/compartilhar/" + TOKEN + "/../../admin", "subida depois do token"],
-    ["/compartilhar/" + TOKEN + "?next=//fora", "query string"],
-    ["/compartilhar/" + TOKEN + "#//fora", "fragmento"],
+    ["/compartilhar/" + UUID_FIXO + "/../../admin", "subida depois do token"],
+    ["/compartilhar/" + UUID_FIXO + "?next=//fora", "query string"],
+    ["/compartilhar/" + UUID_FIXO + "#//fora", "fragmento"],
     ["javascript:alert(1)", "esquema javascript"],
   ])("recusa %s (%s)", (entrada) => {
     expect(safePendingSharePath(entrada)).toBeNull();

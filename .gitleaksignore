@@ -1,0 +1,27 @@
+# Achados do gitleaks aceitos como falso positivo.
+#
+# Cada linha e um FINGERPRINT no formato <commit>:<arquivo>:<regra>:<linha>.
+# Ele prende o perdao a um ponto exato do historico: nao silencia a regra, nao
+# silencia o arquivo, e nao silencia o mesmo padrao em outro commit. Se o mesmo
+# arquivo ganhar um segredo de verdade amanha, o fingerprint sera outro e a
+# varredura falha como deve.
+#
+# Isto existe porque o workflow roda `gitleaks git .`, que varre o HISTORICO,
+# nao a arvore de trabalho. Renomear a variavel no commit seguinte NAO apaga o
+# achado do commit que a introduziu, entao corrigir o codigo, sozinho, nunca
+# deixaria o CI verde de novo.
+#
+# ---------------------------------------------------------------------------
+# UUID de fixture chamado TOKEN, em teste.
+#
+# `const TOKEN = "3f8a1c22-..."` em src/lib/share-link.test.ts. A regra
+# `generic-api-key` casa por nome mais entropia: o valor e um UUID inventado,
+# escrito a mao para o teste do filtro de link de plantao, e o nome TOKEN foi
+# o bastante para parecer credencial. Nao ha segredo aqui, e nem poderia: este
+# repositorio e PUBLICO e a chave de compartilhamento real e gerada em runtime
+# por `crypto.randomUUID()`, nunca escrita em codigo.
+#
+# A constante foi renomeada para UUID_FIXO no commit seguinte, para o padrao
+# nao voltar a aparecer em commit novo. Esta linha cobre o commit antigo, que
+# continua no historico.
+2b257b7c083988c7b9e6d5bc4a7b35dcec6bbdac:src/lib/share-link.test.ts:generic-api-key:4
