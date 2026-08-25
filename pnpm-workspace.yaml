@@ -2,3 +2,18 @@ allowBuilds:
   esbuild: true
 onlyBuiltDependencies:
   - esbuild
+
+# O vitest 3.2.7 tem o proprio `vite` como dependencia, com faixa
+# `^5.0.0 || ^6.0.0 || ^7.0.0-0`. Sem este override o pnpm resolve essa faixa
+# para a 5.4.21, que e vulneravel (GHSA de path traversal e de bypass do
+# `server.fs.deny`, corrigidos so na 6.4.3). O resultado era uma arvore com
+# DUAS copias do vite: a 7 que o app usa e a 5 vulneravel escondida sob o
+# vitest, que o Dependabot continuava acusando.
+#
+# O 7.3.6 esta DENTRO da faixa que o vitest declara, entao isto nao forca
+# nada fora de contrato: apenas escolhe o topo dela em vez do fundo.
+#
+# Quando o vitest passar a exigir `^7` ou maior sozinho, este bloco pode sair.
+# Confira antes com `pnpm why vite`: sem ele a resolucao volta para a 5.
+overrides:
+  vite: ^7.3.6

@@ -7,8 +7,8 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 24/08/2026: a suíte roda e passa. `pnpm test` devolve **156 testes
-em 8 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
+Estado em 24/08/2026: a suíte roda e passa. `pnpm test` devolve **171 testes
+em 9 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
 nenhum ajuste: nem em teste, nem em `vite.config.ts`, nem em `src/test-setup.ts`.
@@ -132,12 +132,18 @@ compartilhamento deslogado, e depois do login chamava `navigate(caminho)`. A
 apenas COMECE com o prefixo. Era um open redirect: caminho controlado pelo
 visitante indo direto para o roteador.
 
-Isso importa porque o React Router 6.30.4, a versão em uso, tem dois avisos
-abertos sobre exatamente esse ponto: **GHSA-jjmj-jmhj-qwj2** (open redirect
-levando a XSS, **sem correção publicada**) e **GHSA-wrjc-x8rr-h8h6** (open
-redirect via barra invertida, corrigido só na linha 7). O primeiro é explícito:
-*"applications with open redirects could permit attacker crafted links"*. O
-pré-requisito da falha era um open redirect na aplicação, e agora não há.
+Isso importa porque o React Router tinha dois avisos abertos sobre exatamente
+esse ponto: **GHSA-jjmj-jmhj-qwj2** (open redirect levando a XSS) e
+**GHSA-wrjc-x8rr-h8h6** (open redirect via barra invertida). O primeiro é
+explícito: *"applications with open redirects could permit attacker crafted
+links"*. O pré-requisito da falha era um open redirect na aplicação, e agora
+não há.
+
+O **GHSA-jjmj-jmhj-qwj2 saiu de "sem correção" para corrigido na 6.30.5**, e
+esta seção afirmava o contrário até 24/08/2026. A subida foi de `patch`
+(6.30.4 → 6.30.6) e não precisou do major: 171 testes e build limpos. Lição
+para reler aqui: *"sem correção publicada"* é estado do dia em que foi escrito,
+não propriedade da falha. Reconfira antes de decidir com base nessa frase.
 
 Duas decisões que valem manter:
 
@@ -153,9 +159,27 @@ O terceiro aviso do React Router (**GHSA-337j-9hxr-rhxg**, injeção de construt
 via `deserializeErrors()`) é de hidratação **SSR**. Este projeto é SPA com Vite,
 não tem SSR, então o caminho não existe aqui.
 
-Subir para o React Router 7 fecharia os dois avisos com correção, mas é major e
-mexe no roteamento inteiro. Não foi feito: o defeito da aplicação era o que
-importava, e ele está fechado independentemente da versão.
+Sobram dois avisos, os dois exigindo o React Router 7: o
+**GHSA-wrjc-x8rr-h8h6** e o **GHSA-337j-9hxr-rhxg** acima. Subir para a linha 7
+é major e mexe no roteamento inteiro. Não foi feito: o defeito da aplicação era
+o que importava, e ele está fechado independentemente da versão.
+
+## Um `overrides` no pnpm-workspace.yaml, e por quê
+
+O `vitest` tem o **próprio** `vite` como dependência, com faixa
+`^5.0.0 || ^6.0.0 || ^7.0.0-0`. Sem override o pnpm resolve isso para o fundo
+da faixa, e a árvore fica com duas cópias do vite: a que o app usa e uma 5.4.21
+vulnerável escondida sob o vitest. Subir o vite do projeto **não** resolve
+sozinho — foi medido em 24/08/2026, `pnpm why vite` mostrava `Found 2 versions`
+depois da subida para a 7.
+
+Por isso existe `overrides: { vite: ^7.3.6 }` no `pnpm-workspace.yaml`. Ele não
+força nada fora de contrato: 7.3.6 está dentro da faixa que o vitest declara.
+Quando o vitest passar a exigir `^7` sozinho, o bloco pode sair — **conferindo
+antes com `pnpm why vite`**, porque sem ele a resolução volta para a 5 em
+silêncio.
+
+O alvo é a linha 7, não a mais recente: o vitest 3.2.7 não aceita vite 8.
 
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
