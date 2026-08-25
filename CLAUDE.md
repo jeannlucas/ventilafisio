@@ -119,6 +119,44 @@ não instrução vigente.
 - **TRE**: teste de respiração espontânea.
 - **ZEEP**: PEEP zero, que é regulagem válida (não confundir com dado faltando).
 
+## Link de plantão: o caminho é validado por formato
+
+`src/lib/share-link.ts` é o filtro entre a URL que o visitante digitou e o
+`navigate()`. Ele aceita **só** `/compartilhar/<uuid>` e devolve `null` para
+qualquer outra coisa.
+
+Ele existe por um defeito real, corrigido em 24/08/2026. O App guardava
+`window.location.pathname` no localStorage quando alguém abria um
+compartilhamento deslogado, e depois do login chamava `navigate(caminho)`. A
+única guarda era `startsWith("/compartilhar")`, que aceita qualquer caminho que
+apenas COMECE com o prefixo. Era um open redirect: caminho controlado pelo
+visitante indo direto para o roteador.
+
+Isso importa porque o React Router 6.30.4, a versão em uso, tem dois avisos
+abertos sobre exatamente esse ponto: **GHSA-jjmj-jmhj-qwj2** (open redirect
+levando a XSS, **sem correção publicada**) e **GHSA-wrjc-x8rr-h8h6** (open
+redirect via barra invertida, corrigido só na linha 7). O primeiro é explícito:
+*"applications with open redirects could permit attacker crafted links"*. O
+pré-requisito da falha era um open redirect na aplicação, e agora não há.
+
+Duas decisões que valem manter:
+
+1. **Valida por formato, não por lista de proibidos.** O token é
+   `crypto.randomUUID()`, então o caminho legítimo tem forma fechada. Lista de
+   proibidos sempre tem um caso a mais: a correção do CVE-2025-68470 no próprio
+   React Router precisou de uma segunda rodada por isso.
+2. **Filtra na leitura, não só na escrita.** O que está no localStorage pode ter
+   sido gravado pela versão anterior, que não filtrava. Quem navega é quem
+   confere.
+
+O terceiro aviso do React Router (**GHSA-337j-9hxr-rhxg**, injeção de construtor
+via `deserializeErrors()`) é de hidratação **SSR**. Este projeto é SPA com Vite,
+não tem SSR, então o caminho não existe aqui.
+
+Subir para o React Router 7 fecharia os dois avisos com correção, mas é major e
+mexe no roteamento inteiro. Não foi feito: o defeito da aplicação era o que
+importava, e ele está fechado independentemente da versão.
+
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
    mudança em cálculo, faixa de referência ou recomendação tem consequência

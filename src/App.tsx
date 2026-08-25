@@ -10,21 +10,24 @@ import AdmitPatient from "./pages/AdmitPatient";
 import Archived from "./pages/Archived";
 import VentilatorLibrary from "./pages/VentilatorLibrary";
 import AcceptShare from "./pages/AcceptShare";
-
-const PENDING_SHARE_KEY = "ventila.pendingShare";
+import { PENDING_SHARE_KEY, safePendingSharePath } from "./lib/share-link";
 
 export default function App() {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Após login, retoma o link de compartilhamento que o usuário tentou abrir deslogado.
+  // Após login, retoma o link de compartilhamento que o usuário tentou abrir
+  // deslogado. O valor é validado NA LEITURA, e não só na escrita: o que está
+  // no localStorage pode ter sido gravado por uma versão anterior do app, que
+  // não filtrava, ou por qualquer outro código rodando neste domínio. Quem
+  // navega é quem confere. Ver src/lib/share-link.ts.
   useEffect(() => {
     if (!session) return;
-    const pending = localStorage.getItem(PENDING_SHARE_KEY);
-    if (pending) {
-      localStorage.removeItem(PENDING_SHARE_KEY);
-      navigate(pending);
-    }
+    const guardado = localStorage.getItem(PENDING_SHARE_KEY);
+    if (!guardado) return;
+    localStorage.removeItem(PENDING_SHARE_KEY);
+    const destino = safePendingSharePath(guardado);
+    if (destino) navigate(destino);
   }, [session, navigate]);
 
   if (loading) {
@@ -44,10 +47,11 @@ export default function App() {
   }
 
   if (!session) {
-    // Guarda o link de compartilhamento para retomar depois do login.
-    if (window.location.pathname.startsWith("/compartilhar")) {
-      localStorage.setItem(PENDING_SHARE_KEY, window.location.pathname);
-    }
+    // Guarda o link de compartilhamento para retomar depois do login. O
+    // `startsWith` que havia aqui aceitava qualquer caminho que apenas
+    // COMEÇASSE com o prefixo, e o valor vem da URL que o visitante digitou.
+    const destino = safePendingSharePath(window.location.pathname);
+    if (destino) localStorage.setItem(PENDING_SHARE_KEY, destino);
     return <Login />;
   }
 
