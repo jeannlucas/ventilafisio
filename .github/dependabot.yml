@@ -1,0 +1,77 @@
+# Dependabot: o GitHub abre o PR com a dependencia ja atualizada.
+#
+# Ele complementa o `seguranca.yml` em vez de repetir, e a diferenca importa:
+# o workflow AVISA que existe falha conhecida, e repete o aviso toda segunda
+# indefinidamente, porque alta nao some sozinha; o Dependabot ENTREGA o conserto
+# pronto, uma vez, com changelog e diff. Um vira ruido, o outro vira clique.
+#
+# TRES COISAS DIFERENTES USAM ESTE NOME, E SO UMA MORA AQUI
+#   - alertas de seguranca: chave em Settings do repositorio, sem arquivo;
+#   - atualizacoes de seguranca (PR do conserto): chave em Settings;
+#   - atualizacoes de versao (manter em dia): e este arquivo.
+# Os dois primeiros foram ligados em 24/08/2026 pela API; eles nao dependem de
+# push nem de agendamento, o GitHub reavalia quando o banco de avisos muda.
+#
+# ATENCAO A BRANCH
+# Este arquivo e lido da BRANCH PADRAO do repositorio, e o PR de seguranca vai
+# sempre para ela. A documentacao do GitHub e explicita em "you should not
+# specify a target-branch": nao existe desviar seguranca para outra branch.
+#
+# Por isso NAO ha `target-branch` aqui, e por isso a branch padrao deste
+# repositorio foi trocada para `dev` em 24/08/2026. Antes era `main`, a de
+# producao, e nesse arranjo o Dependabot abriria PR de seguranca direto nela.
+# No Jotas isso ja estava acontecendo: tres PRs abertos mirando a producao.
+
+version: 2
+
+updates:
+  # ---------------------------------------------------------------- npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      # Mensal, e nao semanal. Repositorio privado consome cota de Actions, e
+      # cada PR daqui dispara o CI. Isto NAO atrasa correcao de seguranca:
+      # alerta e security update sao outro caminho e chegam na hora.
+      interval: "monthly"
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    # Teto baixo de proposito. Dez PR abertos de uma vez nao viram dez
+    # consertos, viram uma aba que a pessoa fecha.
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    labels:
+      - "dependencias"
+    # Subida de versao MAIOR fica desligada: nenhuma delas e vulnerabilidade, e
+    # correcao de seguranca chega como security update, que NAO passa por este
+    # `ignore`. Major e projeto proprio; para subir um, abra o PR a mao.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # Um grupo so: producao e ferramental separados dobrariam o numero de PRs
+      # e, com ele, o de execucoes de CI. `applies-to: version-updates` e
+      # deliberado: PR de SEGURANCA segue individual, um por falha, para
+      # conserto urgente nao esperar o que nao e.
+      atualizacoes-sem-quebra:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # ------------------------------------------------------- github-actions
+  # A propria esteira e superficie de ataque: uma action de terceiro roda com
+  # acesso ao repositorio. Manter a versao em dia aqui e barato e costuma passar
+  # em branco.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencias"
+      - "ci"
