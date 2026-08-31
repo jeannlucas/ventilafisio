@@ -30,3 +30,6 @@ dist/
 pnpm-debug.log*
 npm-debug.log*
 .mcp.json
+
+# Scratch do subagent-driven-development (nao versionado)
+.superpowers/
