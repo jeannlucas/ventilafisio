@@ -102,6 +102,7 @@ export function Field({
   options,
   placeholder,
   multiline,
+  ariaLabel,
 }: {
   label: string;
   value: string;
@@ -111,12 +112,17 @@ export function Field({
   options?: { v: string; t: string }[];
   placeholder?: string;
   multiline?: boolean;
+  // Nome acessível distinto do rótulo visível. Necessário quando vários
+  // campos compartilham o mesmo texto curto na tela (ex.: "D"/"E" repetido
+  // em cada grupo do MRC) e o rótulo visível sozinho vira ambíguo para
+  // leitor de tela e para getByLabelText.
+  ariaLabel?: string;
 }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={{ fontSize: 11, color: T.dim, letterSpacing: 0.3 }}>{label}</span>
       {options ? (
-        <select value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
+        <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel} style={inputStyle}>
           {options.map((o) => (
             <option key={o.v} value={o.v}>
               {o.t}
@@ -128,6 +134,7 @@ export function Field({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
+          aria-label={ariaLabel}
           rows={3}
           style={{ ...inputStyle, resize: "vertical", minHeight: 64 }}
         />
@@ -138,6 +145,7 @@ export function Field({
             value={value}
             placeholder={placeholder}
             onChange={(e) => onChange(e.target.value)}
+            aria-label={ariaLabel}
             style={inputStyle}
           />
           {unit && (

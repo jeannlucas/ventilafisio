@@ -52,8 +52,20 @@ export function ScoresPanel({
                 style={{ display: "grid", gridTemplateColumns: "1fr 76px 76px", gap: 8, alignItems: "end" }}
               >
                 <span style={{ fontSize: 12.5, color: T.txt }}>{g.label}</span>
-                <Field label="D" value={valor(g.key, "d")} onChange={(v) => setLado(g.key, "d", v)} options={GRAUS} />
-                <Field label="E" value={valor(g.key, "e")} onChange={(v) => setLado(g.key, "e", v)} options={GRAUS} />
+                <Field
+                  label="D"
+                  ariaLabel={`${g.label} — direita`}
+                  value={valor(g.key, "d")}
+                  onChange={(v) => setLado(g.key, "d", v)}
+                  options={GRAUS}
+                />
+                <Field
+                  label="E"
+                  ariaLabel={`${g.label} — esquerda`}
+                  value={valor(g.key, "e")}
+                  onChange={(v) => setLado(g.key, "e", v)}
+                  options={GRAUS}
+                />
               </div>
             ))}
           </div>

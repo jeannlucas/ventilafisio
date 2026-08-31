@@ -56,4 +56,14 @@ describe("ScoresPanel", () => {
     renderPanel(cheio());
     expect(screen.getByText(/De Jonghe/i)).toBeInTheDocument();
   });
+
+  // Seis grupos com campo rotulado "D" e seis com "E" ficam ambíguos para
+  // leitor de tela e para getByLabelText sem um nome acessível próprio.
+  it("dá nome acessível único a cada lado de cada grupo do MRC", () => {
+    renderPanel({});
+    for (const g of MRC_GROUPS) {
+      expect(screen.getByLabelText(`${g.label} — direita`)).toBeInTheDocument();
+      expect(screen.getByLabelText(`${g.label} — esquerda`)).toBeInTheDocument();
+    }
+  });
 });
