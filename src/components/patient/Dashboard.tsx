@@ -87,6 +87,8 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
         <HeroCard label="RELAÇÃO P/F" value={fmt(pf, 0)} unit="" st={C.classify.pf(pf)} formula="PaO₂ / FiO₂" suggestion={sug.pf} />
       </div>
 
+      <SourceFooter sourceKeys={["dp", "pplat", "vcKg", "pf"]} />
+
       {reading.length > 0 && (
         <Panel title="Leitura do caso" sub="Alertas dos indicadores e correlações do quadro clínico com a ventilação">
           <div style={{ display: "grid", gap: 8 }}>
@@ -99,7 +101,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
             <p style={{ margin: "4px 0 0", fontSize: 10.5, color: T.dim, fontStyle: "italic" }}>
               Apoio à decisão, não conduta automática.
             </p>
-            <SourceFooter sourceKeys={["dp", "pplat", "vcKg", "pf", "mp"]} />
+            <SourceFooter sourceKeys={["vcKg", "pplat", "dp", "mp"]} />
           </div>
         </Panel>
       )}

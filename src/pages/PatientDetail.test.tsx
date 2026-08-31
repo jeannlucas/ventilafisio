@@ -373,10 +373,20 @@ describe("validação da evolução", () => {
 });
 
 // ============================================================
-// Embasamento em cada painel
+// Embasamento clínico
 // ============================================================
 describe("embasamento clínico", () => {
-  it("mostra o embasamento no painel de leitura do caso", async () => {
+  it("mostra embasamento dos indicadores na admissão", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [];
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    // AdmissionCard está visível por padrão (tab admissão)
+    expect(screen.getAllByText(/ver embasamento/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("mostra embasamento dos indicadores na evolução", async () => {
     const EVOLUCAO_BASE = {
       id: "e-1",
       patient_id: "p-1",
@@ -400,8 +410,47 @@ describe("embasamento clínico", () => {
     db.patient = { ...PACIENTE_BASE };
     db.evolutions = [{ ...EVOLUCAO_BASE }];
     renderDetail();
-    await waitFor(() => {
-      expect(screen.getAllByText(/ver embasamento/i).length).toBeGreaterThan(0);
-    });
+    await screen.findByText("Paciente Teste");
+
+    // Clicar na tab "Evolução" para renderizar Dashboard
+    await userEvent.click(screen.getByRole("tab", { name: /evolução/i }));
+
+    // Dashboard exibe embasamento
+    const footers = screen.getAllByText(/ver embasamento/i);
+    expect(footers.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("mostra embasamento da prontidão para extubação", async () => {
+    const EVOLUCAO_BASE = {
+      id: "e-1",
+      patient_id: "p-1",
+      recorded_at: "2026-01-02T00:00:00Z",
+      fr: 16,
+      vc: 400,
+      peep: 8,
+      fio2: 40,
+      pao2: 120,
+      pplat: 24,
+      ppico: 30,
+      paw: 18,
+      glasgow: 10,
+      rass: -1,
+      ims: 0,
+      vasopressor: true,
+      peak_cough_flow: 60,
+      tre_result: "success",
+      pimax: 50,
+    };
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    // Clicar na tab "Desmame" para renderizar ExtubationCard
+    await userEvent.click(screen.getByRole("tab", { name: /desmame/i }));
+
+    // ExtubationCard exibe embasamento
+    const footers = screen.getAllByText(/ver embasamento/i);
+    expect(footers.length).toBeGreaterThanOrEqual(1);
   });
 });
