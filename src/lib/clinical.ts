@@ -106,6 +106,23 @@ export function map(sbp?: number | null, dbp?: number | null) {
   return (sbp + 2 * dbp) / 3;
 }
 
+// Dias em ventilação a partir da data de intubação. O dia da intubação conta
+// como 1º dia, que é como a beira do leito fala ("8º dia de VM").
+// Data ausente, ilegível ou futura devolve null: contagem inventada é pior
+// que campo vazio.
+export function diasEmVentilacao(
+  intubationDate: string | null | undefined,
+  hoje: Date = new Date()
+): number | null {
+  if (!intubationDate) return null;
+  const inicio = new Date(`${intubationDate}T00:00:00Z`);
+  if (Number.isNaN(inicio.getTime())) return null;
+  const ref = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const dias = Math.floor((ref - inicio.getTime()) / 86_400_000);
+  if (dias < 0) return null;
+  return dias + 1;
+}
+
 // ---------- Classificações ----------
 export const classify = {
   pf(v: number | null): Classified | null {

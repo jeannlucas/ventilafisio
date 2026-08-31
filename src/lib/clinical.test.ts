@@ -13,6 +13,7 @@ import {
   raw,
   tobin,
   map,
+  diasEmVentilacao,
   classify,
   extubationReadiness,
   suggestVc,
@@ -577,5 +578,43 @@ describe("ventilationCorrelations", () => {
   it("med desligado (on:false) não gera correlação", () => {
     const r = ventilationCorrelations(ev({ iv_meds: { nmb: { on: false } } }));
     expect(r).toEqual([]);
+  });
+});
+
+// ============================================================
+// Dias em ventilação
+// ============================================================
+describe("diasEmVentilacao", () => {
+  const hoje = new Date("2026-08-31T12:00:00Z");
+
+  it("conta o dia da intubação como 1º dia de ventilação", () => {
+    expect(diasEmVentilacao("2026-08-31", hoje)).toBe(1);
+  });
+
+  it("conta oito dias para uma intubação de 24/08", () => {
+    expect(diasEmVentilacao("2026-08-24", hoje)).toBe(8);
+  });
+
+  // Ausência de dado não é zero dia de ventilação (armadilha 5).
+  it("devolve null sem data de intubação", () => {
+    expect(diasEmVentilacao(null, hoje)).toBeNull();
+    expect(diasEmVentilacao(undefined, hoje)).toBeNull();
+    expect(diasEmVentilacao("", hoje)).toBeNull();
+  });
+
+  it("devolve null para data ilegível", () => {
+    expect(diasEmVentilacao("ontem", hoje)).toBeNull();
+  });
+
+  // Erro de digitação não vira contagem negativa exibida na tela.
+  it("devolve null para data no futuro", () => {
+    expect(diasEmVentilacao("2026-09-10", hoje)).toBeNull();
+  });
+
+  // UTC-3: as 21h do dia 31, o instante em UTC ja e 1o de setembro. Contar pelos
+  // componentes UTC daria "2o dia" no proprio dia da intubacao.
+  it("nao adianta um dia no fim da tarde em fuso negativo", () => {
+    const fimDaTarde = new Date("2026-08-31T21:00:00-03:00");
+    expect(diasEmVentilacao("2026-08-31", fimDaTarde)).toBe(1);
   });
 });
