@@ -611,10 +611,14 @@ describe("diasEmVentilacao", () => {
     expect(diasEmVentilacao("2026-09-10", hoje)).toBeNull();
   });
 
-  // UTC-3: as 21h do dia 31, o instante em UTC ja e 1o de setembro. Contar pelos
-  // componentes UTC daria "2o dia" no proprio dia da intubacao.
-  it("nao adianta um dia no fim da tarde em fuso negativo", () => {
-    const fimDaTarde = new Date("2026-08-31T21:00:00-03:00");
+  // `hoje` é lido pelos getters locais, então o que importa é o dia de
+  // calendário local — não o instante em UTC. Construir por componentes
+  // (e não por string ISO com offset) fixa esse dia em qualquer fuso, então
+  // o teste nunca fica vermelho contra código correto.
+  // Em fuso negativo, as 21h locais já são o dia seguinte em UTC: é aí que
+  // a versão com getUTC* dava "2º dia" no próprio dia da intubação.
+  it("não adianta um dia no fim da tarde", () => {
+    const fimDaTarde = new Date(2026, 7, 31, 21, 0, 0);
     expect(diasEmVentilacao("2026-08-31", fimDaTarde)).toBe(1);
   });
 });
