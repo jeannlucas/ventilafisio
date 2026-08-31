@@ -1,3 +1,5 @@
+import type { Mrc } from "../lib/scores";
+
 export interface Profile {
   id: string;
   email: string | null;
@@ -31,6 +33,9 @@ export interface Patient {
   age: number | null;
   sex: "M" | "F" | null;
   diagnosis: string | null;
+  comorbidities: string[];
+  intubation_date: string | null;
+  airway: "tot" | "tqt" | null;
   height_cm: number | null;
   weight_kg: number | null;
   ventilator_id: string | null;
@@ -94,6 +99,9 @@ export interface DailyEvolution {
   pimax: number | null;
   peak_cough_flow: number | null;
   glasgow: number | null;
+  rass: number | null;
+  ims: number | null;
+  mrc: Mrc;
   tre_result: string | null;
   hr: number | null;
   sbp: number | null;
@@ -113,4 +121,14 @@ export interface Asynchrony {
   type: string;
   severity: string | null;
   recorded_at: string;
+}
+
+export interface CareAction {
+  id: string;
+  patient_id: string;
+  owner_id: string;
+  /** Chave do catálogo em src/data/care-bundle.ts. */
+  action: string;
+  at: string;
+  note: string | null;
 }

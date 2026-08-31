@@ -172,6 +172,13 @@ alter table public.patients drop constraint if exists patients_discharge_reason_
 alter table public.patients add constraint patients_discharge_reason_check
   check (discharge_reason is null or discharge_reason in ('death','extubation'));
 
+-- Fase 1 (31/08/2026): via aérea artificial. As colunas comorbidities e
+-- intubation_date já existiam e estavam sem uso; passam a ser escritas.
+alter table public.patients add column if not exists airway text;
+alter table public.patients drop constraint if exists patients_airway_check;
+alter table public.patients add constraint patients_airway_check
+  check (airway is null or airway in ('tot','tqt'));
+
 create index if not exists idx_patients_hospital on public.patients (hospital_id);
 create index if not exists idx_patients_status on public.patients (hospital_id, status);
 
@@ -338,6 +345,14 @@ alter table public.daily_evolutions add column if not exists imaging jsonb not n
 alter table public.daily_evolutions add column if not exists iv_meds jsonb not null default '{}';
 alter table public.daily_evolutions add column if not exists feeding jsonb not null default '{}';
 
+-- Fase 1 (31/08/2026): escores de força e mobilidade.
+-- rass e ims são escalares (entram nos gráficos); mrc é jsonb com os 6 grupos
+-- em dois lados. O TOTAL do MRC não é coluna: é derivado, e dado derivado
+-- guardado duas vezes diverge. Ver src/lib/scores.ts.
+alter table public.daily_evolutions add column if not exists rass int;
+alter table public.daily_evolutions add column if not exists ims int;
+alter table public.daily_evolutions add column if not exists mrc jsonb not null default '{}';
+
 alter table public.daily_evolutions enable row level security;
 
 drop policy if exists "evolutions_select_own" on public.daily_evolutions;
@@ -369,6 +384,40 @@ language sql security definer stable set search_path = public as $$
   join public.profiles pr on pr.id = d.owner_id
   where d.patient_id = p and public.can_access_patient(p);
 $$;
+
+-- ---------- CARE ACTIONS (bundle de cuidados) ----------
+-- Uma linha por execução, com hora e autor: aspiração acontece várias vezes
+-- por plantão, e um checklist diário não registraria isso.
+-- `action` guarda a CHAVE do catálogo (src/data/care-bundle.ts), nunca texto
+-- livre: rótulo solto impede contagem por ação e quebra a tradução da tela.
+-- Sem `check` no banco de propósito: engessaria uma migração a cada item novo
+-- do bundle. A validação é da aplicação.
+create table if not exists public.care_actions (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references public.patients (id) on delete cascade,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  action text not null,
+  at timestamptz not null default now(),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.care_actions enable row level security;
+
+drop policy if exists "care_actions_select_member" on public.care_actions;
+create policy "care_actions_select_member"
+  on public.care_actions for select using (public.can_access_patient(patient_id));
+drop policy if exists "care_actions_insert_member" on public.care_actions;
+create policy "care_actions_insert_member"
+  on public.care_actions for insert with check (public.can_access_patient(patient_id) and auth.uid() = owner_id);
+drop policy if exists "care_actions_update_member" on public.care_actions;
+create policy "care_actions_update_member"
+  on public.care_actions for update using (public.can_access_patient(patient_id));
+drop policy if exists "care_actions_delete_member" on public.care_actions;
+create policy "care_actions_delete_member"
+  on public.care_actions for delete using (public.can_access_patient(patient_id));
+
+create index if not exists idx_care_actions_patient on public.care_actions (patient_id, at desc);
 
 -- ---------- ASYNCHRONIES (registro de assincronias) ----------
 create table if not exists public.asynchronies (
@@ -423,8 +472,6 @@ grant execute on function public.evolution_authors(uuid) to authenticated;
 --
 --   patients.active            substituída por patients.status
 --   patients.admission_date    nunca preenchida
---   patients.intubation_date   nunca preenchida
---   patients.comorbidities     nunca preenchida
 --   daily_evolutions.hco3      não existe campo no formulário
 --   daily_evolutions.be        não existe campo no formulário
 --   asynchronies.evolution_id  nunca preenchida
@@ -432,8 +479,10 @@ grant execute on function public.evolution_authors(uuid) to authenticated;
 --   profiles.role              nenhuma regra de autorização a usa
 --
 -- Caso decida remover, confira antes que não há dado real gravado:
---   select count(*) from public.patients where comorbidities <> '{}';
 --   select count(*) from public.daily_evolutions where hco3 is not null or be is not null;
+--
+-- Saíram desta lista em 31/08/2026 (Fase 1), agora escritas pelo app:
+--   patients.intubation_date, patients.comorbidities
 --
 -- ventilators.notes é caso diferente: TEM conteúdo curado (o seed abaixo
 -- preenche), mas nenhuma tela mostra. Ou passa a ser exibida, ou sai. Decisão
