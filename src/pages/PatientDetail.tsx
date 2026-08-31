@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -8,6 +8,8 @@ import { invalidMeasurements, inconsistentMeasurements } from "../lib/measuremen
 import VentilatorGuide from "../components/VentilatorGuide";
 import { PatientHeader } from "../components/patient/PatientHeader";
 import { Dashboard } from "../components/patient/Dashboard";
+import { ScoresPanel } from "../components/patient/ScoresPanel";
+import type { Mrc } from "../lib/scores";
 import { Patient, Ventilator, DailyEvolution, Asynchrony, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
@@ -399,6 +401,9 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
   const [imaging, setImaging] = useState<ImagingData>(previous?.imaging ?? {});
   const [meds, setMeds] = useState<IvMeds>(previous?.iv_meds ?? {});
   const [feeding, setFeeding] = useState<Feeding>(previous?.feeding ?? {});
+  const [mrc, setMrc] = useState<Mrc>({});
+  const [rass, setRass] = useState("");
+  const [ims, setIms] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const set = (k: string) => (v: string) => setVals((s) => ({ ...s, [k]: v }));
@@ -446,6 +451,12 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
       imaging,
       iv_meds: meds,
       feeding,
+      mrc,
+      // RASS 0 (alerta e calmo) e IMS 0 (nada, deitado) são valores clínicos
+      // legítimos: a comparação é com string vazia, nunca `Number(v) || null`,
+      // que transformaria uma medida real em "não avaliado".
+      rass: rass === "" ? null : Number(rass),
+      ims: ims === "" ? null : Number(ims),
     };
     for (const f of EV_FIELDS) {
       const raw = vals[f.k as string];
@@ -472,20 +483,25 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
     <Panel title="Nova evolução" sub="Registra o estado atual e alimenta as tendências">
       <div style={{ display: "grid", gap: 12 }}>
         {EV_SECTIONS.map((sec) => (
-          <FormSection key={sec.title} title={sec.title} color={sec.color}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-              {sec.keys.map((k) => {
-                const f = FIELD_BY_KEY[k];
-                return (
-                  <Field key={k} label={f.label} unit={f.unit} value={vals[k] ?? ""} onChange={set(k)} />
-                );
-              })}
-              {sec.extra === "tre" && (
-                <Field label="TRE" value={tre} onChange={setTre}
-                  options={[{ v: "", t: "—" }, { v: "pass", t: "Aprovado" }, { v: "fail", t: "Falhou" }]} />
-              )}
-            </div>
-          </FormSection>
+          <Fragment key={sec.title}>
+            <FormSection title={sec.title} color={sec.color}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+                {sec.keys.map((k) => {
+                  const f = FIELD_BY_KEY[k];
+                  return (
+                    <Field key={k} label={f.label} unit={f.unit} value={vals[k] ?? ""} onChange={set(k)} />
+                  );
+                })}
+                {sec.extra === "tre" && (
+                  <Field label="TRE" value={tre} onChange={setTre}
+                    options={[{ v: "", t: "—" }, { v: "pass", t: "Aprovado" }, { v: "fail", t: "Falhou" }]} />
+                )}
+              </div>
+            </FormSection>
+            {sec.title === "Desmame" && (
+              <ScoresPanel mrc={mrc} onMrc={setMrc} rass={rass} onRass={setRass} ims={ims} onIms={setIms} />
+            )}
+          </Fragment>
         ))}
 
         <FormSection title="Evolução clínica" color={T.accent}>

@@ -353,4 +353,21 @@ describe("validação da evolução", () => {
     await waitFor(() => expect(db.lastInsert).not.toBeNull());
     expect(db.lastInsert!.vasopressor).toBeNull();
   });
+
+  // RASS 0 (alerta e calmo) e IMS 0 (nada, deitado) são medidas clínicas
+  // reais, não ausência de dado. `Number(v) || null` transformaria as duas
+  // em null, apagando o registro de que a avaliação aconteceu.
+  it("grava RASS 0 e IMS 0 como medidas reais, não como ausência de dado", async () => {
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    await userEvent.click(screen.getByRole("tab", { name: /evolução/i }));
+    await userEvent.selectOptions(screen.getByLabelText("RASS"), "0");
+    await userEvent.selectOptions(screen.getByLabelText("IMS"), "0");
+    await userEvent.click(screen.getByRole("button", { name: /salvar evolução/i }));
+
+    await waitFor(() => expect(db.lastInsert).not.toBeNull());
+    expect(db.lastInsert!.rass).toBe(0);
+    expect(db.lastInsert!.ims).toBe(0);
+  });
 });
