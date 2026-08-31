@@ -2,6 +2,7 @@ import { T, fmt } from "../../lib/theme";
 import { Panel, HeroCard, SugBox } from "../ui";
 import { Patient, DailyEvolution } from "../../types";
 import * as C from "../../lib/clinical";
+import { SourceFooter } from "../SourceFooter";
 
 // ---------- Dashboard 4 indicadores + sugestão ----------
 export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
@@ -98,6 +99,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
             <p style={{ margin: "4px 0 0", fontSize: 10.5, color: T.dim, fontStyle: "italic" }}>
               Apoio à decisão, não conduta automática.
             </p>
+            <SourceFooter sourceKeys={["dp", "pplat", "vcKg", "pf", "mp"]} />
           </div>
         </Panel>
       )}

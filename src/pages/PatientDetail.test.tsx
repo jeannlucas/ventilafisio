@@ -371,3 +371,37 @@ describe("validação da evolução", () => {
     expect(db.lastInsert!.ims).toBe(0);
   });
 });
+
+// ============================================================
+// Embasamento em cada painel
+// ============================================================
+describe("embasamento clínico", () => {
+  it("mostra o embasamento no painel de leitura do caso", async () => {
+    const EVOLUCAO_BASE = {
+      id: "e-1",
+      patient_id: "p-1",
+      recorded_at: "2026-01-02T00:00:00Z",
+      fr: 16,
+      vc: 400,
+      peep: 8,
+      fio2: 40,
+      pao2: 120,
+      pplat: 24,
+      ppico: 30,
+      paw: 18,
+      glasgow: 10,
+      rass: -1,
+      ims: 0,
+      vasopressor: true,
+      peak_cough_flow: 60,
+      tre_result: "success",
+      pimax: 50,
+    };
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    renderDetail();
+    await waitFor(() => {
+      expect(screen.getAllByText(/ver embasamento/i).length).toBeGreaterThan(0);
+    });
+  });
+});

@@ -10,6 +10,7 @@ import { PatientHeader } from "../components/patient/PatientHeader";
 import { Dashboard } from "../components/patient/Dashboard";
 import { ScoresPanel } from "../components/patient/ScoresPanel";
 import { CareBundlePanel } from "../components/patient/CareBundlePanel";
+import { SourceFooter } from "../components/SourceFooter";
 import type { Mrc } from "../lib/scores";
 import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
@@ -362,6 +363,7 @@ function AdmissionCard({ patient }: { patient: Patient }) {
         Assim que registrar a primeira evolução (gasometria, pressões), os 4 indicadores e a
         predição de extubação aparecem aqui. A Pressão de Platô continua sendo o limite de segurança.
       </p>
+      <SourceFooter sourceKeys={["vcTarget", "peepFio2"]} />
     </Panel>
   );
 }
@@ -687,6 +689,7 @@ function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
           <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m} <span style={{ fontSize: 11 }}>(não medido)</span></div>
         ))}
       </div>
+      <SourceFooter sourceKeys={["extubation", "tobin", "pimax"]} />
     </Panel>
   );
 }
