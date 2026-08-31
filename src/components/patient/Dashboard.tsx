@@ -118,6 +118,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
           <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
             A Pressão de Platô é o limite de segurança: se passar de 30 cmH₂O, reduza o VC mesmo dentro da faixa.
           </p>
+          <SourceFooter sourceKeys={["vcTarget", "peepFio2"]} />
         </Panel>
       )}
     </div>

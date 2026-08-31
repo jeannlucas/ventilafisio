@@ -107,6 +107,17 @@ describe("Dashboard", () => {
     // não o mesmo texto duplicado.
     expect(screen.getByText(/Gattinoni, 2016/)).toBeInTheDocument();
   });
+
+  // Item 2 da onda de fechamento: a tabela ARDSnet do painel "Sugestão
+  // inicial" também precisa de rodapé — antes desta mudança não tinha nenhum.
+  it("cita a tabela ARDSnet no painel 'Sugestão inicial'", () => {
+    renderDashboard(EVOLUCAO_ESTAVEL);
+
+    expect(screen.getByText(/Sugestão inicial/)).toBeInTheDocument();
+    // "ARDSnet, 2000" já aparece no rodapé incondicional dos HeroCards
+    // (via pf/pplat/vcKg); o painel de sugestão precisa do seu próprio.
+    expect(screen.getAllByText(/ARDSnet, 2000/).length).toBeGreaterThanOrEqual(2);
+  });
 });
 
 // Smoke test barato: PatientHeader também era exportado e sem teste próprio.
