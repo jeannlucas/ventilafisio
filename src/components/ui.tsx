@@ -281,6 +281,16 @@ export function HeroCard({
   );
 }
 
+export function SugBox({ label, big, sub }: { label: string; big: string; sub: string }) {
+  return (
+    <div style={{ background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 10, padding: "12px 14px", flex: "1 1 150px", minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: T.dim, letterSpacing: 0.3 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: T.txt, marginTop: 4 }}>{big}</div>
+      <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>{sub}</div>
+    </div>
+  );
+}
+
 /**
  * Mensagem de falha visível na tela. Antes, o erro do Supabase era descartado
  * e o botão simplesmente não fazia nada, sem o usuário saber por quê.

@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { T, fmt } from "../lib/theme";
-import { Panel, Field, Btn, Grid, Row, FormSection, Tabs, ChipGroup, ChipToggle, Alert } from "../components/ui";
+import { Panel, Field, Btn, Grid, Row, FormSection, Tabs, ChipGroup, ChipToggle, Alert, SugBox } from "../components/ui";
 import { invalidMeasurements, inconsistentMeasurements } from "../lib/measurement-limits";
 import VentilatorGuide from "../components/VentilatorGuide";
 import { PatientHeader } from "../components/patient/PatientHeader";
@@ -296,17 +296,6 @@ function ArchiveControl({ patient, onUpdate }: { patient: Patient; onUpdate: () 
     </div>
   );
 }
-
-export function SugBox({ label, big, sub }: { label: string; big: string; sub: string }) {
-  return (
-    <div style={{ background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 10, padding: "12px 14px", flex: "1 1 150px", minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: T.dim, letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: T.txt, marginTop: 4 }}>{big}</div>
-      <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>{sub}</div>
-    </div>
-  );
-}
-
 // ---------- Sugestão de admissão (sem evolução / dados incompletos) ----------
 function AdmissionCard({ patient }: { patient: Patient }) {
   const sug = C.admissionSuggestion(

@@ -1,8 +1,7 @@
 import { T, fmt } from "../../lib/theme";
-import { Panel, HeroCard } from "../ui";
+import { Panel, HeroCard, SugBox } from "../ui";
 import { Patient, DailyEvolution } from "../../types";
 import * as C from "../../lib/clinical";
-import { SugBox } from "../../pages/PatientDetail";
 
 // ---------- Dashboard 4 indicadores + sugestão ----------
 export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
