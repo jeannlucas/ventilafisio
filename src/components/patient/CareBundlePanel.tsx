@@ -73,10 +73,12 @@ export function CareBundlePanel({
               }}
             >
               {i.label}
-              {/* Só mostra contador a partir de 2: com 1 execução, o texto do botão
-                  ficaria idêntico ao da linha no histórico ("rótulo" + "1×" vs.
-                  "rótulo" sozinho), e getByText(/rótulo/) passa a bater nos dois. */}
-              {contagem[i.key] > 1 && (
+              {/* Mostra desde a primeira execução: "feito uma vez" e "nunca feito"
+                  são os dois estados que a equipe precisa distinguir num bundle de
+                  cuidados. O botão e a linha do histórico compartilham o rótulo por
+                  design; a ambiguidade em teste se resolve escopando a consulta
+                  (data-testid="cuidados-historico" abaixo), não escondendo o "1×". */}
+              {contagem[i.key] > 0 && (
                 <span style={{ color: T.ok, fontWeight: 800 }}>{contagem[i.key]}×</span>
               )}
             </button>
@@ -90,6 +92,9 @@ export function CareBundlePanel({
             Nenhum cuidado registrado ainda.
           </p>
         ) : (
+          // data-testid deliberado: escopa a busca de teste ao histórico, sem
+          // depender da marcação interna do Panel (um <section> compartilhado
+          // que pode mudar sem aviso).
           <div data-testid="cuidados-historico" style={{ display: "grid", gap: 6 }}>
             {actions.map((a) => (
               <div

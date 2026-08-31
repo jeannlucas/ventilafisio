@@ -83,6 +83,21 @@ describe("CareBundlePanel", () => {
     expect(screen.getByText("3×")).toBeInTheDocument();
   });
 
+  it("mostra o contador já na primeira ocorrência", () => {
+    renderPanel([acao()]);
+    // Escopado ao botão (não ao texto solto da tela): "feito uma vez" e
+    // "nunca feito" são os dois estados que o bundle precisa distinguir,
+    // então o "1×" tem que aparecer mesmo com uma única execução.
+    const botao = screen.getByRole("button", { name: /aspiração de tot/i });
+    expect(within(botao).getByText("1×")).toBeInTheDocument();
+  });
+
+  it("mostra estado vazio quando não há cuidado registrado", () => {
+    renderPanel([]);
+    expect(screen.getByText(/nenhum cuidado registrado/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0×/)).not.toBeInTheDocument();
+  });
+
   it("avisa quando o registro falha, em vez de fingir sucesso", async () => {
     const user = userEvent.setup();
     db.insertError = { message: "sem permissão" };
