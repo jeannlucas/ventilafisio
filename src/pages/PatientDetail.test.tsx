@@ -153,6 +153,40 @@ describe("carga do paciente", () => {
 });
 
 // ============================================================
+// Contexto do paciente no cabeçalho: comorbidade, via aérea e dia de
+// VM. Ausência de dado não pode virar placeholder na tela — foi a
+// origem dos defeitos mais graves já achados neste projeto (FiO₂
+// zero virando P/F "Normal", vasopressor nunca avaliado contando
+// como critério atendido).
+// ============================================================
+describe("contexto do paciente no cabeçalho", () => {
+  it("não mostra linha de contexto quando não há o que mostrar", async () => {
+    db.patient = { ...PACIENTE_BASE, comorbidities: [], intubation_date: null, airway: null };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    expect(screen.queryByText(/dia de VM/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("TOT")).not.toBeInTheDocument();
+    expect(screen.queryByText("TQT")).not.toBeInTheDocument();
+  });
+
+  it("mostra comorbidade, via aérea e dia de VM quando há dado", async () => {
+    db.patient = {
+      ...PACIENTE_BASE,
+      comorbidities: ["dpoc"],
+      airway: "tot",
+      intubation_date: "2020-01-01",
+    };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    expect(screen.getByText("DPOC")).toBeInTheDocument();
+    expect(screen.getByText("TOT")).toBeInTheDocument();
+    expect(screen.getByText(/\d+º dia de VM/)).toBeInTheDocument();
+  });
+});
+
+// ============================================================
 // C1: altura e peso só podiam ser informados na admissão, e a tela
 // pedia para informá-los depois
 // ============================================================
