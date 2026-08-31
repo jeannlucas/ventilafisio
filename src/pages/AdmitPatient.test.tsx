@@ -113,4 +113,36 @@ describe("admissão de paciente", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/permission denied/i);
   });
+
+  it("grava comorbidade, data de intubação e via aérea", async () => {
+    const user = userEvent.setup();
+    renderAdmit();
+
+    await user.type(screen.getByLabelText(/nome/i), "Paciente de Teste");
+    await user.click(screen.getByRole("button", { name: "DPOC" }));
+    await user.type(screen.getByLabelText(/data de intuba/i), "2026-08-24");
+    await user.selectOptions(screen.getByLabelText(/via a[ée]rea/i), "tot");
+    await user.click(screen.getByRole("button", { name: /admitir paciente/i }));
+
+    await waitFor(() => {
+      expect(db.lastInsert).toMatchObject({
+        comorbidities: ["dpoc"],
+        intubation_date: "2026-08-24",
+        airway: "tot",
+      });
+    });
+  });
+
+  it("grava listas e datas vazias como valores nulos, não como texto vazio", async () => {
+    renderAdmit();
+    await userEvent.type(screen.getByLabelText(/nome/i), "Fulano");
+    await userEvent.click(screen.getByRole("button", { name: /admitir paciente/i }));
+
+    await waitFor(() => expect(db.lastInsert).not.toBeNull());
+    expect(db.lastInsert).toMatchObject({
+      comorbidities: [],
+      intubation_date: null,
+      airway: null,
+    });
+  });
 });

@@ -4,9 +4,10 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useHospital } from "../lib/hospital";
 import { T } from "../lib/theme";
-import { Panel, Field, Btn, Row, Alert } from "../components/ui";
+import { Panel, Field, Btn, Row, Alert, ChipGroup } from "../components/ui";
 import { invalidMeasurements } from "../lib/measurement-limits";
 import { Ventilator } from "../types";
+import { COMORBIDITIES } from "../data/comorbidities";
 
 export default function AdmitPatient() {
   const { session } = useAuth();
@@ -23,6 +24,9 @@ export default function AdmitPatient() {
     ventilator_id: "",
     current_mode: "VCV",
   });
+  const [comorbidities, setComorbidities] = useState<string[]>([]);
+  const [intubationDate, setIntubationDate] = useState("");
+  const [airway, setAirway] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const set = (k: string) => (v: string) => setF((s) => ({ ...s, [k]: v }));
@@ -70,6 +74,9 @@ export default function AdmitPatient() {
         weight_kg: f.weight_kg ? Number(f.weight_kg) : null,
         ventilator_id: f.ventilator_id || null,
         current_mode: f.current_mode,
+        comorbidities,
+        intubation_date: intubationDate || null,
+        airway: airway || null,
       })
       .select()
       .single();
@@ -113,6 +120,34 @@ export default function AdmitPatient() {
           <Field label="Peso real" value={f.weight_kg} onChange={set("weight_kg")} unit="kg" />
         </Row>
         <Field label="Diagnóstico" value={f.diagnosis} onChange={set("diagnosis")} type="text" />
+        <Row cols={2}>
+          <Field
+            label="Data de intubação"
+            type="date"
+            value={intubationDate}
+            onChange={setIntubationDate}
+          />
+          <Field
+            label="Via aérea"
+            value={airway}
+            onChange={setAirway}
+            options={[
+              { v: "", t: "Não informado" },
+              { v: "tot", t: "TOT" },
+              { v: "tqt", t: "TQT" },
+            ]}
+          />
+        </Row>
+        <div style={{ display: "grid", gap: 6 }}>
+          <span style={{ fontSize: 11, color: T.dim, letterSpacing: 0.3 }}>Comorbidades</span>
+          <ChipGroup
+            options={COMORBIDITIES.map((c) => ({ v: c.key, t: c.label }))}
+            selected={comorbidities}
+            onToggle={(v) =>
+              setComorbidities((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v]))
+            }
+          />
+        </div>
         <Row cols={2}>
           <Field
             label="Ventilador"

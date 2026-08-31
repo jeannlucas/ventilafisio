@@ -5,6 +5,7 @@ import { Panel, Field, Btn, Alert } from "../ui";
 import { invalidMeasurements } from "../../lib/measurement-limits";
 import { Patient, Ventilator } from "../../types";
 import * as C from "../../lib/clinical";
+import { COMORBIDITIES } from "../../data/comorbidities";
 
 // ---------- Header com troca de ventilador/modo ----------
 export function PatientHeader({
@@ -27,6 +28,16 @@ export function PatientHeader({
 
   const pbwVal = C.pbw((patient.sex ?? "M") as "M" | "F", patient.height_cm);
   const bmiVal = C.bmi(patient.weight_kg, patient.height_cm);
+
+  // Rótulo de comorbidade vem do key salvo, nunca do texto: o texto pode
+  // ser reescrito depois sem migrar dado nenhum.
+  const rotuloComorbidade = new Map(COMORBIDITIES.map((c) => [c.key, c.label]));
+  const diasVM = C.diasEmVentilacao(patient.intubation_date);
+  const contexto = [
+    ...(patient.comorbidities ?? []).map((k) => rotuloComorbidade.get(k) ?? k),
+    patient.airway === "tot" ? "TOT" : patient.airway === "tqt" ? "TQT" : null,
+    diasVM != null ? `${diasVM}º dia de VM` : null,
+  ].filter((c): c is string => Boolean(c));
 
   const save = async () => {
     const problemas = invalidMeasurements({ height_cm: height, weight_kg: weight });
@@ -62,6 +73,25 @@ export function PatientHeader({
             {patient.sex === "M" ? "Masculino" : patient.sex === "F" ? "Feminino" : "—"} ·{" "}
             {patient.diagnosis ?? "sem diagnóstico"}
           </div>
+          {contexto.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+              {contexto.map((c) => (
+                <span
+                  key={c}
+                  style={{
+                    fontSize: 11,
+                    padding: "3px 9px",
+                    borderRadius: 999,
+                    background: T.panel2,
+                    border: `1px solid ${T.line}`,
+                    color: T.dim,
+                  }}
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
           <div style={{ fontSize: 13, color: T.dim, marginTop: 4 }}>
             PBW <strong style={{ color: T.txt }}>{fmt(pbwVal)}</strong> kg · IMC{" "}
             <strong style={{ color: T.txt }}>{fmt(bmiVal)}</strong>
