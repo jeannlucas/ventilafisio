@@ -32,8 +32,15 @@ describe("página de fontes", () => {
 
   it("mostra qual limiar cada fonte sustenta", () => {
     renderPage();
-    // Duas fontes sustentam a Mechanical Power: gattinoni (titulo, nota,
-    // Sustenta) e serpaneto (titulo, Sustenta). São cinco ocorrências no total.
-    expect(screen.getAllByText(/Mechanical Power/i)).toHaveLength(5);
+    // Duas fontes sustentam a Mechanical Power: gattinoni e serpaneto.
+    // Valida especificamente a função usos() que popula a linha "Sustenta:",
+    // não uma contagem page-wide. Busca elementos que começam com "Sustenta:"
+    // e contêm o rótulo correto — descarta matches em titulo/nota/ancestrais.
+    const sustentaMp = screen.getAllByText(
+      (_, el) =>
+        !!el?.textContent?.trim().startsWith("Sustenta:") &&
+        /Mechanical Power/i.test(el.textContent)
+    );
+    expect(sustentaMp).toHaveLength(2);
   });
 });
