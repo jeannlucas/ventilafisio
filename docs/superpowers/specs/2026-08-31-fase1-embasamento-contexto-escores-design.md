@@ -300,6 +300,17 @@ Nenhuma bloqueia a implementação. Todas entram na página `/fontes` como
    cobertos por `amib_sbpt_2024` ou `boles_2007`, a confirmar no texto.
 5. **Catálogo do bundle.** Quais ações entram, e a nomenclatura.
 6. **Comorbidades.** Lista fechada a adotar.
+7. **Faixa 48–59 do MRC.** `src/lib/scores.ts` classifica o total entre 48 e 59
+   como `warn` / "Força reduzida". De Jonghe 2002 estabelece o corte `< 48`
+   para fraqueza adquirida na UTI, mas não define essa segunda faixa — e o
+   rodapé do painel atribui a classificação inteira a essa fonte. O código não
+   foi alterado nesta onda: classificação clínica só muda com fonte e decisão
+   do dono. Fica a pergunta: essa faixa permanece, e sob qual fonte?
+8. **Escores só de escrita.** `rass`, `ims` e `mrc` são capturados e gravados
+   corretamente, mas nenhuma tela hoje os lê de volta: não entram em
+   `TrendCharts`, não aparecem em `EvolutionHistory`, não aparecem no
+   cabeçalho do paciente. Exibi-los é trabalho da Fase 2. Registrado aqui
+   porque o cliente vai notar essa lacuna numa demonstração.
 
 ## 11. Riscos
 
@@ -320,3 +331,10 @@ vai consumir, e o embasamento que ela vai precisar citar.
 
 Vale dizer ao cliente com essas palavras, para que a entrega não seja lida como
 resposta completa ao pedido dele.
+
+Também não resolve a leitura dos escores capturados nesta fase. RASS, IMS e
+MRC são gravados no banco desde já, mas não voltam para nenhuma tela: sem
+gráfico de tendência, sem histórico, sem cabeçalho do paciente. Ligar a
+leitura de volta é trabalho de Fase 2, e o limite precisa estar dito aqui
+também, não só na pendência do item 10.8, para não virar surpresa numa
+demonstração.
