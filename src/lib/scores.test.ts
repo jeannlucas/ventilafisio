@@ -52,6 +52,20 @@ describe("mrcTotal", () => {
     expect(mrcTotal(undefined)).toBeNull();
     expect(mrcTotal({})).toBeNull();
   });
+
+  // MRC 0 é "sem contração": uma medida real, e a mais grave da escala.
+  // Uma guarda falsy trataria isto como dado ausente e devolveria null,
+  // escondendo a tetraparesia completa em vez de mostrá-la.
+  it("soma 12 zeros como total 0, não como ausência de dado", () => {
+    const m = Object.fromEntries(MRC_GROUPS.map((g) => [g.key, { d: 0, e: 0 }]));
+    expect(mrcTotal(m)).toBe(0);
+  });
+
+  it("conta o grau 0 na soma, sem anular o total", () => {
+    const m = cheio();
+    m[MRC_GROUPS[0].key] = { d: 0, e: 0 };
+    expect(mrcTotal(m)).toBe(50);
+  });
 });
 
 describe("classifyMrc", () => {
@@ -70,6 +84,10 @@ describe("classifyMrc", () => {
   it("não classifica o que não foi medido", () => {
     expect(classifyMrc(null)).toBeNull();
   });
+
+  it("classifica o total 0 como fraqueza, não como não medido", () => {
+    expect(classifyMrc(0)).toEqual({ s: "danger", t: "Fraqueza adquirida na UTI" });
+  });
 });
 
 describe("mrcAsymmetry", () => {
@@ -87,5 +105,11 @@ describe("mrcAsymmetry", () => {
     const m = cheio();
     m[MRC_GROUPS[1].key] = { d: null, e: 4 };
     expect(mrcAsymmetry(m)).toBeNull();
+  });
+
+  it("reconhece o lado com grau 0 como o mais fraco", () => {
+    const m = cheio();
+    m[MRC_GROUPS[0].key] = { d: 5, e: 0 };
+    expect(mrcAsymmetry(m)).toEqual({ lado: "e", delta: 5 });
   });
 });
