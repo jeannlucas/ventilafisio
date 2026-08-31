@@ -9,6 +9,7 @@ import PatientDetail from "./pages/PatientDetail";
 import AdmitPatient from "./pages/AdmitPatient";
 import Archived from "./pages/Archived";
 import VentilatorLibrary from "./pages/VentilatorLibrary";
+import Sources from "./pages/Sources";
 import AcceptShare from "./pages/AcceptShare";
 import { PENDING_SHARE_KEY, safePendingSharePath } from "./lib/share-link";
 
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/admitir" element={<AdmitPatient />} />
           <Route path="/arquivados" element={<Archived />} />
           <Route path="/biblioteca" element={<VentilatorLibrary />} />
+          <Route path="/fontes" element={<Sources />} />
           <Route path="/paciente/:id" element={<PatientDetail />} />
           <Route path="/compartilhar/:token" element={<AcceptShare />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -190,6 +192,7 @@ function GlobalTabs() {
     { to: "/admitir", label: "Admitir paciente", end: false },
     { to: "/arquivados", label: "Arquivados", end: false },
     { to: "/biblioteca", label: "Biblioteca de ventiladores", end: false },
+    { to: "/fontes", label: "Fontes", end: false },
   ];
   return (
     <nav style={{ borderBottom: `1px solid ${T.line}`, background: T.bg }}>
