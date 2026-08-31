@@ -9,8 +9,9 @@ import VentilatorGuide from "../components/VentilatorGuide";
 import { PatientHeader } from "../components/patient/PatientHeader";
 import { Dashboard } from "../components/patient/Dashboard";
 import { ScoresPanel } from "../components/patient/ScoresPanel";
+import { CareBundlePanel } from "../components/patient/CareBundlePanel";
 import type { Mrc } from "../lib/scores";
-import { Patient, Ventilator, DailyEvolution, Asynchrony, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
+import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
 import { ASYNCHRONIES, ASYNC_BY_KEY } from "../data/asynchronies";
@@ -25,6 +26,7 @@ export default function PatientDetail() {
   const [ventilators, setVentilators] = useState<Ventilator[]>([]);
   const [evolutions, setEvolutions] = useState<DailyEvolution[]>([]);
   const [asyncs, setAsyncs] = useState<Asynchrony[]>([]);
+  const [careActions, setCareActions] = useState<CareAction[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -34,11 +36,12 @@ export default function PatientDetail() {
     if (!id) return;
     setLoading(true);
     setLoadError(null);
-    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }] = await Promise.all([
+    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }, { data: ca }] = await Promise.all([
       supabase.from("patients").select("*").eq("id", id).single(),
       supabase.from("ventilators").select("*").order("brand"),
       supabase.from("daily_evolutions").select("*").eq("patient_id", id).order("recorded_at", { ascending: true }),
       supabase.from("asynchronies").select("*").eq("patient_id", id).order("recorded_at", { ascending: false }),
+      supabase.from("care_actions").select("*").eq("patient_id", id).order("at", { ascending: false }),
     ]);
     // Sem este ramo, paciente inacessível deixava patient em null e a tela
     // ficava em "Carregando…" para sempre.
@@ -55,6 +58,7 @@ export default function PatientDetail() {
     setVentilators((v as Ventilator[]) ?? []);
     setEvolutions((ev as DailyEvolution[]) ?? []);
     setAsyncs((asy as Asynchrony[]) ?? []);
+    setCareActions((ca as CareAction[]) ?? []);
     // Nomes dos autores das evoluções (RPC escopado por acesso).
     const { data: au } = await supabase.rpc("evolution_authors", { p: id });
     const map: Record<string, string> = {};
@@ -84,6 +88,7 @@ export default function PatientDetail() {
   const tabs = [
     { key: "admissao", label: "Admissão" },
     { key: "evolucao", label: "Evolução" },
+    { key: "cuidados", label: "Cuidados" },
     { key: "graficos", label: "Gráficos" },
     { key: "desmame", label: "Desmame" },
   ];
@@ -116,6 +121,16 @@ export default function PatientDetail() {
           </Grid>
           <EvolutionHistory evolutions={evolutions} authors={authors} />
         </div>
+      )}
+
+      {tab === "cuidados" && (
+        <CareBundlePanel
+          patientId={patient.id}
+          ownerId={session!.user.id}
+          actions={careActions}
+          authors={authors}
+          onChange={load}
+        />
       )}
 
       {tab === "graficos" && (
