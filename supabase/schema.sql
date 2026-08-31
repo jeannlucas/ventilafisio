@@ -260,7 +260,7 @@ create policy "patients_update_member"
 revoke update on public.patients from authenticated;
 grant update (
   ventilator_id, current_mode, height_cm, weight_kg,
-  name, age, sex, diagnosis, admission_date, intubation_date, comorbidities,
+  name, age, sex, diagnosis, admission_date, intubation_date, airway, comorbidities,
   status, discharge_reason, discharge_date, updated_at
 ) on public.patients to authenticated;
 drop policy if exists "patients_delete_member" on public.patients;
@@ -346,9 +346,13 @@ alter table public.daily_evolutions add column if not exists iv_meds jsonb not n
 alter table public.daily_evolutions add column if not exists feeding jsonb not null default '{}';
 
 -- Fase 1 (31/08/2026): escores de força e mobilidade.
--- rass e ims são escalares (entram nos gráficos); mrc é jsonb com os 6 grupos
--- em dois lados. O TOTAL do MRC não é coluna: é derivado, e dado derivado
--- guardado duas vezes diverge. Ver src/lib/scores.ts.
+-- rass e ims são escalares por escolha, para poderem alimentar gráfico no
+-- futuro; mrc é jsonb com os 6 grupos em dois lados. Nenhuma tela hoje lê os
+-- três de volta: TrendCharts plota dp/pplat/pf/cst/tobin/vcKg e não inclui
+-- rass, ims nem mrc, e EvolutionHistory também não os mostra. Exibi-los
+-- (gráfico, histórico, cabeçalho) é trabalho da Fase 2, não desta. O TOTAL do
+-- MRC não é coluna: é derivado, e dado derivado guardado duas vezes diverge.
+-- Ver src/lib/scores.ts.
 alter table public.daily_evolutions add column if not exists rass int;
 alter table public.daily_evolutions add column if not exists ims int;
 alter table public.daily_evolutions add column if not exists mrc jsonb not null default '{}';
