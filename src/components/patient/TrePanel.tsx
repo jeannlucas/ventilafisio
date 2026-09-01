@@ -85,6 +85,11 @@ export function TrePanel({
   const [modoAntes, setModoAntes] = useState(modoAtual ?? "");
   const [criterios, setCriterios] = useState<Record<string, TreCriterio>>(aberta?.criterios ?? {});
   const [pedindoMotivo, setPedindoMotivo] = useState(false);
+  // "Falhou" grava um bloqueador ABSOLUTO da triagem de extubação e não tem
+  // como ser corrigido depois. Um clique só, sem confirmação, era menos
+  // deliberado do que "Interromper", que já pedia motivo digitado — a
+  // assimetria estava ao contrário do peso clínico dos dois desfechos.
+  const [confirmandoFalha, setConfirmandoFalha] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [agora, setAgora] = useState(() => new Date());
 
@@ -97,6 +102,7 @@ export function TrePanel({
     setIdCarregado(idAberta);
     setCriterios(aberta?.criterios ?? {});
     setPedindoMotivo(false);
+    setConfirmandoFalha(false);
     setMotivo("");
     setErro(null);
   }
@@ -181,6 +187,7 @@ export function TrePanel({
       return;
     }
     setPedindoMotivo(false);
+    setConfirmandoFalha(false);
     setMotivo("");
     onChange();
   };
@@ -320,7 +327,7 @@ export function TrePanel({
           </p>
 
           <div style={{ marginTop: 18 }}>
-            {!pedindoMotivo ? (
+            {!pedindoMotivo && !confirmandoFalha ? (
               <>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <button
@@ -339,7 +346,7 @@ export function TrePanel({
                   <button
                     type="button"
                     disabled={salvando}
-                    onClick={() => encerrar("falhou")}
+                    onClick={() => setConfirmandoFalha(true)}
                     style={botaoDesfecho(T.danger)}
                   >
                     <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: T.danger }}>
@@ -391,6 +398,33 @@ export function TrePanel({
                   </span>
                 </div>
               </>
+            ) : confirmandoFalha ? (
+              <div
+                data-testid="tre-confirmar-falha"
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  background: `${T.danger}0F`,
+                  border: `1px solid ${T.danger}66`,
+                }}
+              >
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.danger }}>
+                  Registrar falha do teste?
+                </div>
+                <p style={{ margin: "6px 0 12px", fontSize: 11.5, color: T.dim, lineHeight: 1.6 }}>
+                  Falha bloqueia a extubação na triagem, e o desfecho de um teste encerrado não
+                  pode ser corrigido depois. Se o teste parou por exame, transporte ou decisão da
+                  equipe, volte e use Interromper.
+                </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Btn variant="danger" onClick={() => encerrar("falhou")} disabled={salvando}>
+                    Confirmar falha
+                  </Btn>
+                  <Btn variant="ghost" onClick={() => setConfirmandoFalha(false)}>
+                    Voltar
+                  </Btn>
+                </div>
+              </div>
             ) : (
               <div
                 style={{

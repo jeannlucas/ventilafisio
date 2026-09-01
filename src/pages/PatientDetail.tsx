@@ -33,7 +33,8 @@ export default function PatientDetail() {
   const [evolutions, setEvolutions] = useState<DailyEvolution[]>([]);
   const [asyncs, setAsyncs] = useState<Asynchrony[]>([]);
   const [careActions, setCareActions] = useState<CareAction[]>([]);
-  const [treSessions, setTreSessions] = useState<TreSession[]>([]);
+  // null = a busca por sessões de TRE falhou. Ver o comentário em `load()`.
+  const [treSessions, setTreSessions] = useState<TreSession[] | null>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export default function PatientDetail() {
     if (!id) return;
     setLoading(true);
     setLoadError(null);
-    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }, { data: ca }, { data: tre }] = await Promise.all([
+    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }, { data: ca }, { data: tre, error: treError }] = await Promise.all([
       supabase.from("patients").select("*").eq("id", id).single(),
       supabase.from("ventilators").select("*").order("brand"),
       supabase.from("daily_evolutions").select("*").eq("patient_id", id).order("recorded_at", { ascending: true }),
@@ -76,7 +77,11 @@ export default function PatientDetail() {
     }
     setAsyncs((asy as Asynchrony[]) ?? []);
     setCareActions((ca as CareAction[]) ?? []);
-    setTreSessions((tre as TreSession[]) ?? []);
+    // null significa "não sei", e é diferente de "não há sessão nenhuma".
+    // Com a busca falhando, cair no campo legado faria um TRE reprovado hoje
+    // ser apagado por um `tre_result: "pass"` de antes da Fase 5 — o
+    // bloqueador absoluto sumiria da tela por causa de um erro de rede.
+    setTreSessions(treError ? null : ((tre as TreSession[]) ?? []));
     // Nomes dos autores das evoluções (RPC escopado por acesso).
     const { data: au } = await supabase.rpc("evolution_authors", { p: id });
     const map: Record<string, string> = {};
@@ -195,7 +200,7 @@ export default function PatientDetail() {
                 patientId={patient.id}
                 ownerId={session!.user.id}
                 modoAtual={patient.current_mode}
-                sessoes={treSessions}
+                sessoes={treSessions ?? []}
                 pendencias={pendenciasParaIniciar(triagem)}
                 onChange={load}
               />
@@ -468,16 +473,21 @@ const FIELD_BY_KEY = Object.fromEntries(
 ) as Record<string, (typeof EV_FIELDS)[number]>;
 
 // Agrupamento visual por seção (não altera os campos salvos no banco).
-const EV_SECTIONS: { title: string; color: string; keys: string[]; extra?: "tre" | "vaso" }[] = [
+// O TRE saiu daqui na Fase 5. O campo era um seletor com "Aprovado" e
+// "Falhou" apenas: teste interrompido não tinha como ser registrado e virava
+// "Falhou", que é bloqueador ABSOLUTO da triagem de extubação. Quem registra
+// TRE agora é o TrePanel, na aba Desmame, com sessão e desfecho próprios.
+// `daily_evolutions.tre_result` continua sendo LIDO como legado (ver
+// resultadoTreParaTriagem), mas nunca mais escrito.
+const EV_SECTIONS: { title: string; color: string; keys: string[] }[] = [
   { title: "Parâmetros do ventilador", color: T.accent, keys: ["fr", "vc", "peep", "fio2", "ppico", "pplat", "flow"] },
   { title: "Gasometria", color: T.ok, keys: ["ph", "pao2", "paco2", "spo2"] },
-  { title: "Desmame", color: T.purple, keys: ["pimax", "peak_cough_flow", "glasgow"], extra: "tre" },
+  { title: "Desmame", color: T.purple, keys: ["pimax", "peak_cough_flow", "glasgow"] },
   { title: "Hemodinâmica", color: T.warn, keys: ["hr", "sbp", "dbp", "lactate"] },
 ];
 
 function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patient; ownerId: string; previous?: DailyEvolution; onSaved: () => void }) {
   const [vals, setVals] = useState<Record<string, string>>({});
-  const [tre, setTre] = useState("");
   const [notes, setNotes] = useState("");
   // Carry-forward: herda o quadro clínico da última evolução (não os números do dia).
   const [imaging, setImaging] = useState<ImagingData>(previous?.imaging ?? {});
@@ -525,7 +535,8 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
       patient_id: patient.id,
       owner_id: ownerId,
       mode: patient.current_mode,
-      tre_result: tre || null,
+      // `tre_result` NÃO entra no payload: o TRE é registrado em
+      // `tre_sessions`, onde "interrompido" existe como desfecho próprio.
       // null quando o chip nunca foi tocado: "não avaliado" não pode virar
       // "sem vasopressor", que a triagem de extubação conta como critério atendido.
       vasopressor: meds.vasopressor?.on ?? null,
@@ -551,7 +562,6 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
       return;
     }
     setVals({});
-    setTre("");
     onSaved();
   };
 
@@ -574,10 +584,6 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
                     <Field key={k} label={f.label} unit={f.unit} value={vals[k] ?? ""} onChange={set(k)} />
                   );
                 })}
-                {sec.extra === "tre" && (
-                  <Field label="TRE" value={tre} onChange={setTre}
-                    options={[{ v: "", t: "—" }, { v: "pass", t: "Aprovado" }, { v: "fail", t: "Falhou" }]} />
-                )}
               </div>
             </FormSection>
             {sec.title === "Desmame" && (
@@ -658,8 +664,14 @@ function ExtubationCard({ triagem: r }: { triagem: C.ExtubationReadiness }) {
   }[r.level];
 
   return (
+    // O subtítulo dizia "a partir da última evolução", e desde a Fase 5 isso
+    // deixou de ser verdade: o critério de TRE lê o histórico de sessões
+    // inteiro, sem recorte de tempo. Por quanto tempo um TRE aprovado continua
+    // valendo é pergunta clínica do mentor, não do app — enquanto ela não tem
+    // resposta, a tela diz de onde cada número vem, em vez de prometer uma
+    // atualidade que ela não tem.
     <Panel title="Prontidão para extubação" accent={veredito.c}
-      sub="Triagem objetiva a partir da última evolução, não é indicação de extubar">
+      sub="Medidas da última evolução e TRE do histórico de testes, não é indicação de extubar">
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: veredito.c }}>
           {r.level === "favorable" ? "✓" : r.level === "insufficient" ? "ℹ" : "⚠"} {veredito.t}
@@ -674,16 +686,28 @@ function ExtubationCard({ triagem: r }: { triagem: C.ExtubationReadiness }) {
           app conseguir triar. O que está abaixo é o que já foi medido.
         </p>
       )}
+      {/* Os três grupos ganham um invólucro próprio para que o teste possa
+          perguntar EM QUAL deles um critério caiu: procurar o rótulo no painel
+          inteiro não distingue atendido de reprovado de não medido, e é essa
+          distinção que decide a conduta. `display: contents` mantém as linhas
+          como itens diretos do grid de fora, então o espaçamento da tela é
+          exatamente o mesmo de antes, inclusive com grupo vazio. */}
       <div style={{ display: "grid", gap: 6 }}>
-        {r.met.map((m) => (
-          <div key={m} style={{ fontSize: 13, color: T.ok }}>✓ {m}</div>
-        ))}
-        {r.failed.map((m) => (
-          <div key={m} style={{ fontSize: 13, color: T.danger }}>✗ {m}</div>
-        ))}
-        {r.notMeasured.map((m) => (
-          <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m} <span style={{ fontSize: 11 }}>(não medido)</span></div>
-        ))}
+        <div data-testid="extubacao-atendidos" style={{ display: "contents" }}>
+          {r.met.map((m) => (
+            <div key={m} style={{ fontSize: 13, color: T.ok }}>✓ {m}</div>
+          ))}
+        </div>
+        <div data-testid="extubacao-reprovados" style={{ display: "contents" }}>
+          {r.failed.map((m) => (
+            <div key={m} style={{ fontSize: 13, color: T.danger }}>✗ {m}</div>
+          ))}
+        </div>
+        <div data-testid="extubacao-nao-medidos" style={{ display: "contents" }}>
+          {r.notMeasured.map((m) => (
+            <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m} <span style={{ fontSize: 11 }}>(não medido)</span></div>
+          ))}
+        </div>
       </div>
       <SourceFooter sourceKeys={["extubation", "tobin", "pimax", "rass"]} />
     </Panel>

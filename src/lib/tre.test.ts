@@ -7,7 +7,7 @@ import {
   pendenciasParaIniciar,
 } from "./tre";
 import type { TreSession } from "../types";
-import type { ExtubationReadiness } from "./clinical";
+import { CRITERIO_TRE_APROVADO, type ExtubationReadiness } from "./clinical";
 
 const sessao = (over: Partial<TreSession> = {}): TreSession =>
   ({
@@ -85,8 +85,46 @@ describe("resultadoTreParaTriagem", () => {
     expect(resultadoTreParaTriagem([sessao({ desfecho: "interrompido" })], null)).toBeNull();
   });
 
+  // Sessão aberta e nada concluído: "não medido". A resposta não pode vir de um
+  // teste que ainda não terminou.
   it("um TRE em andamento ainda não tem resultado", () => {
     expect(resultadoTreParaTriagem([sessao({ desfecho: null })], null)).toBeNull();
+  });
+
+  // Pelo mesmo motivo do teste acima, na outra ponta: se nada foi concluído
+  // AQUI, o campo legado continua valendo. Abrir uma sessão não pode derrubar
+  // um 'fail' antigo, que é bloqueador real até um teste novo substituí-lo.
+  it("uma sessão em andamento não apaga o campo legado", () => {
+    expect(resultadoTreParaTriagem([sessao({ desfecho: null })], "fail")).toBe("fail");
+    expect(resultadoTreParaTriagem([sessao({ desfecho: null })], "pass")).toBe("pass");
+  });
+
+  // Iniciar um teste novo não apaga o resultado do anterior. Antes, a resposta
+  // vinha da sessão mais recente qualquer que fosse ela: abrir uma sessão uma
+  // hora depois de um 'falhou' devolvia null e derrubava o bloqueador absoluto
+  // da triagem enquanto o teste corria.
+  it("uma sessão em andamento não apaga a falha já concluída", () => {
+    const falhou = sessao({ id: "a", iniciado_em: "2026-09-01T08:00:00Z", desfecho: "falhou",
+                            encerrado_em: "2026-09-01T08:30:00Z" });
+    const emAndamento = sessao({ id: "b", iniciado_em: "2026-09-01T09:00:00Z", desfecho: null });
+    expect(resultadoTreParaTriagem([falhou, emAndamento], null)).toBe("fail");
+    expect(resultadoTreParaTriagem([emAndamento, falhou], null)).toBe("fail");
+  });
+
+  it("uma sessão em andamento não apaga a aprovação já concluída", () => {
+    const aprovado = sessao({ id: "a", iniciado_em: "2026-09-01T08:00:00Z", desfecho: "aprovado",
+                              encerrado_em: "2026-09-01T08:30:00Z" });
+    const emAndamento = sessao({ id: "b", iniciado_em: "2026-09-01T09:00:00Z", desfecho: null });
+    expect(resultadoTreParaTriagem([aprovado, emAndamento], null)).toBe("pass");
+  });
+
+  // A busca falhou: `null` não é "não há sessão nenhuma". Cair no legado aqui
+  // fazia um erro de rede apagar da tela um TRE reprovado hoje, substituído
+  // por um `tre_result: "pass"` de antes da Fase 5.
+  it("com a busca falhando, NÃO cai no campo legado", () => {
+    expect(resultadoTreParaTriagem(null, "pass")).toBeNull();
+    expect(resultadoTreParaTriagem(null, "fail")).toBeNull();
+    expect(resultadoTreParaTriagem(null, null)).toBeNull();
   });
 
   // O array vai DESORDENADO de propósito. Com [antiga, nova] uma implementação
@@ -132,6 +170,14 @@ describe("pendenciasParaIniciar", () => {
 
   it("NÃO conta o próprio TRE como pendência para iniciar o TRE", () => {
     const r = triagem({ failed: ["TRE aprovado", "PEEP ≤ 8"] });
+    expect(pendenciasParaIniciar(r)).toEqual(["PEEP ≤ 8"]);
+  });
+
+  // O rótulo excluído é o de clinical.ts, não uma cópia. Com a string literal
+  // duplicada aqui, renomear o critério lá fazia a exclusão parar de funcionar
+  // em silêncio — e a pergunta voltava a se morder.
+  it("exclui exatamente o rótulo que clinical.ts constrói", () => {
+    const r = triagem({ failed: [CRITERIO_TRE_APROVADO, "PEEP ≤ 8"] });
     expect(pendenciasParaIniciar(r)).toEqual(["PEEP ≤ 8"]);
   });
 

@@ -187,6 +187,14 @@ export interface ExtubationInput {
 // parcial, e o corte de 4 já era o usado para liberar o nível favorável.
 export const MIN_CRITERIOS_AVALIADOS = 4;
 
+/**
+ * Rótulo do critério de TRE dentro da triagem. Exportado porque `lib/tre.ts`
+ * precisa excluir exatamente este critério da lista de pendências para iniciar
+ * um TRE — com o rótulo copiado lá, renomear aqui quebrava a exclusão em
+ * silêncio.
+ */
+export const CRITERIO_TRE_APROVADO = "TRE aprovado";
+
 export interface ExtubationReadiness {
   level: "favorable" | "borderline" | "unfavorable" | "insufficient";
   score: number;
@@ -210,7 +218,7 @@ export function extubationReadiness(i: ExtubationInput): ExtubationReadiness {
     // mentor clínico em 01/09/2026: manter os dois critérios.
     { label: "RASS entre −2 e +1", pass: num(i.rass) ? i.rass! >= -2 && i.rass! <= 1 : null },
     { label: "Sem vasopressor elevado", pass: i.vasopressor == null ? null : !i.vasopressor },
-    { label: "TRE aprovado", pass: i.treResult == null ? null : i.treResult === "pass" },
+    { label: CRITERIO_TRE_APROVADO, pass: i.treResult == null ? null : i.treResult === "pass" },
     { label: "Tosse eficaz (PCF ≥ 60 L/min)", pass: num(i.peakCoughFlow) ? i.peakCoughFlow! >= 60 : null },
   ];
 

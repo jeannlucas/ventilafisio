@@ -4,7 +4,11 @@
 // Critérios validados pelo mentor clínico em 01/09/2026.
 // ============================================================
 import type { TreSession } from "../types";
-import type { ExtubationReadiness } from "./clinical";
+// O rótulo vem de clinical.ts, onde ele é construído. Duplicá-lo aqui como
+// string literal deixava a exclusão do critério quebrar em silêncio: bastava
+// renomear o rótulo lá para `pendenciasParaIniciar` parar de excluir nada, com
+// a suíte inteira verde.
+import { CRITERIO_TRE_APROVADO, type ExtubationReadiness } from "./clinical";
 
 /** Critérios marcados como atingidos. Chave ausente é "não avaliado". */
 export function criteriosAtingidos(s: TreSession): string[] {
@@ -35,29 +39,39 @@ export function sessaoEmAndamento(sessoes: TreSession[]): TreSession | null {
  * transporte não é um paciente que reprovou, é um teste que não aconteceu — e
  * um TRE reprovado é bloqueador absoluto da triagem.
  *
+ * A resposta vem da sessão CONCLUÍDA mais recente. Sessão em andamento não
+ * apaga o que já foi concluído: iniciar um teste novo uma hora depois de um
+ * 'falhou' não pode derrubar o bloqueador enquanto o teste corre.
+ *
+ * `sessoes === null` significa que a busca falhou — não que não há sessão. Aí
+ * a resposta é null, "não medido", e o campo legado NÃO é consultado: usá-lo
+ * deixaria um erro de rede apagar da tela uma reprovação real.
+ *
  * Sem sessão alguma, cai no campo legado `daily_evolutions.tre_result`, para
  * não apagar o histórico de quem foi registrado antes da Fase 5.
  */
 export function resultadoTreParaTriagem(
-  sessoes: TreSession[],
+  sessoes: TreSession[] | null,
   treResultLegado: string | null
 ): "pass" | "fail" | null {
-  const ordenadas = [...sessoes].sort(
-    (a, b) => new Date(a.iniciado_em).getTime() - new Date(b.iniciado_em).getTime()
-  );
-  const ultima = ordenadas[ordenadas.length - 1];
+  if (sessoes == null) return null;
+  const concluidas = sessoes
+    .filter((s) => s.desfecho != null)
+    .sort((a, b) => new Date(a.iniciado_em).getTime() - new Date(b.iniciado_em).getTime());
+  const ultima = concluidas[concluidas.length - 1];
   if (ultima) {
     if (ultima.desfecho === "aprovado") return "pass";
     if (ultima.desfecho === "falhou") return "fail";
-    return null; // interrompido ou em andamento
+    return null; // interrompido
   }
+  // Só há sessão em andamento, nenhuma concluída: nada foi decidido AQUI ainda,
+  // então o campo legado continua valendo. Pelo mesmo motivo da regra acima —
+  // teste em andamento não apaga resultado já concluído, e um 'fail' antigo é
+  // um bloqueador real até que um teste novo o substitua.
   if (treResultLegado === "pass") return "pass";
   if (treResultLegado === "fail") return "fail";
   return null;
 }
-
-/** Rótulo do critério de TRE dentro da triagem, para poder ser excluído. */
-const CRITERIO_TRE = "TRE aprovado";
 
 /**
  * O que reprova hoje e impede iniciar um TRE — os mesmos critérios da triagem,
@@ -69,7 +83,7 @@ const CRITERIO_TRE = "TRE aprovado";
  * terapeuta; isto é o que ele vê antes de decidir.
  */
 export function pendenciasParaIniciar(r: ExtubationReadiness): string[] {
-  return r.failed.filter((label) => label !== CRITERIO_TRE);
+  return r.failed.filter((label) => label !== CRITERIO_TRE_APROVADO);
 }
 
 export function duracaoMinutos(s: TreSession, agora: Date = new Date()): number {

@@ -17,6 +17,7 @@ import {
   classify,
   extubationReadiness,
   ventilationCorrelations,
+  CRITERIO_TRE_APROVADO,
 } from "./clinical";
 import type { DailyEvolution } from "../types";
 
@@ -346,6 +347,17 @@ describe("extubationReadiness", () => {
     expect(r.level).toBe("favorable");
     expect(r.score).toBe(9);
     expect(r.max).toBe(9);
+  });
+
+  // `lib/tre.ts` exclui este rótulo da lista de pendências para INICIAR um TRE
+  // (sem a exclusão, iniciar o teste exigiria já ter feito o teste). Ele
+  // importa a constante daqui: se o rótulo construído aqui deixar de ser a
+  // constante exportada, a exclusão para de casar e este teste reprova.
+  it("constrói o critério de TRE com o rótulo exportado", () => {
+    const r = extubationReadiness({ fio2: 30, peep: 5, glasgow: 15, tobinVal: 60 });
+    expect(r.notMeasured).toContain(CRITERIO_TRE_APROVADO);
+    const aprovado = extubationReadiness(completoFavoravel);
+    expect(aprovado.met).toContain(CRITERIO_TRE_APROVADO);
   });
 
   it("TRE falhado é bloqueador mesmo com todo o resto favorável", () => {

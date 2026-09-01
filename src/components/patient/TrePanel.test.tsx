@@ -214,6 +214,47 @@ describe("TrePanel — interromper não é falhar", () => {
   });
 });
 
+// "Falhou" grava um bloqueador ABSOLUTO da triagem e não pode ser corrigido
+// depois; "Interromper", que não bloqueia nada, já exigia dois passos e um
+// motivo digitado. A assimetria estava ao contrário do peso clínico.
+describe("TrePanel — falhar é deliberado", () => {
+  it("um clique em Falhou ainda não grava a falha", async () => {
+    const user = userEvent.setup();
+    renderPanel([sessao()]);
+    await user.click(screen.getByRole("button", { name: /falhou/i }));
+    expect(screen.getByTestId("tre-confirmar-falha")).toHaveTextContent(/bloqueia a extuba/i);
+    expect(db.lastUpdate).toBeNull();
+  });
+
+  it("grava a falha só depois de confirmar", async () => {
+    const user = userEvent.setup();
+    renderPanel([sessao()]);
+    await user.click(screen.getByRole("button", { name: /falhou/i }));
+    await user.click(screen.getByRole("button", { name: /confirmar falha/i }));
+    await waitFor(() => expect(db.lastUpdate).not.toBeNull());
+    expect(db.lastUpdate).toMatchObject({ desfecho: "falhou" });
+  });
+
+  it("voltar desiste da falha sem gravar nada", async () => {
+    const user = userEvent.setup();
+    renderPanel([sessao()]);
+    await user.click(screen.getByRole("button", { name: /falhou/i }));
+    await user.click(screen.getByRole("button", { name: /voltar/i }));
+    expect(screen.queryByTestId("tre-confirmar-falha")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /falhou/i })).toBeInTheDocument();
+    expect(db.lastUpdate).toBeNull();
+  });
+
+  // A confirmação aponta para o desfecho certo de quem parou o teste por
+  // exame ou transporte: interromper, que não é falha.
+  it("na confirmação, lembra que teste parado por exame é interrupção", async () => {
+    const user = userEvent.setup();
+    renderPanel([sessao()]);
+    await user.click(screen.getByRole("button", { name: /falhou/i }));
+    expect(screen.getByTestId("tre-confirmar-falha")).toHaveTextContent(/Interromper/);
+  });
+});
+
 describe("TrePanel — critérios de falha", () => {
   it("grava a chave do critério marcado", async () => {
     const user = userEvent.setup();
@@ -303,6 +344,16 @@ describe("TrePanel — o que o painel mostra", () => {
     renderPanel([sessao()]);
     expect(screen.getByTestId("tre-fonte")).toHaveTextContent(/Boles, 2007/);
     expect(screen.getByTestId("tre-fonte")).toHaveTextContent(/AMIB\/SBPT, 2024/);
+  });
+
+  // Boles e AMIB/SBPT sozinhos não travam nada: os dois também estão em
+  // THRESHOLD_SOURCES.extubation, então trocar o `sourceKeys` do painel por
+  // ["extubation"] passaria verde e derrubaria o parecer do rodapé. O painel
+  // exibe pH < 7,35, que é julgamento do mentor — Boles 2007 usa 7,32, e sem
+  // o parecer citado o rodapé atribui a Boles um número que Boles contradiz.
+  it("cita o parecer clínico que sustenta o corte de pH que exibe", () => {
+    renderPanel([sessao()]);
+    expect(screen.getByTestId("tre-fonte")).toHaveTextContent(/Parecer clínico \(TRE\), 2026/);
   });
 
   it("não mostra o painel de iniciar enquanto houver teste em andamento", () => {

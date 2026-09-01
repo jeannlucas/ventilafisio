@@ -12,6 +12,7 @@ const db = {
   evolutions: [] as Record<string, unknown>[],
   asynchronies: [] as Record<string, unknown>[],
   treSessions: [] as Record<string, unknown>[],
+  treSessionsError: null as { message: string } | null,
   updateError: null as { message: string } | null,
   insertError: null as { message: string } | null,
   deleteError: null as { message: string } | null,
@@ -24,7 +25,10 @@ function rowsOf(table: string) {
   if (table === "ventilators") return { data: db.ventilators, error: null };
   if (table === "daily_evolutions") return { data: db.evolutions, error: null };
   if (table === "asynchronies") return { data: db.asynchronies, error: null };
-  if (table === "tre_sessions") return { data: db.treSessions, error: null };
+  if (table === "tre_sessions")
+    return db.treSessionsError
+      ? { data: null, error: db.treSessionsError }
+      : { data: db.treSessions, error: null };
   return { data: [], error: null };
 }
 
@@ -116,6 +120,7 @@ beforeEach(() => {
   db.evolutions = [];
   db.asynchronies = [];
   db.treSessions = [];
+  db.treSessionsError = null;
   db.updateError = null;
   db.insertError = null;
   db.deleteError = null;
@@ -789,5 +794,135 @@ describe("painel de TRE na página do paciente", () => {
     // cálculo alimentando os dois painéis.
     const cartao = screen.getByText("Prontidão para extubação").closest("section")!;
     expect(within(cartao).getByText(/✗ Sem vasopressor elevado/)).toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// Onda de fechamento da Fase 5, item 1: o seletor legado de TRE saiu do
+// formulário de evolução diária.
+//
+// Ele oferecia só "Aprovado" e "Falhou": um teste interrompido por tomografia
+// ou transporte não tinha como ser registrado e acabava gravado como falha —
+// bloqueador ABSOLUTO da triagem de extubação, pela superfície de entrada
+// principal do app. O defeito que a fase inteira existe para fechar continuava
+// alcançável por aqui. `daily_evolutions.tre_result` continua sendo LIDO como
+// legado; só a escrita e o campo saíram.
+// ============================================================
+describe("o formulário de evolução não registra mais TRE", () => {
+  it("não oferece o seletor de TRE", async () => {
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+    await userEvent.click(screen.getByRole("tab", { name: /evolução/i }));
+
+    expect(screen.queryByLabelText("TRE")).not.toBeInTheDocument();
+    // E nenhum seletor da tela oferece o par de opções do campo antigo.
+    expect(screen.queryByRole("option", { name: "Aprovado" })).not.toBeInTheDocument();
+  });
+
+  it("não escreve tre_result ao salvar a evolução", async () => {
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+    await userEvent.click(screen.getByRole("tab", { name: /evolução/i }));
+    await userEvent.type(screen.getByLabelText(/FiO₂/), "40");
+    await userEvent.click(screen.getByRole("button", { name: /salvar evolução/i }));
+
+    await waitFor(() => expect(db.lastInsert).not.toBeNull());
+    // `toHaveProperty` em vez de comparar com null: gravar `tre_result: null`
+    // ainda seria escrever a coluna, e o combinado é não escrevê-la mais.
+    expect(db.lastInsert).not.toHaveProperty("tre_result");
+  });
+});
+
+// ============================================================
+// Onda de fechamento da Fase 5, item 2: erro na busca de sessões de TRE não é
+// licença para usar o campo legado.
+//
+// A busca descartava o `error`. Com ela falhando, `data` vem null, a lista
+// vira [] e `resultadoTreParaTriagem` interpretava isso como "não há sessão
+// nenhuma" — caindo no `tre_result` da evolução antiga. Um paciente cuja
+// última sessão falhou aparecia com "✓ TRE aprovado" e sem o bloqueador
+// absoluto, por causa de um erro de rede. Ausência de dado não é resultado.
+// ============================================================
+describe("falha ao buscar as sessões de TRE", () => {
+  const EVOLUCAO_LEGADO_APROVADO = {
+    id: "e-1",
+    patient_id: "p-1",
+    recorded_at: "2026-01-02T00:00:00Z",
+    fr: 16,
+    vc: 400,
+    peep: 8,
+    fio2: 40,
+    pao2: 120,
+    pplat: 24,
+    ppico: 30,
+    paw: 18,
+    glasgow: 10,
+    rass: -1,
+    ims: 0,
+    vasopressor: false,
+    peak_cough_flow: 60,
+    // Registro anterior à Fase 5, dizendo que o TRE daquele dia foi aprovado.
+    tre_result: "pass",
+    pimax: -30,
+  };
+
+  it("lê como não medido, não como o TRE aprovado do campo legado", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_LEGADO_APROVADO }];
+    db.treSessionsError = { message: "falha de rede" };
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    expect(screen.getByTestId("extubacao-nao-medidos")).toHaveTextContent("TRE aprovado");
+    expect(screen.getByTestId("extubacao-atendidos")).not.toHaveTextContent("TRE aprovado");
+  });
+
+  it("com a busca funcionando, o campo legado continua valendo", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_LEGADO_APROVADO }];
+    db.treSessions = [];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    expect(screen.getByTestId("extubacao-atendidos")).toHaveTextContent("TRE aprovado");
+  });
+});
+
+// ============================================================
+// Onda de fechamento da Fase 5, item 4: o subtítulo da triagem prometia uma
+// atualidade que ela não tem mais.
+//
+// Ele dizia "Triagem objetiva a partir da última evolução". Desde que o
+// critério de TRE passou a ler o histórico de sessões inteiro, sem recorte de
+// tempo, um TRE aprovado há cinco dias continua contando — antes ele expirava
+// junto com a evolução do dia. Por quanto tempo um TRE vale é pergunta clínica
+// do mentor; o app, enquanto ela não tem resposta, diz de onde cada número vem.
+// ============================================================
+describe("subtítulo da prontidão para extubação", () => {
+  it("diz que o TRE vem do histórico de testes, não da última evolução", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [
+      {
+        id: "e-1",
+        patient_id: "p-1",
+        recorded_at: "2026-01-02T00:00:00Z",
+        fr: 16,
+        vc: 400,
+        peep: 8,
+        fio2: 40,
+        glasgow: 10,
+        rass: -1,
+        vasopressor: false,
+        peak_cough_flow: 60,
+        tre_result: null,
+        pimax: -30,
+      },
+    ];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    const painel = screen.getByText("Prontidão para extubação").closest("section")!;
+    expect(painel).toHaveTextContent(/última evolução/i);
+    expect(painel).toHaveTextContent(/histórico de testes/i);
   });
 });
