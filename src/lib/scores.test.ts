@@ -136,9 +136,11 @@ describe("ultimaAvaliacaoMrc", () => {
   });
 
   // O caso que motiva a função: registrou ventilação hoje sem refazer a força.
+  // Duas completas e uma incompleta ao final — uma varredura de frente para trás
+  // devolveria "a", e só a varredura correta devolve "b".
   it("ignora evoluções mais recentes sem avaliação completa", () => {
-    const lista = [evo("a", completa()), evo("b", incompleta()), evo("c", {})];
-    expect(ultimaAvaliacaoMrc(lista)?.id).toBe("a");
+    const lista = [evo("a", completa()), evo("b", completa()), evo("c", incompleta())];
+    expect(ultimaAvaliacaoMrc(lista)?.id).toBe("b");
   });
 
   it("devolve null quando nenhuma avaliação está completa", () => {
