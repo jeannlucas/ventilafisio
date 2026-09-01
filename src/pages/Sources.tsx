@@ -38,9 +38,11 @@ export default function Sources() {
       >
         <p style={{ fontSize: 13, color: T.dim, margin: "0 0 4px" }}>
           Este aplicativo é uma prova de conceito e não substitui julgamento
-          clínico. As referências abaixo foram conferidas contra a fonte
+          clínico. As publicações abaixo foram conferidas contra a fonte
           primária, mas só valem como embasamento depois da revisão do mentor
-          clínico — o que ainda não passou por ela aparece marcado.
+          clínico — o que ainda não passou por ela aparece marcado. Os
+          pareceres clínicos, à parte, já são a manifestação do próprio
+          mentor: não há revisão pendente neles.
         </p>
       </Panel>
 

@@ -14,7 +14,7 @@ const paciente = (over: Partial<Patient> = {}): Patient =>
 describe("derivarPerfil", () => {
   it("calcula o peso predito a partir da altura", () => {
     const p = derivarPerfil(paciente({ sex: "M", height_cm: 170 }));
-    expect(p.pbw).toBeCloseTo(65.99, 1);
+    expect(p.pbw).toBeCloseTo(66.016, 2);
     expect(p.pbwEstimado).toBe(false);
   });
 
