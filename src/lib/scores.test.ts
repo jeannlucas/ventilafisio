@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { MRC_GROUPS, RASS_LEVELS, IMS_LEVELS } from "../data/scores";
-import { mrcTotal, classifyMrc, mrcAsymmetry, type Mrc } from "./scores";
+import { mrcTotal, classifyMrc, mrcAsymmetry, ultimaAvaliacaoMrc, type Mrc } from "./scores";
+import type { DailyEvolution } from "../types";
 
 // MRC completo com 5 em tudo: o máximo da escala.
 const cheio = (): Mrc =>
@@ -111,5 +112,46 @@ describe("mrcAsymmetry", () => {
     const m = cheio();
     m[MRC_GROUPS[0].key] = { d: 5, e: 0 };
     expect(mrcAsymmetry(m)).toEqual({ lado: "e", delta: 5 });
+  });
+});
+
+// Fixture mínima: só o que a função lê. O resto de DailyEvolution não importa
+// aqui, e preencher tudo tornaria o teste ilegível.
+const evo = (id: string, mrc: Mrc): DailyEvolution =>
+  ({ id, mrc } as unknown as DailyEvolution);
+
+const completa = (): Mrc =>
+  Object.fromEntries(MRC_GROUPS.map((g) => [g.key, { d: 4, e: 4 }]));
+
+const incompleta = (): Mrc => {
+  const m = completa();
+  m[MRC_GROUPS[0].key] = { d: 4, e: null };
+  return m;
+};
+
+describe("ultimaAvaliacaoMrc", () => {
+  it("devolve a avaliação completa mais recente", () => {
+    const lista = [evo("a", completa()), evo("b", completa())];
+    expect(ultimaAvaliacaoMrc(lista)?.id).toBe("b");
+  });
+
+  // O caso que motiva a função: registrou ventilação hoje sem refazer a força.
+  it("ignora evoluções mais recentes sem avaliação completa", () => {
+    const lista = [evo("a", completa()), evo("b", incompleta()), evo("c", {})];
+    expect(ultimaAvaliacaoMrc(lista)?.id).toBe("a");
+  });
+
+  it("devolve null quando nenhuma avaliação está completa", () => {
+    expect(ultimaAvaliacaoMrc([evo("a", incompleta()), evo("b", {})])).toBeNull();
+  });
+
+  it("devolve null para lista vazia", () => {
+    expect(ultimaAvaliacaoMrc([])).toBeNull();
+  });
+
+  // Zero é medida real: doze zeros é uma avaliação completa, e gravíssima.
+  it("aceita avaliação com todos os graus zero", () => {
+    const zerada = Object.fromEntries(MRC_GROUPS.map((g) => [g.key, { d: 0, e: 0 }]));
+    expect(ultimaAvaliacaoMrc([evo("a", zerada)])?.id).toBe("a");
   });
 });

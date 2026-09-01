@@ -5,6 +5,7 @@
 // ============================================================
 import { MRC_GROUPS } from "../data/scores";
 import type { Classified } from "./clinical";
+import type { DailyEvolution } from "../types";
 
 export interface MrcSide {
   d: number | null;
@@ -56,4 +57,19 @@ export function mrcAsymmetry(
   const delta = Math.abs(somaD - somaE);
   if (delta === 0) return null;
   return { lado: somaD < somaE ? "d" : "e", delta };
+}
+
+/**
+ * A avaliação motora completa mais recente, que NÃO é necessariamente a
+ * evolução mais recente: o terapeuta pode registrar ventilação hoje sem
+ * refazer a força muscular. Percorre de trás para frente, assumindo a lista
+ * em ordem cronológica crescente, como vem de `PatientDetail`.
+ */
+export function ultimaAvaliacaoMrc(
+  evolucoes: DailyEvolution[]
+): DailyEvolution | null {
+  for (let i = evolucoes.length - 1; i >= 0; i--) {
+    if (mrcTotal(evolucoes[i]?.mrc) != null) return evolucoes[i];
+  }
+  return null;
 }
