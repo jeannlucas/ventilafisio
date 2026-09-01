@@ -119,9 +119,13 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
           {/* Só aparece quando alguma modulação deslocou o alvo (hoje, só
               obesidade). Sem esta linha o Alvo<T> é encanamento morto: o
               avaliador precisa ver o motivo e o valor padrão para poder
-              discordar da sugestão. */}
+              discordar da sugestão.
+              data-testid deliberado: o "6–8" desta linha também aparece no
+              `sub` do Panel acima (texto fixo, independente de modulação),
+              então escopar por aqui é o que garante que o teste verifica
+              esta linha, não qualquer "6–8" da tela. */}
           {sVc.modulacoes.length > 0 && (
-            <p style={{ margin: "8px 0 0", fontSize: 11, color: T.dim }}>
+            <p data-testid="alvo-modulacao" style={{ margin: "8px 0 0", fontSize: 11, color: T.dim }}>
               {sVc.modulacoes.map((m) => m.motivo).join(" ")} Padrão sem essa modulação:{" "}
               {sVc.base.low}–{sVc.base.high} mL ({sVc.base.lowKg}–{sVc.base.highKg} ml/kg de peso predito).
             </p>

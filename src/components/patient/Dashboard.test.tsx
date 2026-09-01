@@ -129,9 +129,11 @@ describe("Dashboard", () => {
     // 95 kg e 1,70 m dão IMC ~32,9 (95 / 1,70²): obeso.
     renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 95 } });
 
-    // O "6–8" (faixa modulada) já aparece em mais de um lugar da tela; o que
-    // importa aqui é confirmar que existe, sem exigir unicidade de elemento.
-    expect(screen.getAllByText(/6–8/).length).toBeGreaterThan(0);
+    // O "6–8" também aparece no `sub` do Panel (texto fixo, independente de
+    // modulação); escopar em `alvo-modulacao` é o que garante que é a linha
+    // de modulação que mostra o valor ajustado, não qualquer "6–8" da tela.
+    const linha = screen.getByTestId("alvo-modulacao");
+    expect(linha).toHaveTextContent(/6–8/);
     // A faixa padrão (sem modulação) tem de aparecer explicitamente, para o
     // avaliador poder julgar o tamanho do ajuste.
     expect(screen.getByText(/padrão.*4–6/i)).toBeInTheDocument();
