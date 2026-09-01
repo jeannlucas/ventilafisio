@@ -32,7 +32,10 @@ function boardSummary(e: DailyEvolution) {
   const mrcVal = mrcTotal(e.mrc);
   const mrcLabel = mrcVal != null ? `MRC ${mrcVal}/60` : null;
   const escores = [mrcLabel, rassLabel, imsLabel].filter((x): x is string => x != null);
-  const hasContent = !!e.notes || findings.length > 0 || medsOn.length > 0 || !!tube || !!diet || escores.length > 0;
+  // Escores não entram aqui: eles já aparecem na linha-resumo, sempre visível
+  // (abaixo). Contá-los em hasContent abriria a seta de expandir para um dia
+  // cujo único conteúdo é escore, revelando um bloco vazio ao expandir.
+  const hasContent = !!e.notes || findings.length > 0 || medsOn.length > 0 || !!tube || !!diet;
   return { findings, medsOn, tube, diet, escores, hasContent };
 }
 
