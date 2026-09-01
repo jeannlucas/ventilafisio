@@ -28,8 +28,12 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
 
   // Conteúdo de apoio à decisão exibido quando o indicador sai da faixa (item 2).
   // A validar pela equipe; não altera nenhuma fórmula nem os limites de classify.
-  const vcLow = obese ? 6 : 4;
-  const vcHigh = obese ? 8 : 6;
+  // Lida do alvo em vez de recomputada de `obese`: hoje as duas contas
+  // concordam, mas se uma fase futura somar outra modulação à faixa de VC,
+  // `sugerirVc` já devolve a faixa deslocada e este texto acompanha sem
+  // precisar lembrar de um segundo lugar (item 4 da onda de fechamento).
+  const vcLow = sVc.valor.lowKg;
+  const vcHigh = sVc.valor.highKg;
   const vcTooLow = vcKg != null && vcKg < vcLow;
   const sug = {
     dp: {
@@ -89,7 +93,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12 }}>
         <HeroCard label="DRIVING PRESSURE" value={fmt(dp, 0)} unit="cmH₂O" st={C.classify.dp(dp)} formula="Pplat − PEEP" suggestion={sug.dp} />
         <HeroCard label="PRESSÃO DE PLATÔ" value={fmt(ev.pplat, 0)} unit="cmH₂O" st={C.classify.pplat(ev.pplat)} formula="meta < 30" suggestion={sug.pplat} />
-        <HeroCard label="VC / PESO PREDITO" value={fmt(vcKg)} unit="ml/kg" st={C.classify.vcKg(vcKg, obese)} formula={obese ? "meta 6–8" : "meta 4–6"} suggestion={sug.vc} />
+        <HeroCard label="VC / PESO PREDITO" value={fmt(vcKg)} unit="ml/kg" st={C.classify.vcKg(vcKg, obese)} formula={`meta ${vcLow}–${vcHigh}`} suggestion={sug.vc} />
         <HeroCard label="RELAÇÃO P/F" value={fmt(pf, 0)} unit="" st={C.classify.pf(pf)} formula="PaO₂ / FiO₂" suggestion={sug.pf} />
       </div>
 
@@ -113,7 +117,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
       )}
 
       <Panel title={`Sugestão inicial · ${patient.current_mode ?? ""}`} accent={T.accent}
-        sub={`${obese ? "obeso (IMC ≥30): alvo 6–8 ml/kg sobre peso predito" : "alvo protetor 4–6 ml/kg"} · ponto de partida, ajuste pela resposta`}>
+        sub={`${obese ? `obeso (IMC ≥30): alvo ${vcLow}–${vcHigh} ml/kg sobre peso predito` : `alvo protetor ${vcLow}–${vcHigh} ml/kg`} · ponto de partida, ajuste pela resposta`}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <SugBox label="VOLUME CORRENTE" big={`${sVc.valor.target} mL`} sub={`faixa ${sVc.valor.low}–${sVc.valor.high} mL · 6kg=${sVc.valor.ml6} 8kg=${sVc.valor.ml8}`} />
           <SugBox label="PEEP / FiO₂" big={`${sPeep.valor.peep} cmH₂O`} sub={`FiO₂ ${sPeep.valor.fio2}% · tabela ARDSnet`} />
