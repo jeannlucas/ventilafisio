@@ -3,6 +3,7 @@ import { T } from "../../lib/theme";
 import { Panel } from "../ui";
 import { DailyEvolution } from "../../types";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../../data/clinical-board";
+import { mrcTotal } from "../../lib/scores";
 
 // ---------- Histórico de evoluções (autor + data, passagem de plantão) ----------
 
@@ -23,8 +24,16 @@ function boardSummary(e: DailyEvolution) {
   ).map((m) => m.label);
   const tube = e.feeding?.tube && e.feeding.tube !== "none" ? TUBE_LABEL[e.feeding.tube] : null;
   const diet = e.feeding?.diet ? DIET_LABEL[e.feeding.diet] : null;
-  const hasContent = !!e.notes || findings.length > 0 || medsOn.length > 0 || !!tube || !!diet;
-  return { findings, medsOn, tube, diet, hasContent };
+  // Escores do dia. `!= null` e nunca falsy: RASS 0 e IMS 0 são medidas.
+  const rassLabel = e.rass != null
+    ? `RASS ${e.rass < 0 ? `−${Math.abs(e.rass)}` : e.rass}`
+    : null;
+  const imsLabel = e.ims != null ? `IMS ${e.ims}` : null;
+  const mrcVal = mrcTotal(e.mrc);
+  const mrcLabel = mrcVal != null ? `MRC ${mrcVal}/60` : null;
+  const escores = [mrcLabel, rassLabel, imsLabel].filter((x): x is string => x != null);
+  const hasContent = !!e.notes || findings.length > 0 || medsOn.length > 0 || !!tube || !!diet || escores.length > 0;
+  return { findings, medsOn, tube, diet, escores, hasContent };
 }
 
 export function EvolutionHistory({ evolutions, authors }: { evolutions: DailyEvolution[]; authors: Record<string, string> }) {
@@ -52,6 +61,9 @@ export function EvolutionHistory({ evolutions, authors }: { evolutions: DailyEvo
                 </div>
                 <div style={{ fontSize: 12, color: T.dim }}>{authors[e.owner_id] ?? "Profissional"}</div>
               </div>
+              {b.escores.length > 0 && (
+                <div style={{ marginTop: 4, fontSize: 12, color: T.dim }}>{b.escores.join(" · ")}</div>
+              )}
               {open && b.hasContent && (
                 <div style={{ marginTop: 8, display: "grid", gap: 6, fontSize: 13, color: T.txt, background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 10, padding: 12 }}>
                   {e.notes && <div><span style={{ color: T.dim }}>Impressão: </span>{e.notes}</div>}
