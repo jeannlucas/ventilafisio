@@ -85,8 +85,9 @@ export function resultadoTreParaTriagem(
   if (sessoes == null) return null;
   const limite = agora.getTime() - VALIDADE_TRE_HORAS * MS_POR_HORA;
   // O fim da sessão é o que datou o resultado. `encerrado_em` não deveria ser
-  // nulo numa sessão concluída, mas o SQL não obriga: cair em `iniciado_em`
-  // evita que uma linha assim vire NaN e escape da janela por acidente.
+  // nulo numa sessão concluída, mas o SQL não obriga: sem cair em
+  // `iniciado_em`, uma linha assim viraria instante zero e seria descartada
+  // como se fosse antiga, apagando da triagem um desfecho real.
   const dentroDaJanela = (s: TreSession) =>
     new Date(s.encerrado_em ?? s.iniciado_em).getTime() >= limite;
 

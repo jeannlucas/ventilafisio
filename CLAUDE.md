@@ -7,7 +7,7 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 01/09/2026: a suíte roda e passa. `pnpm test` devolve **352 testes
+Estado em 01/09/2026: a suíte roda e passa. `pnpm test` devolve **364 testes
 em 23 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
@@ -259,11 +259,30 @@ Quem decide é o terapeuta.
   deve ser "corrigida" para 7,32.
 - `MODALIDADES_TESTE` (PSV, CPAP, Tubo T) está marcada **CONTEÚDO A VALIDAR** e
   não tem fonte. Levar ao mentor.
-- **Por quanto tempo um TRE vale?** Antes da fase o critério expirava junto com
-  a evolução diária; agora lê o histórico inteiro, então um TRE aprovado há
-  cinco dias continua contando. Não inventei janela de validade: é pergunta
-  clínica, e o subtítulo do card foi corrigido para dizer de onde cada número
-  vem enquanto ela não é respondida.
+- **O resultado do TRE vale 24 horas** (`VALIDADE_TRE_HORAS`, em
+  `src/lib/tre.ts`). Antes da fase o critério expirava sozinho, junto com a
+  evolução do dia em que estava gravado; a tabela de sessões perdeu essa
+  expiração natural, e sem a janela um TRE aprovado há cinco dias seguia
+  contando como critério atendido.
+
+  A janela é parecer do mentor (01/09/2026), coerente com a cadência diária de
+  **AARC 2024** (recomendação 3: avaliar e, se apropriado, testar antes do
+  meio-dia de cada dia — CONDICIONAL, certeza muito baixa) e de **ATS/CHEST
+  2017**. Nenhuma das duas afirma a janela literalmente, e é por isso que ela
+  entra como `parecer_tre_validade` e não como número de diretriz.
+
+  **A janela vale para `aprovado` E para `falhou`, simetricamente.** Isso olha
+  torto de primeira, porque derruba um bloqueador absoluto: um TRE que falhou
+  há 30 horas deixa de reprovar. Mas ele está velho exatamente como um aprovado
+  de 30 horas está, e a cadência das diretrizes manda fazer um teste novo, não
+  arrastar o de anteontem. Expirado vira `null`, "não medido", que não aprova
+  ninguém — só impede um resultado velho de decidir o dia de hoje. Se alguém
+  "consertar" a assimetria, vai ser isto que quebra.
+
+  O campo legado leva a mesma janela quando a data dele é conhecida (o
+  `recorded_at` da evolução). Sem data, é tratado como não expirado: descartar
+  em silêncio um dado só porque não sabemos a idade dele apagaria informação
+  real da tela.
 - **Não existe caminho para corrigir uma sessão encerrada.** A RLS permite
   `update` e `delete`, a interface não oferece. "Falhou" grava um bloqueador
   absoluto; hoje pede confirmação, mas não dá para desfazer. É decisão de

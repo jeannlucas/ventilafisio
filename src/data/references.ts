@@ -200,7 +200,7 @@ export const REFERENCES: Reference[] = [
   {
     id: "ats_chest_2017",
     citacaoCurta: "ATS/CHEST, 2017",
-    autores: "Girard TD, Alhazzani W, Kress JP, et al.",
+    autores: "Girard TD, et al.",
     titulo:
       "An Official ATS/CHEST Clinical Practice Guideline: Liberation from Mechanical Ventilation in Critically Ill Adults",
     veiculo: "Am J Respir Crit Care Med 2017;195(1):120-133",
