@@ -521,6 +521,21 @@ describe("sugestão de admissão", () => {
 
     expect(screen.queryByText(/padrão/i)).not.toBeInTheDocument();
   });
+
+  // Item 3 da onda de fechamento: o rodapé do painel também precisa citar
+  // a fonte da própria modulação, não só vcTarget/peepFio2.
+  it("cita a fonte da modulação no rodapé da sugestão de admissão", async () => {
+    // THRESHOLD_SOURCES.vcKg inclui "amib_sbpt_2024", que não aparece via
+    // vcTarget nem peepFio2 (os dois só citam ardsnet_2000) — por isso é a
+    // citação certa para provar que o rodapé deriva das modulações do
+    // alvo, e não uma lista de chaves decorada à mão.
+    db.patient = { ...PACIENTE_BASE, height_cm: 170, weight_kg: 95 };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    const painel = screen.getByText(/Sugestão de admissão/).closest("section")!;
+    expect(within(painel).getByText(/AMIB\/SBPT, 2024/)).toBeInTheDocument();
+  });
 });
 
 // ============================================================

@@ -393,7 +393,9 @@ function AdmissionCard({ patient }: { patient: Patient }) {
         Assim que registrar a primeira evolução (gasometria, pressões), os 4 indicadores e a
         predição de extubação aparecem aqui. A Pressão de Platô continua sendo o limite de segurança.
       </p>
-      <SourceFooter sourceKeys={["vcTarget", "peepFio2"]} />
+      {/* Deriva do alvo em vez de listar "vcKg" à mão: item 3 da onda de
+          fechamento — mesma razão do Dashboard. */}
+      <SourceFooter sourceKeys={["vcTarget", "peepFio2", ...vc.modulacoes.map((m) => m.sourceKey)]} />
     </Panel>
   );
 }

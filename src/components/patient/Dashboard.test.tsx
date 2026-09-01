@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Dashboard } from "./Dashboard";
 import { PatientHeader } from "./PatientHeader";
@@ -144,6 +144,19 @@ describe("Dashboard", () => {
     renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 70 } });
 
     expect(screen.queryByText(/padrão/i)).not.toBeInTheDocument();
+  });
+
+  // Item 3 da onda de fechamento: o rodapé do painel de sugestão precisa
+  // citar a fonte da própria modulação que ele exibe, não só vcTarget/
+  // peepFio2. THRESHOLD_SOURCES.vcKg inclui "amib_sbpt_2024", que não
+  // aparece via vcTarget nem peepFio2 (os dois só citam ardsnet_2000) —
+  // por isso é a citação certa para provar que o rodapé deriva das
+  // modulações do alvo, e não uma lista de chaves decorada à mão.
+  it("cita a fonte da modulação no rodapé do painel de sugestão inicial", () => {
+    renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 95 } });
+
+    const painel = screen.getByText(/Sugestão inicial/).closest("section")!;
+    expect(within(painel).getByText(/AMIB\/SBPT, 2024/)).toBeInTheDocument();
   });
 });
 

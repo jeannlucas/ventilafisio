@@ -124,7 +124,12 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
         <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
           A Pressão de Platô é o limite de segurança: se passar de 30 cmH₂O, reduza o VC mesmo dentro da faixa.
         </p>
-        <SourceFooter sourceKeys={["vcTarget", "peepFio2"]} />
+        {/* Deriva do alvo em vez de listar "vcKg" à mão: uma modulação nova
+            some do rodapé sem ninguém lembrar de atualizar este array (item 3
+            da onda de fechamento — já foi a terceira vez que essa lacuna
+            apareceu). SourceFooter já deduplica, então repetir uma chave
+            citada em outro lugar do painel é inofensivo. */}
+        <SourceFooter sourceKeys={["vcTarget", "peepFio2", ...sVc.modulacoes.map((m) => m.sourceKey)]} />
       </Panel>
     </div>
   );
