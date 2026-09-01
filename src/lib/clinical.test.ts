@@ -339,6 +339,7 @@ describe("extubationReadiness", () => {
     tobinVal: 60,
     pimaxVal: -35,
     glasgow: 15,
+    rass: -1,
     vasopressor: false,
     treResult: "pass",
     peakCoughFlow: 80,
@@ -347,8 +348,8 @@ describe("extubationReadiness", () => {
   it("marca favorável quando todos os critérios avaliados passam", () => {
     const r = extubationReadiness(completoFavoravel);
     expect(r.level).toBe("favorable");
-    expect(r.score).toBe(8);
-    expect(r.max).toBe(8);
+    expect(r.score).toBe(9);
+    expect(r.max).toBe(9);
   });
 
   it("TRE falhado é bloqueador mesmo com todo o resto favorável", () => {
@@ -404,6 +405,7 @@ describe("extubationReadiness", () => {
     expect(r.failed).toEqual(["Tobin < 105"]);
     expect(r.notMeasured).toEqual([
       "PImax ≤ -20",
+      "RASS entre −2 e +1",
       "Sem vasopressor elevado",
       "TRE aprovado",
       "Tosse eficaz (PCF ≥ 60 L/min)",
@@ -414,6 +416,35 @@ describe("extubationReadiness", () => {
     const r = extubationReadiness({ vasopressor: false });
     expect(r.met).toEqual(["Sem vasopressor elevado"]);
     expect(r.score).toBe(1);
+  });
+
+  it("conta RASS entre -2 e +1 como critério atendido", () => {
+    const r = extubationReadiness({ rass: -1 });
+    expect(r.met).toContain("RASS entre −2 e +1");
+  });
+
+  // RASS 0 é "alerta e calmo": o melhor valor possível para iniciar um TRE.
+  // Uma checagem falsy o trataria como não medido.
+  it("aceita RASS 0, que é o paciente alerta e calmo", () => {
+    const r = extubationReadiness({ rass: 0 });
+    expect(r.met).toContain("RASS entre −2 e +1");
+  });
+
+  it("reprova RASS -4, sedação que impede o teste", () => {
+    const r = extubationReadiness({ rass: -4 });
+    expect(r.failed).toContain("RASS entre −2 e +1");
+  });
+
+  it("reprova RASS +3, agitação", () => {
+    const r = extubationReadiness({ rass: 3 });
+    expect(r.failed).toContain("RASS entre −2 e +1");
+  });
+
+  // Ausência não é reprovação: continua valendo a regra da Fase 1.
+  it("não conta RASS ausente como reprovado", () => {
+    const r = extubationReadiness({});
+    expect(r.notMeasured).toContain("RASS entre −2 e +1");
+    expect(r.failed).not.toContain("RASS entre −2 e +1");
   });
 });
 

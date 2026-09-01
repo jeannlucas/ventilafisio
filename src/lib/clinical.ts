@@ -177,6 +177,7 @@ export interface ExtubationInput {
   tobinVal?: number | null;
   pimaxVal?: number | null;
   glasgow?: number | null;
+  rass?: number | null;
   vasopressor?: boolean | null;
   treResult?: string | null; // 'pass' | 'fail'
   peakCoughFlow?: number | null; // L/min
@@ -204,6 +205,10 @@ export function extubationReadiness(i: ExtubationInput): ExtubationReadiness {
     { label: "Tobin < 105", pass: num(i.tobinVal) ? i.tobinVal! < 105 : null },
     { label: "PImax ≤ -20", pass: num(i.pimaxVal) ? i.pimaxVal! <= -20 : null },
     { label: "Glasgow ≥ 8", pass: num(i.glasgow) ? i.glasgow! >= 8 : null },
+    // O paciente precisa estar desperto para iniciar o TRE, e a resposta
+    // verbal do Glasgow não é avaliável em paciente intubado. Decisão do
+    // mentor clínico em 01/09/2026: manter os dois critérios.
+    { label: "RASS entre −2 e +1", pass: num(i.rass) ? i.rass! >= -2 && i.rass! <= 1 : null },
     { label: "Sem vasopressor elevado", pass: i.vasopressor == null ? null : !i.vasopressor },
     { label: "TRE aprovado", pass: i.treResult == null ? null : i.treResult === "pass" },
     { label: "Tosse eficaz (PCF ≥ 60 L/min)", pass: num(i.peakCoughFlow) ? i.peakCoughFlow! >= 60 : null },

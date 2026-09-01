@@ -610,7 +610,7 @@ function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
   const tobinVal = C.tobin(ev.fr, ev.vc);
   const r = C.extubationReadiness({
     fio2: ev.fio2, peep: ev.peep, tobinVal, pimaxVal: ev.pimax,
-    glasgow: ev.glasgow, vasopressor: ev.vasopressor, treResult: ev.tre_result,
+    glasgow: ev.glasgow, rass: ev.rass, vasopressor: ev.vasopressor, treResult: ev.tre_result,
     peakCoughFlow: ev.peak_cough_flow,
   });
   const veredito = {
