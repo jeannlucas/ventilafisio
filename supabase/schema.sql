@@ -508,10 +508,11 @@ grant execute on function public.evolution_authors(uuid) to authenticated;
 -- ============================================================
 -- COLUNAS SEM USO NO APP (auditoria de 26/07/2026)
 -- ============================================================
--- Nenhuma delas é ESCRITA por linha alguma de src/, e todas saíram dos tipos
--- TypeScript. Uma ainda é LIDA: daily_evolutions.tre_result, como fallback —
--- veja a exceção anotada na lista. NÃO são derrubadas aqui: drop column apaga
--- dado e é decisão do Jeann, não minha.
+-- Nenhuma delas é ESCRITA por linha alguma de src/. Uma ainda é LIDA, e por
+-- isso continua declarada nos tipos TypeScript: daily_evolutions.tre_result,
+-- como fallback — veja a exceção anotada na lista. As demais saíram dos tipos.
+-- NÃO são derrubadas aqui: drop column apaga dado e é decisão do Jeann, não
+-- minha.
 --
 --   patients.active            substituída por patients.status
 --   patients.admission_date    nunca preenchida

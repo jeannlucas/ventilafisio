@@ -7,8 +7,8 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 24/08/2026: a suíte roda e passa. `pnpm test` devolve **171 testes
-em 9 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
+Estado em 01/09/2026: a suíte roda e passa. `pnpm test` devolve **352 testes
+em 23 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
 nenhum ajuste: nem em teste, nem em `vite.config.ts`, nem em `src/test-setup.ts`.
@@ -181,6 +181,94 @@ silêncio.
 
 O alvo é a linha 7, não a mais recente: o vitest 3.2.7 não aceita vite 8.
 
+## O TRE é uma sessão acompanhada, não um campo de texto
+
+Até a Fase 5 o teste de respiração espontânea era uma coluna,
+`daily_evolutions.tre_result`, com dois valores: `pass` e `fail`. Um teste
+interrompido — porque o paciente foi para a tomografia, porque a família chegou,
+porque o transporte veio — só cabia ali como **falha**. E TRE reprovado é
+bloqueador ABSOLUTO em `extubationReadiness`: reprovava um paciente que não
+falhou em nada.
+
+A Fase 5 trocou isso por `public.tre_sessions`, uma sessão com início, fim,
+critérios e desfecho. Três coisas valem manter na cabeça:
+
+1. **`interrompido` não é `falhou`.** `resultadoTreParaTriagem`, em
+   `src/lib/tre.ts`, devolve `null` para interrompido — "não medido", igual a
+   quem nunca fez o teste. Só `falhou` vira `"fail"`. Se alguém "simplificar"
+   isso para dois valores, o defeito volta inteiro.
+2. **`desfecho: null` é EM ANDAMENTO, não dado faltando.** Não existe coluna de
+   status separada; a ausência de desfecho é o estado.
+3. **Chave ausente em `criterios` é "não avaliado".** Presente com
+   `atingido: false` é "avaliado e não atingido". O painel APAGA a chave ao
+   desmarcar, em vez de gravar `false` — é a mesma regra do resto do projeto, e
+   está testada nos dois sentidos.
+
+### A resposta vem da última sessão CONCLUÍDA
+
+Não da mais recente. Sessão em andamento não apaga o que já foi concluído: abrir
+um teste novo uma hora depois de um `falhou` não pode derrubar o bloqueador
+enquanto o teste corre. Pelo mesmo motivo, sessão em andamento sem nenhuma
+concluída também não invalida o campo legado.
+
+E `sessoes === null` significa que a BUSCA FALHOU, o que é diferente de não
+haver sessão: aí a resposta é `null` e o legado não é consultado. Sem isso, um
+erro de rede apagava da tela uma reprovação real, porque um `"pass"` velho no
+campo antigo passava por cima.
+
+### O campo antigo saiu do formulário e a coluna continua
+
+`daily_evolutions.tre_result` não é mais escrita, mas continua **lida** como
+fallback para quem foi registrado antes da fase, e por isso continua declarada
+em `src/types/index.ts`. A coluna não foi derrubada: drop column apaga dado e é
+decisão do Jeann.
+
+O campo saiu do formulário de evolução porque oferecia só Aprovado e Falhou.
+Enquanto ele existiu, o defeito central da fase continuou alcançável pela tela
+principal de entrada de dado, mesmo com todo o caminho novo correto — foi o
+achado mais grave da review final da fase.
+
+### Um cálculo de triagem por tela, não dois
+
+`PatientDetail.tsx` chama `extubationReadiness` **uma vez**, na aba Desmame, e
+passa o mesmo objeto para o `TrePanel` (via `pendenciasParaIniciar`) e para o
+`ExtubationCard`, que deixou de calcular e só desenha. Duas contas da mesma
+pergunta clínica divergem; uma não. Se for acrescentar um consumidor, leia o
+mesmo objeto.
+
+`pendenciasParaIniciar` exclui o próprio critério "TRE aprovado" — sem isso a
+pergunta se morde: para iniciar o teste seria preciso já tê-lo feito. O rótulo é
+exportado de `clinical.ts` como `CRITERIO_TRE_APROVADO` justamente para que
+renomeá-lo lá não quebre a exclusão em silêncio.
+
+### O app não cronometra os cinco minutos, e não bloqueia o início
+
+Cada critério de falha exige persistência de cinco minutos. Quem julga isso é o
+terapeuta, que está na beira do leito; o app cronometra a **sessão**. Não
+acrescente contagem regressiva por critério: seria afirmar uma medida que o app
+não faz.
+
+E as pendências que o painel mostra antes de iniciar são informação, não trava.
+Quem decide é o terapeuta.
+
+### Pendências clínicas desta fase
+
+- O pH de corte é **7,35**, decisão do mentor em 01/09/2026. O Boles 2007, que o
+  app também cita, usa **7,32**. A divergência é real e está registrada como
+  `parecer_tre_ph` em `src/data/references.ts` — não é erro de digitação e não
+  deve ser "corrigida" para 7,32.
+- `MODALIDADES_TESTE` (PSV, CPAP, Tubo T) está marcada **CONTEÚDO A VALIDAR** e
+  não tem fonte. Levar ao mentor.
+- **Por quanto tempo um TRE vale?** Antes da fase o critério expirava junto com
+  a evolução diária; agora lê o histórico inteiro, então um TRE aprovado há
+  cinco dias continua contando. Não inventei janela de validade: é pergunta
+  clínica, e o subtítulo do card foi corrigido para dizer de onde cada número
+  vem enquanto ela não é respondida.
+- **Não existe caminho para corrigir uma sessão encerrada.** A RLS permite
+  `update` e `delete`, a interface não oferece. "Falhou" grava um bloqueador
+  absoluto; hoje pede confirmação, mas não dá para desfazer. É decisão de
+  produto do Jeann.
+
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
    mudança em cálculo, faixa de referência ou recomendação tem consequência
@@ -230,3 +318,7 @@ O alvo é a linha 7, não a mais recente: o vitest 3.2.7 não aceita vite 8.
     paciente A vai vazar para o paciente B e suprimir a escolha automática de
     aba que deveria valer para ele. Quem adicionar essa navegação precisa
     zerar o sinalizador junto com a troca de `id`.
+11. **A tabela `tre_sessions` é aplicada à mão.** Não há banco no ambiente de
+    desenvolvimento e nenhum teste executa o `schema.sql`, então o DDL sai daqui
+    revisado mas NÃO verificado. Sem ele aplicado no Supabase, o painel de TRE
+    monta normalmente e falha só na hora de gravar. Quem aplica é o Jeann.
