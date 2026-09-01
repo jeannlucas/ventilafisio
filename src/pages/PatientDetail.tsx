@@ -12,6 +12,7 @@ import { ScoresPanel } from "../components/patient/ScoresPanel";
 import { CareBundlePanel } from "../components/patient/CareBundlePanel";
 import { EvolutionHistory } from "../components/patient/EvolutionHistory";
 import { TrendCharts } from "../components/patient/TrendCharts";
+import { MotorPanel } from "../components/patient/MotorPanel";
 import { SourceFooter } from "../components/SourceFooter";
 import type { Mrc } from "../lib/scores";
 import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
@@ -137,6 +138,7 @@ export default function PatientDetail() {
       {tab === "evolucao" && (
         <div style={{ display: "grid", gap: 20 }}>
           {last ? <Dashboard patient={patient} ev={last} /> : hint("Registre a primeira evolução para ver os 4 indicadores.")}
+          <MotorPanel evolutions={evolutions} />
           <Grid min={340}>
             <EvolutionForm patient={patient} ownerId={session!.user.id} previous={last} onSaved={load} />
             <AsynchronyModule patientId={patient.id} ownerId={session!.user.id} asyncs={asyncs} onChange={load} />
