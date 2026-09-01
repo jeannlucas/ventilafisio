@@ -2,23 +2,24 @@ import { T, fmt } from "../../lib/theme";
 import { Panel, HeroCard, SugBox } from "../ui";
 import { Patient, DailyEvolution } from "../../types";
 import * as C from "../../lib/clinical";
+import { sugerirVc, sugerirPeepFio2, sugerirVentilacao } from "../../lib/alvos";
+import { derivarPerfil } from "../../lib/perfil";
 import { SourceFooter } from "../SourceFooter";
 
 // ---------- Dashboard 4 indicadores + sugestão ----------
 export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
-  const pbwEst = C.pbwOrEstimate((patient.sex ?? "M") as "M" | "F", patient.height_cm);
-  const pbwVal = pbwEst.value;
-  const bmiVal = C.bmi(patient.weight_kg, patient.height_cm);
-  const obese = !!bmiVal && bmiVal >= 30;
+  const perfil = derivarPerfil(patient);
+  const pbwVal = perfil.pbw;
+  const obese = perfil.obeso;
 
   const dp = C.drivingPressure(ev.pplat, ev.peep);
   const pf = C.pfRatio(ev.pao2, ev.fio2);
   const vcKg = C.vcPerKg(ev.vc, pbwVal);
   const mp = C.mechanicalPower(ev.fr, ev.vc, ev.ppico, dp);
 
-  const sVc = C.suggestVc(pbwVal, obese);
-  const sPeep = C.suggestPeepFio2(pf, ev.spo2);
-  const sVent = sVc ? C.suggestVentilation(pbwVal, sVc.target) : null;
+  const sVc = sugerirVc(perfil);
+  const sPeep = sugerirPeepFio2(pf, ev.spo2);
+  const sVent = sVc ? sugerirVentilacao(pbwVal, sVc.valor.target) : null;
 
   // Conteúdo de apoio à decisão exibido quando o indicador sai da faixa (item 2).
   // A validar pela equipe; não altera nenhuma fórmula nem os limites de classify.
@@ -110,10 +111,10 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
         <Panel title={`Sugestão inicial · ${patient.current_mode ?? ""}`} accent={T.accent}
           sub={`${obese ? "obeso (IMC ≥30): alvo 6–8 ml/kg sobre peso predito" : "alvo protetor 4–6 ml/kg"} · ponto de partida, ajuste pela resposta`}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <SugBox label="VOLUME CORRENTE" big={`${sVc.target} mL`} sub={`faixa ${sVc.low}–${sVc.high} mL · 6kg=${sVc.ml6} 8kg=${sVc.ml8}`} />
-            <SugBox label="PEEP / FiO₂" big={`${sPeep.peep} cmH₂O`} sub={`FiO₂ ${sPeep.fio2}% · tabela ARDSnet`} />
-            {sVent && <SugBox label="FREQUÊNCIA" big={`${sVent.fr} /min`} sub="derivada do VC alvo" />}
-            {sVent && <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.veL)} L/min`} sub="~100 ml/kg PBW/min" />}
+            <SugBox label="VOLUME CORRENTE" big={`${sVc.valor.target} mL`} sub={`faixa ${sVc.valor.low}–${sVc.valor.high} mL · 6kg=${sVc.valor.ml6} 8kg=${sVc.valor.ml8}`} />
+            <SugBox label="PEEP / FiO₂" big={`${sPeep.valor.peep} cmH₂O`} sub={`FiO₂ ${sPeep.valor.fio2}% · tabela ARDSnet`} />
+            {sVent && <SugBox label="FREQUÊNCIA" big={`${sVent.valor.fr} /min`} sub="derivada do VC alvo" />}
+            {sVent && <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />}
           </div>
           <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
             A Pressão de Platô é o limite de segurança: se passar de 30 cmH₂O, reduza o VC mesmo dentro da faixa.

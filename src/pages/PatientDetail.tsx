@@ -18,6 +18,8 @@ import type { Mrc } from "../lib/scores";
 import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
+import { sugestaoAdmissao } from "../lib/alvos";
+import { derivarPerfil } from "../lib/perfil";
 import { ASYNCHRONIES, ASYNC_BY_KEY } from "../data/asynchronies";
 
 export default function PatientDetail() {
@@ -339,31 +341,30 @@ function ArchiveControl({ patient, onUpdate }: { patient: Patient; onUpdate: () 
 }
 // ---------- Sugestão de admissão (sem evolução / dados incompletos) ----------
 function AdmissionCard({ patient }: { patient: Patient }) {
-  const sug = C.admissionSuggestion(
-    (patient.sex ?? "M") as "M" | "F",
-    patient.height_cm,
-    patient.weight_kg,
+  const perfil = derivarPerfil(patient);
+  const sug = sugestaoAdmissao(
+    perfil,
     null, // sem gasometria na admissão
     null,
     patient.current_mode
   );
-  const { vc, peepFio2, ventilation } = sug;
+  const { vc, peepFio2, ventilacao } = sug;
 
   return (
     <Panel
-      title={`Sugestão de admissão · ${sug.mode}`}
+      title={`Sugestão de admissão · ${sug.modo}`}
       accent={T.accent}
       sub="Ponto de partida para colocar o paciente na ventilação — complete os dados depois para refinar"
     >
-      {(sug.pbwEstimated || sug.obeseUnknown || peepFio2.admission) && (
+      {(sug.pbwEstimado || sug.obesoIndeterminado || peepFio2.valor.admission) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-          {sug.pbwEstimated && (
+          {sug.pbwEstimado && (
             <Badge text={`PBW estimado (altura média) — informe a altura para precisão`} />
           )}
-          {peepFio2.admission && (
+          {peepFio2.valor.admission && (
             <Badge text="FiO₂/PEEP de admissão — titular pela gasometria/SpO₂" />
           )}
-          {sug.obeseUnknown && (
+          {sug.obesoIndeterminado && (
             <Badge text="Sem IMC — assumindo faixa protetora; confirme peso/altura" />
           )}
         </div>
@@ -373,13 +374,13 @@ function AdmissionCard({ patient }: { patient: Patient }) {
         {vc && (
           <SugBox
             label="VOLUME CORRENTE"
-            big={`${vc.target} mL`}
-            sub={`faixa ${vc.low}–${vc.high} mL · PBW ${sug.pbw.toFixed(0)} kg`}
+            big={`${vc.valor.target} mL`}
+            sub={`faixa ${vc.valor.low}–${vc.valor.high} mL · PBW ${sug.pbw.toFixed(0)} kg`}
           />
         )}
-        <SugBox label="PEEP / FiO₂" big={`${peepFio2.peep} cmH₂O`} sub={`FiO₂ ${peepFio2.fio2}%`} />
-        {ventilation && <SugBox label="FREQUÊNCIA" big={`${ventilation.fr} /min`} sub="derivada do VC alvo" />}
-        {ventilation && <SugBox label="VOLUME-MINUTO" big={`${fmt(ventilation.veL)} L/min`} sub="~100 ml/kg PBW/min" />}
+        <SugBox label="PEEP / FiO₂" big={`${peepFio2.valor.peep} cmH₂O`} sub={`FiO₂ ${peepFio2.valor.fio2}%`} />
+        {ventilacao && <SugBox label="FREQUÊNCIA" big={`${ventilacao.valor.fr} /min`} sub="derivada do VC alvo" />}
+        {ventilacao && <SugBox label="VOLUME-MINUTO" big={`${fmt(ventilacao.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />}
       </div>
 
       <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>

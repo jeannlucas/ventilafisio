@@ -16,10 +16,6 @@ import {
   diasEmVentilacao,
   classify,
   extubationReadiness,
-  suggestVc,
-  suggestPeepFio2,
-  suggestVentilation,
-  admissionSuggestion,
   ventilationCorrelations,
 } from "./clinical";
 import type { DailyEvolution } from "../types";
@@ -449,123 +445,12 @@ describe("extubationReadiness", () => {
 });
 
 // ============================================================
-// Motor de sugestão
-// ============================================================
-describe("suggestVc", () => {
-  it("usa a faixa protetora 4 a 6 com alvo 6 para o não obeso", () => {
-    const s = suggestVc(70, false)!;
-    expect(s).toMatchObject({ obese: false, lowKg: 4, highKg: 6, targetKg: 6 });
-    expect(s.low).toBe(280);
-    expect(s.high).toBe(420);
-    expect(s.target).toBe(420);
-    expect(s.ml6).toBe(420);
-    expect(s.ml8).toBe(560);
-  });
-
-  it("usa a faixa 6 a 8 com alvo 7 para o obeso", () => {
-    const s = suggestVc(70, true)!;
-    expect(s).toMatchObject({ obese: true, lowKg: 6, highKg: 8, targetKg: 7 });
-    expect(s.low).toBe(420);
-    expect(s.high).toBe(560);
-    expect(s.target).toBe(490);
-  });
-
-  it("devolve null sem peso predito", () => {
-    expect(suggestVc(null, false)).toBeNull();
-  });
-});
-
-describe("suggestPeepFio2", () => {
-  it("sem gasometria e sem oximetria devolve o preset de admissão", () => {
-    expect(suggestPeepFio2(null, null)).toEqual({
-      fio2: 100,
-      peep: 5,
-      admission: true,
-    });
-  });
-
-  it("desce na tabela ARDSnet conforme a relação P/F", () => {
-    expect(suggestPeepFio2(350, null)).toMatchObject({ fio2: 30, peep: 5 });
-    expect(suggestPeepFio2(250, null)).toMatchObject({ fio2: 40, peep: 5 });
-    expect(suggestPeepFio2(150, null)).toMatchObject({ fio2: 60, peep: 10 });
-    expect(suggestPeepFio2(50, null)).toMatchObject({ fio2: 80, peep: 14 });
-  });
-
-  it("sobe a FiO2 um degrau quando a saturação está abaixo de 90", () => {
-    expect(suggestPeepFio2(350, 85)).toMatchObject({ fio2: 40, peep: 5 });
-  });
-
-  it("sem gasometria mas com oximetria parte de FiO2 40", () => {
-    expect(suggestPeepFio2(null, 95)).toMatchObject({
-      fio2: 40,
-      peep: 5,
-      admission: false,
-    });
-  });
-});
-
-describe("suggestVentilation", () => {
-  it("deriva a frequência do volume-minuto de 100 ml por kg de peso predito", () => {
-    const s = suggestVentilation(70, 420)!;
-    expect(s.veL).toBeCloseTo(7, 6);
-    expect(s.fr).toBe(17);
-  });
-
-  it("limita a frequência ao piso de 12", () => {
-    expect(suggestVentilation(70, 1000)!.fr).toBe(12);
-  });
-
-  it("limita a frequência ao teto de 35", () => {
-    expect(suggestVentilation(70, 100)!.fr).toBe(35);
-  });
-
-  it("devolve null sem peso predito ou sem volume alvo", () => {
-    expect(suggestVentilation(null, 420)).toBeNull();
-    expect(suggestVentilation(70, null)).toBeNull();
-  });
-});
-
-describe("admissionSuggestion", () => {
-  it("com altura e peso completos não sinaliza estimativa", () => {
-    const s = admissionSuggestion("M", 170, 70, null, null, "PCV");
-    expect(s.pbwEstimated).toBe(false);
-    expect(s.obeseUnknown).toBe(false);
-    expect(s.obese).toBe(false);
-    expect(s.mode).toBe("PCV");
-  });
-
-  it("sem altura estima o peso predito e sinaliza", () => {
-    const s = admissionSuggestion("F", null, null, null, null, null);
-    expect(s.pbwEstimated).toBe(true);
-    expect(s.obeseUnknown).toBe(true);
-    expect(s.mode).toBe("VCV");
-  });
-
-  it("assume a faixa protetora quando não há IMC", () => {
-    const s = admissionSuggestion("M", 170, null, null, null, null);
-    expect(s.obeseUnknown).toBe(true);
-    expect(s.obese).toBe(false);
-    expect(s.vc).toMatchObject({ lowKg: 4, highKg: 6 });
-  });
-
-  it("reconhece o obeso pelo IMC e estende a faixa de volume", () => {
-    const s = admissionSuggestion("M", 170, 95, null, null, null);
-    expect(s.obese).toBe(true);
-    expect(s.vc).toMatchObject({ lowKg: 6, highKg: 8 });
-  });
-
-  // Defeito B2: altura zero produzia IMC infinito e classificava como obeso,
-  // estendendo o alvo de volume corrente para 6 a 8 ml/kg.
-  it("altura impossível não classifica o paciente como obeso", () => {
-    const s = admissionSuggestion("M", 0, 70, null, null, null);
-    expect(s.obese).toBe(false);
-    expect(s.obeseUnknown).toBe(true);
-  });
-});
-
-// ============================================================
 // Correlação do quadro clínico com a ventilação
 // ============================================================
+// O motor de sugestão (suggestVc, suggestPeepFio2, suggestVentilation,
+// admissionSuggestion) migrou para alvos.ts (sugerirVc, sugerirPeepFio2,
+// sugerirVentilacao, sugestaoAdmissao) — testes em alvos.test.ts.
+
 describe("ventilationCorrelations", () => {
   it("não gera correlação quando não há dados", () => {
     expect(ventilationCorrelations(ev({}))).toEqual([]);
