@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MRC_GROUPS } from "../data/scores";
 
 // ---------- Estado controlável do banco falso ----------
 const db = {
@@ -520,5 +521,56 @@ describe("aba padrão ao abrir o paciente", () => {
 
     await waitFor(() => expect(db.lastUpdate).not.toBeNull());
     expect(screen.getByRole("tab", { name: /admissão/i })).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+// ============================================================
+// MotorPanel é montado na aba Evolução, mas testado sozinho em
+// MotorPanel.test.tsx: nenhum teste acima passa uma avaliação MRC completa,
+// então nenhum deles exercita o ponto de montagem em PatientDetail. Sem este
+// teste, apagar `<MotorPanel evolutions={evolutions} />` da página não
+// derrubaria nenhum teste da suíte.
+// ============================================================
+describe("painel de avaliação motora na página", () => {
+  it("mostra o painel de avaliação motora quando há avaliação completa", async () => {
+    const mrcCompleto = Object.fromEntries(MRC_GROUPS.map((g) => [g.key, { d: 4, e: 4 }]));
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [
+      {
+        id: "e-1",
+        patient_id: "p-1",
+        recorded_at: "2026-01-02T00:00:00Z",
+        fr: 16,
+        vc: 400,
+        peep: 8,
+        fio2: 40,
+        pao2: 120,
+        pplat: 24,
+        ppico: 30,
+        paw: 18,
+        glasgow: 10,
+        rass: -1,
+        ims: 0,
+        vasopressor: true,
+        peak_cough_flow: 60,
+        tre_result: "success",
+        pimax: 50,
+        mrc: mrcCompleto,
+      },
+    ];
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    // Evolução já é a aba padrão quando há evolução (ver bloco acima), mas
+    // confere antes de clicar em vez de assumir.
+    const abaEvolucao = screen.getByRole("tab", { name: /evolução/i });
+    if (abaEvolucao.getAttribute("aria-selected") !== "true") {
+      await userEvent.click(abaEvolucao);
+    }
+
+    // "Avaliação motora" é o título do Panel do MotorPanel. ScoresPanel, que
+    // também trata de MRC na mesma aba, usa o título "Escores" — os dois
+    // nunca colidem.
+    expect(await screen.findByText("Avaliação motora")).toBeInTheDocument();
   });
 });
