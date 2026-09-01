@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Sources from "./Sources";
-import { REFERENCES } from "../data/references";
+import { REFERENCES, ehParecer } from "../data/references";
 
 const renderPage = () =>
   render(
@@ -15,13 +15,21 @@ describe("página de fontes", () => {
   it("lista todas as referências do catálogo", () => {
     renderPage();
     for (const r of REFERENCES) {
-      expect(screen.getByText(r.veiculo)).toBeInTheDocument();
+      // Publicação mostra o veículo; parecer não tem veículo e mostra a
+      // citação curta em seu lugar.
+      if (ehParecer(r)) {
+        expect(screen.getByText(r.citacaoCurta)).toBeInTheDocument();
+      } else {
+        expect(screen.getByText(r.veiculo)).toBeInTheDocument();
+      }
     }
   });
 
   it("marca como pendente o que o mentor ainda não verificou", () => {
     renderPage();
-    const pendentes = REFERENCES.filter((r) => !r.verificada);
+    // Parecer não tem `verificada` e nunca mostra "pendente de revisão":
+    // a contagem cobre só publicações não verificadas.
+    const pendentes = REFERENCES.filter((r) => !ehParecer(r) && !r.verificada);
     expect(screen.getAllByText(/pendente de revis/i)).toHaveLength(pendentes.length);
   });
 

@@ -1,5 +1,5 @@
 import { Panel } from "../components/ui";
-import { REFERENCES } from "../data/references";
+import { REFERENCES, ehParecer, type Publicacao } from "../data/references";
 import { THRESHOLD_SOURCES, type SourceKey } from "../lib/references";
 import { T } from "../lib/theme";
 
@@ -27,6 +27,9 @@ export default function Sources() {
       .filter((k) => THRESHOLD_SOURCES[k].includes(id))
       .map((k) => LABELS[k]);
 
+  const publicacoes = REFERENCES.filter((r): r is Publicacao => !ehParecer(r));
+  const pareceres = REFERENCES.filter(ehParecer);
+
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Panel
@@ -42,7 +45,7 @@ export default function Sources() {
       </Panel>
 
       <div style={{ display: "grid", gap: 12 }}>
-        {REFERENCES.map((r) => (
+        {publicacoes.map((r) => (
           <div
             key={r.id}
             style={{
@@ -86,6 +89,53 @@ export default function Sources() {
           </div>
         ))}
       </div>
+
+      {pareceres.length > 0 && (
+        <Panel
+          title="Pareceres clínicos"
+          sub="Julgamentos do mentor sobre valores que a literatura não define"
+        >
+          <div style={{ display: "grid", gap: 12 }}>
+            {pareceres.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  background: T.panel,
+                  border: `1px solid ${T.line}`,
+                  borderRadius: 12,
+                  padding: "14px 16px",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <strong style={{ fontSize: 14, color: T.txt }}>{r.profissional}</strong>
+                  <span style={{ fontSize: 12, color: T.dim }}>{r.data}</span>
+                </div>
+                <span style={{ fontSize: 13, color: T.txt }}>{r.citacaoCurta}</span>
+                {r.nota && (
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      fontSize: 12,
+                      color: T.dim,
+                      background: `${T.line}66`,
+                      border: `1px solid ${T.line}`,
+                      borderRadius: 8,
+                      padding: "8px 10px",
+                    }}
+                  >
+                    {r.nota}
+                  </p>
+                )}
+                <div style={{ fontSize: 11.5, color: T.dim, marginTop: 2 }}>
+                  Sustenta: {usos(r.id).join(" · ")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

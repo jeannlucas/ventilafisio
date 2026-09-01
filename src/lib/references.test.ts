@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { REFERENCES } from "../data/references";
+import { REFERENCES, ehParecer } from "../data/references";
 import { THRESHOLD_SOURCES, sourcesFor, shortCite } from "./references";
 import { classify } from "./clinical";
 
@@ -9,9 +9,11 @@ describe("catálogo de referências", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("marca toda referência com o estado de verificação", () => {
+  it("marca toda publicação com o estado de verificação", () => {
+    // Parecer não tem `verificada` — ele é a manifestação do mentor, não há
+    // revisão pendente sobre a própria opinião dele.
     for (const r of REFERENCES) {
-      expect(typeof r.verificada).toBe("boolean");
+      if (!ehParecer(r)) expect(typeof r.verificada).toBe("boolean");
     }
   });
 });
@@ -63,5 +65,54 @@ describe("shortCite", () => {
 
   it("devolve string vazia sem fonte", () => {
     expect(shortCite([])).toBe("");
+  });
+});
+
+describe("procedência", () => {
+  it("distingue parecer clínico de publicação", () => {
+    const pareceres = REFERENCES.filter(ehParecer);
+    expect(pareceres.length).toBeGreaterThan(0);
+    for (const p of pareceres) {
+      expect(p).toHaveProperty("profissional");
+      expect(p).toHaveProperty("data");
+      // Parecer não tem `verificada`: ele É a manifestação do mentor,
+      // então não há o que revisar.
+      expect(p).not.toHaveProperty("verificada");
+    }
+  });
+
+  it("não nomeia pessoa real — o repositório é público", () => {
+    for (const p of REFERENCES.filter(ehParecer)) {
+      expect(p.profissional).toBe("Mentor clínico do projeto");
+    }
+  });
+
+  it("a driving pressure passa a citar Guérin, que sustenta o corte de 13", () => {
+    expect(THRESHOLD_SOURCES.dp).toContain("guerin_2016");
+  });
+
+  // Conferência bibliográfica não é endosso clínico. As fontes novas entram
+  // como não verificadas até o mentor dizer que aceita.
+  it("mantém as fontes novas pendentes de revisão do mentor", () => {
+    const novas = REFERENCES.filter((r) =>
+      ["guerin_2016", "ferreira_2021", "duan_2021"].includes(r.id)
+    );
+    expect(novas).toHaveLength(3);
+    for (const r of novas) {
+      expect(ehParecer(r)).toBe(false);
+      if (!ehParecer(r)) expect(r.verificada).toBe(false);
+    }
+  });
+
+  it("mantém Amato citado no conceito de driving pressure", () => {
+    expect(THRESHOLD_SOURCES.dp).toContain("amato_2015");
+  });
+
+  it("a triagem de extubação passa a citar a revisão do pico de tosse", () => {
+    expect(THRESHOLD_SOURCES.extubation).toContain("ferreira_2021");
+  });
+
+  it("a faixa do MRC passa a citar o parecer clínico", () => {
+    expect(THRESHOLD_SOURCES.mrc).toContain("parecer_mrc_faixa");
   });
 });

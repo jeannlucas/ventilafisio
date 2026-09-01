@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { sourcesFor, shortCite, type SourceKey } from "../lib/references";
+import { ehParecer } from "../data/references";
 import { T } from "../lib/theme";
 
 /**
@@ -12,7 +13,7 @@ export function SourceFooter({ sourceKeys }: { sourceKeys: SourceKey[] }) {
   const unicas = refs.filter((r, i) => refs.findIndex((o) => o.id === r.id) === i);
   if (unicas.length === 0) return null;
 
-  const pendente = unicas.some((r) => !r.verificada);
+  const pendente = unicas.some((r) => !ehParecer(r) && !r.verificada);
 
   return (
     <div
