@@ -16,7 +16,8 @@ import { TrendCharts } from "../components/patient/TrendCharts";
 import { MotorPanel } from "../components/patient/MotorPanel";
 import { SourceFooter } from "../components/SourceFooter";
 import type { Mrc } from "../lib/scores";
-import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
+import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding, TreSession } from "../types";
+import { resultadoTreParaTriagem } from "../lib/tre";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
 import { sugestaoAdmissao } from "../lib/alvos";
@@ -31,6 +32,7 @@ export default function PatientDetail() {
   const [evolutions, setEvolutions] = useState<DailyEvolution[]>([]);
   const [asyncs, setAsyncs] = useState<Asynchrony[]>([]);
   const [careActions, setCareActions] = useState<CareAction[]>([]);
+  const [treSessions, setTreSessions] = useState<TreSession[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -46,12 +48,13 @@ export default function PatientDetail() {
     if (!id) return;
     setLoading(true);
     setLoadError(null);
-    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }, { data: ca }] = await Promise.all([
+    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }, { data: ca }, { data: tre }] = await Promise.all([
       supabase.from("patients").select("*").eq("id", id).single(),
       supabase.from("ventilators").select("*").order("brand"),
       supabase.from("daily_evolutions").select("*").eq("patient_id", id).order("recorded_at", { ascending: true }),
       supabase.from("asynchronies").select("*").eq("patient_id", id).order("recorded_at", { ascending: false }),
       supabase.from("care_actions").select("*").eq("patient_id", id).order("at", { ascending: false }),
+      supabase.from("tre_sessions").select("*").eq("patient_id", id).order("iniciado_em", { ascending: true }),
     ]);
     // Sem este ramo, paciente inacessível deixava patient em null e a tela
     // ficava em "Carregando…" para sempre.
@@ -72,6 +75,7 @@ export default function PatientDetail() {
     }
     setAsyncs((asy as Asynchrony[]) ?? []);
     setCareActions((ca as CareAction[]) ?? []);
+    setTreSessions((tre as TreSession[]) ?? []);
     // Nomes dos autores das evoluções (RPC escopado por acesso).
     const { data: au } = await supabase.rpc("evolution_authors", { p: id });
     const map: Record<string, string> = {};
@@ -168,7 +172,7 @@ export default function PatientDetail() {
 
       {tab === "desmame" && (
         last
-          ? <ExtubationCard ev={last} />
+          ? <ExtubationCard ev={last} treSessions={treSessions} />
           : hint("Registre uma evolução para avaliar a prontidão para extubação.")
       )}
     </div>
@@ -614,12 +618,13 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
 }
 
 // ---------- Predição de extubação ----------
-function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
+function ExtubationCard({ ev, treSessions }: { ev?: DailyEvolution; treSessions: TreSession[] }) {
   if (!ev) return null;
   const tobinVal = C.tobin(ev.fr, ev.vc);
   const r = C.extubationReadiness({
     fio2: ev.fio2, peep: ev.peep, tobinVal, pimaxVal: ev.pimax,
-    glasgow: ev.glasgow, rass: ev.rass, vasopressor: ev.vasopressor, treResult: ev.tre_result,
+    glasgow: ev.glasgow, rass: ev.rass, vasopressor: ev.vasopressor,
+    treResult: resultadoTreParaTriagem(treSessions, ev.tre_result),
     peakCoughFlow: ev.peak_cough_flow,
   });
   const veredito = {

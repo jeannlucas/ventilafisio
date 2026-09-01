@@ -11,6 +11,7 @@ const db = {
   ventilators: [] as Record<string, unknown>[],
   evolutions: [] as Record<string, unknown>[],
   asynchronies: [] as Record<string, unknown>[],
+  treSessions: [] as Record<string, unknown>[],
   updateError: null as { message: string } | null,
   insertError: null as { message: string } | null,
   deleteError: null as { message: string } | null,
@@ -23,6 +24,7 @@ function rowsOf(table: string) {
   if (table === "ventilators") return { data: db.ventilators, error: null };
   if (table === "daily_evolutions") return { data: db.evolutions, error: null };
   if (table === "asynchronies") return { data: db.asynchronies, error: null };
+  if (table === "tre_sessions") return { data: db.treSessions, error: null };
   return { data: [], error: null };
 }
 
@@ -113,6 +115,7 @@ beforeEach(() => {
   db.ventilators = [];
   db.evolutions = [];
   db.asynchronies = [];
+  db.treSessions = [];
   db.updateError = null;
   db.insertError = null;
   db.deleteError = null;
@@ -405,7 +408,7 @@ describe("embasamento clínico", () => {
       ims: 0,
       vasopressor: true,
       peak_cough_flow: 60,
-      tre_result: "success",
+      tre_result: "pass",
       pimax: 50,
     };
     db.patient = { ...PACIENTE_BASE };
@@ -439,7 +442,7 @@ describe("embasamento clínico", () => {
       ims: 0,
       vasopressor: true,
       peak_cough_flow: 60,
-      tre_result: "success",
+      tre_result: "pass",
       pimax: 50,
     };
     db.patient = { ...PACIENTE_BASE };
@@ -478,7 +481,7 @@ describe("embasamento clínico", () => {
       ims: 0,
       vasopressor: true,
       peak_cough_flow: 60,
-      tre_result: "success",
+      tre_result: "pass",
       pimax: 50,
     };
     db.patient = { ...PACIENTE_BASE };
@@ -490,6 +493,66 @@ describe("embasamento clínico", () => {
 
     const painel = screen.getByText("Prontidão para extubação").closest("section")!;
     expect(within(painel).getByText(/Sessler, 2002/)).toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// Fase 5, Task 4: a triagem de extubação passa a ler `tre_sessions`, não só
+// o campo legado `daily_evolutions.tre_result`. Um TRE interrompido (por
+// exame, transporte etc.) não é um TRE reprovado — resultadoTreParaTriagem()
+// devolve null nesse caso, e "TRE aprovado" nulo entra como "não medido" na
+// triagem. Reprovar por causa de um teste que não aconteceu é o defeito que
+// esta fase inteira existe para fechar; ver src/lib/tre.ts.
+// ============================================================
+describe("triagem de extubação lê sessão de TRE", () => {
+  it("não reprova a triagem quando o TRE foi interrompido", async () => {
+    const EVOLUCAO_BASE = {
+      id: "e-1",
+      patient_id: "p-1",
+      recorded_at: "2026-01-02T00:00:00Z",
+      fr: 16,
+      vc: 400,
+      peep: 8,
+      fio2: 40,
+      pao2: 120,
+      pplat: 24,
+      ppico: 30,
+      paw: 18,
+      glasgow: 10,
+      rass: -1,
+      ims: 0,
+      vasopressor: true,
+      peak_cough_flow: 60,
+      // Campo legado de uma evolução anterior à Fase 5, registrando que o
+      // TRE daquele dia falhou. A sessão abaixo é posterior e foi
+      // interrompida: ela precisa prevalecer sobre o legado, não o
+      // contrário — é exatamente essa prevalência que este teste prova.
+      tre_result: "fail",
+      pimax: 50,
+    };
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    db.treSessions = [
+      {
+        id: "s-1",
+        patient_id: "p-1",
+        owner_id: "user-1",
+        iniciado_em: "2026-01-02T10:00:00Z",
+        encerrado_em: "2026-01-02T10:20:00Z",
+        modo_antes: "PCV",
+        modo_durante: "psv",
+        desfecho: "interrompido",
+        motivo_interrupcao: "tomografia",
+        criterios: {},
+      },
+    ];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    const cartao = screen.getByText("Prontidão para extubação").closest("section")!;
+    expect(within(cartao).getByText(/TRE aprovado/)).toBeInTheDocument();
+    // Está em "não medido", e não entre os reprovados.
+    expect(within(cartao).queryByText(/Critérios desfavoráveis/)).not.toBeInTheDocument();
   });
 });
 
@@ -561,7 +624,7 @@ describe("aba padrão ao abrir o paciente", () => {
     ims: 0,
     vasopressor: true,
     peak_cough_flow: 60,
-    tre_result: "success",
+    tre_result: "pass",
     pimax: 50,
   };
 
@@ -635,7 +698,7 @@ describe("painel de avaliação motora na página", () => {
         ims: 0,
         vasopressor: true,
         peak_cough_flow: 60,
-        tre_result: "success",
+        tre_result: "pass",
         pimax: 50,
         mrc: mrcCompleto,
       },
