@@ -18,6 +18,7 @@ const LABELS: Record<SourceKey, string> = {
   mrc: "Escore MRC de força muscular",
   rass: "RASS",
   ims: "IMS",
+  treFalha: "Critérios de falha do teste de respiração espontânea",
 };
 
 export default function Sources() {

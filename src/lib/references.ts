@@ -11,7 +11,9 @@ export type SourceKey =
   // motores de sugestão
   | "peepFio2" | "vcTarget" | "extubation"
   // escores desta fase
-  | "mrc" | "rass" | "ims";
+  | "mrc" | "rass" | "ims"
+  // teste de respiração espontânea
+  | "treFalha";
 
 export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   pf: ["ardsnet_2000", "amib_sbpt_2024"],
@@ -27,6 +29,7 @@ export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   mrc: ["dejonghe_2002", "parecer_mrc_faixa"],
   rass: ["sessler_2002"],
   ims: ["hodgson_2014"],
+  treFalha: ["boles_2007", "amib_sbpt_2024"],
 };
 
 const BY_ID = new Map(REFERENCES.map((r) => [r.id, r]));
