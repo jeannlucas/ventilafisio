@@ -25,7 +25,19 @@ export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   pimax: ["boles_2007", "amib_sbpt_2024"],
   peepFio2: ["ardsnet_2000"],
   vcTarget: ["ardsnet_2000"],
-  extubation: ["boles_2007", "amib_sbpt_2024", "ferreira_2021", "duan_2021"],
+  // aarc_2024, ats_chest_2017 e parecer_tre_validade entram aqui porque a
+  // triagem passou a aplicar um limiar novo: o resultado do TRE só conta se
+  // for das últimas 24 h. A janela é parecer do mentor; as duas diretrizes
+  // sustentam a cadência diária de onde ela vem, não a janela em si.
+  extubation: [
+    "boles_2007",
+    "amib_sbpt_2024",
+    "ferreira_2021",
+    "duan_2021",
+    "aarc_2024",
+    "ats_chest_2017",
+    "parecer_tre_validade",
+  ],
   mrc: ["dejonghe_2002", "parecer_mrc_faixa"],
   rass: ["sessler_2002"],
   ims: ["hodgson_2014"],

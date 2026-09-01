@@ -33,7 +33,28 @@ export function sessaoEmAndamento(sessoes: TreSession[]): TreSession | null {
 }
 
 /**
+ * Por quantas horas o resultado de um TRE continua valendo na triagem.
+ *
+ * 24 h é parecer do mentor clínico (01/09/2026), coerente com a cadência
+ * diária de AARC 2024 (recomendação 3: avaliar e, se apropriado, testar antes
+ * do meio-dia de cada dia — condicional, certeza muito baixa) e de
+ * ATS/CHEST 2017. Nenhuma das duas afirma a janela literalmente; ver
+ * `parecer_tre_validade` em data/references.ts.
+ *
+ * Antes da Fase 5 o resultado expirava sozinho, junto com a evolução do dia em
+ * que estava gravado. A tabela de sessões perdeu essa expiração natural, e sem
+ * a janela um TRE aprovado há cinco dias seguia contando como critério
+ * atendido na triagem de hoje.
+ */
+export const VALIDADE_TRE_HORAS = 24;
+
+const MS_POR_HORA = 3_600_000;
+
+/**
  * Traduz o histórico de TRE no tri-estado que a triagem de extubação consome.
+ *
+ * Só conta resultado das últimas `VALIDADE_TRE_HORAS` horas. Fora da janela a
+ * resposta é null, "não medido".
  *
  * 'interrompido' devolve null DE PROPÓSITO: um teste parado por exame ou
  * transporte não é um paciente que reprovou, é um teste que não aconteceu — e
@@ -49,15 +70,40 @@ export function sessaoEmAndamento(sessoes: TreSession[]): TreSession | null {
  *
  * Sem sessão alguma, cai no campo legado `daily_evolutions.tre_result`, para
  * não apagar o histórico de quem foi registrado antes da Fase 5.
+ *
+ * @param dataLegado data do registro que trouxe `treResultLegado` (o
+ *   `recorded_at` da evolução). `null` significa data desconhecida — ver o
+ *   comentário no fim da função.
+ * @param agora injetável para o teste não depender do relógio da máquina.
  */
 export function resultadoTreParaTriagem(
   sessoes: TreSession[] | null,
-  treResultLegado: string | null
+  treResultLegado: string | null,
+  dataLegado?: string | null,
+  agora: Date = new Date()
 ): "pass" | "fail" | null {
   if (sessoes == null) return null;
+  const limite = agora.getTime() - VALIDADE_TRE_HORAS * MS_POR_HORA;
+  // O fim da sessão é o que datou o resultado. `encerrado_em` não deveria ser
+  // nulo numa sessão concluída, mas o SQL não obriga: cair em `iniciado_em`
+  // evita que uma linha assim vire NaN e escape da janela por acidente.
+  const dentroDaJanela = (s: TreSession) =>
+    new Date(s.encerrado_em ?? s.iniciado_em).getTime() >= limite;
+
+  // Filtra DEPOIS de ordenar e antes de pegar a última: procurar a sessão
+  // concluída mais recente e só então conferir a validade descartaria uma
+  // sessão de 2 horas atrás por causa de outra que ordenasse à frente dela.
   const concluidas = sessoes
     .filter((s) => s.desfecho != null)
-    .sort((a, b) => new Date(a.iniciado_em).getTime() - new Date(b.iniciado_em).getTime());
+    .sort((a, b) => new Date(a.iniciado_em).getTime() - new Date(b.iniciado_em).getTime())
+    // A janela vale para 'aprovado' E para 'falhou', DE PROPÓSITO e
+    // simetricamente. Parece errado à primeira vista, porque derruba um
+    // bloqueador absoluto: um TRE que falhou há 30 horas deixa de reprovar.
+    // Mas ele está velho exatamente como um aprovado de 30 horas está — a
+    // cadência das diretrizes manda fazer um teste novo, não arrastar o de
+    // anteontem. Expirado vira null, "não medido", que NÃO aprova ninguém:
+    // só impede que um resultado velho decida o dia de hoje.
+    .filter(dentroDaJanela);
   const ultima = concluidas[concluidas.length - 1];
   if (ultima) {
     if (ultima.desfecho === "aprovado") return "pass";
@@ -68,6 +114,17 @@ export function resultadoTreParaTriagem(
   // então o campo legado continua valendo. Pelo mesmo motivo da regra acima —
   // teste em andamento não apaga resultado já concluído, e um 'fail' antigo é
   // um bloqueador real até que um teste novo o substitua.
+  //
+  // O legado leva a MESMA janela, quando a data dele é conhecida. Sem data
+  // (`dataLegado` null ou ilegível) ele é tratado como não expirado: descartar
+  // em silêncio um dado só porque não sabemos a idade dele apagaria da tela
+  // informação real, e o comportamento anterior a esta janela era justamente
+  // esse. Quem chama sabe a data — é o `recorded_at` da evolução — e é por
+  // isso que ela é parâmetro, não adivinhação.
+  if (dataLegado != null) {
+    const t = new Date(dataLegado).getTime();
+    if (!Number.isNaN(t) && t < limite) return null;
+  }
   if (treResultLegado === "pass") return "pass";
   if (treResultLegado === "fail") return "fail";
   return null;

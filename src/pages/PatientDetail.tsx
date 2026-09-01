@@ -117,7 +117,10 @@ export default function PatientDetail() {
     ? C.extubationReadiness({
         fio2: last.fio2, peep: last.peep, tobinVal: C.tobin(last.fr, last.vc), pimaxVal: last.pimax,
         glasgow: last.glasgow, rass: last.rass, vasopressor: last.vasopressor,
-        treResult: resultadoTreParaTriagem(treSessions, last.tre_result),
+        // O `recorded_at` da evolução é a data do valor legado: sem ela, um
+        // TRE aprovado há cinco dias no campo antigo escaparia da janela de
+        // 24 h que as sessões já respeitam.
+        treResult: resultadoTreParaTriagem(treSessions, last.tre_result, last.recorded_at),
         peakCoughFlow: last.peak_cough_flow,
       })
     : null;
@@ -665,13 +668,13 @@ function ExtubationCard({ triagem: r }: { triagem: C.ExtubationReadiness }) {
 
   return (
     // O subtítulo dizia "a partir da última evolução", e desde a Fase 5 isso
-    // deixou de ser verdade: o critério de TRE lê o histórico de sessões
-    // inteiro, sem recorte de tempo. Por quanto tempo um TRE aprovado continua
-    // valendo é pergunta clínica do mentor, não do app — enquanto ela não tem
-    // resposta, a tela diz de onde cada número vem, em vez de prometer uma
-    // atualidade que ela não tem.
+    // deixou de ser verdade: o critério de TRE lê o histórico de sessões, não
+    // a evolução do dia. A pergunta clínica que faltava — por quanto tempo um
+    // TRE continua valendo — foi respondida pelo mentor em 01/09/2026, e são
+    // as 24 h de VALIDADE_TRE_HORAS. O subtítulo diz as duas coisas: de onde
+    // vem cada número e qual o recorte de tempo do TRE.
     <Panel title="Prontidão para extubação" accent={veredito.c}
-      sub="Medidas da última evolução e TRE do histórico de testes, não é indicação de extubar">
+      sub="Medidas da última evolução e TRE das últimas 24 h do histórico de testes, não é indicação de extubar">
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: veredito.c }}>
           {r.level === "favorable" ? "✓" : r.level === "insufficient" ? "ℹ" : "⚠"} {veredito.t}

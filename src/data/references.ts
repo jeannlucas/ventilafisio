@@ -186,6 +186,28 @@ export const REFERENCES: Reference[] = [
       "Falha de extubação de 36,2% com tosse fraca contra 6,3% com tosse forte.",
   },
   {
+    id: "aarc_2024",
+    citacaoCurta: "AARC, 2024",
+    autores: "Roberts KJ, Goodfellow LT, Battey-Muse CM, et al.",
+    titulo:
+      "AARC Clinical Practice Guideline: Spontaneous Breathing Trials for Liberation From Adult Mechanical Ventilation",
+    veiculo: "Respir Care 2024;69(7):891-901",
+    ano: 2024,
+    verificada: true,
+    nota:
+      "A recomendação 3 é avaliação padronizada e, se apropriado, realização de um TRE antes do meio-dia de cada dia. É recomendação CONDICIONAL, com certeza MUITO BAIXA da evidência: sustenta a cadência diária, não a impõe.",
+  },
+  {
+    id: "ats_chest_2017",
+    citacaoCurta: "ATS/CHEST, 2017",
+    autores: "Girard TD, Alhazzani W, Kress JP, et al.",
+    titulo:
+      "An Official ATS/CHEST Clinical Practice Guideline: Liberation from Mechanical Ventilation in Critically Ill Adults",
+    veiculo: "Am J Respir Crit Care Med 2017;195(1):120-133",
+    ano: 2017,
+    verificada: true,
+  },
+  {
     id: "parecer_mrc_faixa",
     citacaoCurta: "Parecer clínico, 2026",
     profissional: "Mentor clínico do projeto",
@@ -200,5 +222,13 @@ export const REFERENCES: Reference[] = [
     data: "01/09/2026",
     nota:
       "O corte de pH < 7,35 para interromper o TRE foi validado por julgamento clínico. Boles 2007 usa 7,32.",
+  },
+  {
+    id: "parecer_tre_validade",
+    citacaoCurta: "Parecer clínico (validade do TRE), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "01/09/2026",
+    nota:
+      "A validade de 24 horas do resultado de um TRE é julgamento clínico, coerente com a cadência diária recomendada por AARC 2024 e ATS/CHEST 2017. NENHUMA das duas diretrizes afirma essa janela literalmente: elas recomendam avaliar e testar diariamente, e é dessa cadência que a janela foi derivada.",
   },
 ];

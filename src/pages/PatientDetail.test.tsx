@@ -103,6 +103,13 @@ const PACIENTE_BASE = {
   updated_at: "2026-01-01T00:00:00Z",
 };
 
+// O resultado do TRE vale 24 h (VALIDADE_TRE_HORAS). A página não injeta
+// "agora" — quem decide é o relógio do navegador —, então toda data de TRE
+// usada aqui nasce como deslocamento de `Date.now()`, e nunca como string
+// escrita à mão. Data fixa no passado envelhece: a mesma fixture passaria hoje
+// e reprovaria amanhã, provando o oposto do que o teste diz provar.
+const horasAtras = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+
 function renderDetail() {
   return render(
     <MemoryRouter initialEntries={["/paciente/p-1"]}>
@@ -514,7 +521,11 @@ describe("triagem de extubação lê sessão de TRE", () => {
     const EVOLUCAO_BASE = {
       id: "e-1",
       patient_id: "p-1",
-      recorded_at: "2026-01-02T00:00:00Z",
+      // Dentro da janela de 24 h, como a sessão abaixo: o que este teste mede
+      // é a prevalência da sessão interrompida sobre o legado, não a
+      // expiração. Com as duas datas velhas ele passaria por expiração e
+      // deixaria de provar a prevalência.
+      recorded_at: horasAtras(3),
       fr: 16,
       vc: 400,
       peep: 8,
@@ -542,8 +553,8 @@ describe("triagem de extubação lê sessão de TRE", () => {
         id: "s-1",
         patient_id: "p-1",
         owner_id: "user-1",
-        iniciado_em: "2026-01-02T10:00:00Z",
-        encerrado_em: "2026-01-02T10:20:00Z",
+        iniciado_em: horasAtras(2),
+        encerrado_em: horasAtras(1.7),
         modo_antes: "PCV",
         modo_durante: "psv",
         desfecho: "interrompido",
@@ -847,7 +858,10 @@ describe("falha ao buscar as sessões de TRE", () => {
   const EVOLUCAO_LEGADO_APROVADO = {
     id: "e-1",
     patient_id: "p-1",
-    recorded_at: "2026-01-02T00:00:00Z",
+    // Dentro da janela de 24 h: aqui a pergunta é se o erro de rede derruba o
+    // legado, e para isso o legado precisa estar valendo. A expiração é
+    // testada logo abaixo, no bloco da validade.
+    recorded_at: horasAtras(2),
     fr: 16,
     vc: 400,
     peep: 8,
@@ -889,23 +903,81 @@ describe("falha ao buscar as sessões de TRE", () => {
 });
 
 // ============================================================
+// Validade de 24 h do TRE, na fiação da página.
+//
+// A janela mora em `resultadoTreParaTriagem`, e os testes de unidade dela
+// estão em src/lib/tre.test.ts. O que SÓ a página pode provar é que ela passa
+// a data do valor legado: sem esse argumento a função trata o legado como
+// "sem data" e não expira nada, e um `tre_result: "pass"` de cinco dias atrás
+// volta a contar como critério atendido na triagem de hoje — com a suíte de
+// unidade inteira verde.
+// ============================================================
+describe("validade de 24 h do TRE na triagem da página", () => {
+  const EVOLUCAO = (recordedAt: string) => ({
+    id: "e-1",
+    patient_id: "p-1",
+    recorded_at: recordedAt,
+    fr: 16,
+    vc: 400,
+    peep: 8,
+    fio2: 40,
+    pao2: 120,
+    pplat: 24,
+    ppico: 30,
+    paw: 18,
+    glasgow: 10,
+    rass: -1,
+    ims: 0,
+    vasopressor: false,
+    peak_cough_flow: 60,
+    // Registro anterior à Fase 5: é o único TRE que este paciente tem.
+    tre_result: "pass",
+    pimax: -30,
+  });
+
+  it("um TRE legado de 30 horas atrás entra como não medido, não como atendido", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [EVOLUCAO(horasAtras(30))];
+    db.treSessions = [];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    expect(screen.getByTestId("extubacao-nao-medidos")).toHaveTextContent("TRE aprovado");
+    expect(screen.getByTestId("extubacao-atendidos")).not.toHaveTextContent("TRE aprovado");
+  });
+
+  // O par do teste acima: com a mesma fixture dentro da janela o critério é
+  // atendido. Sem este, apagar a leitura do campo legado inteiro também
+  // deixaria o primeiro verde.
+  it("o mesmo TRE legado, de 2 horas atrás, continua atendendo o critério", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [EVOLUCAO(horasAtras(2))];
+    db.treSessions = [];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    expect(screen.getByTestId("extubacao-atendidos")).toHaveTextContent("TRE aprovado");
+  });
+});
+
+// ============================================================
 // Onda de fechamento da Fase 5, item 4: o subtítulo da triagem prometia uma
 // atualidade que ela não tem mais.
 //
 // Ele dizia "Triagem objetiva a partir da última evolução". Desde que o
-// critério de TRE passou a ler o histórico de sessões inteiro, sem recorte de
-// tempo, um TRE aprovado há cinco dias continua contando — antes ele expirava
-// junto com a evolução do dia. Por quanto tempo um TRE vale é pergunta clínica
-// do mentor; o app, enquanto ela não tem resposta, diz de onde cada número vem.
+// critério de TRE passou a ler o histórico de sessões, ele deixou de expirar
+// junto com a evolução do dia. A pergunta clínica que faltava — por quanto
+// tempo um TRE vale — foi respondida pelo mentor em 01/09/2026, e são 24 h:
+// agora o subtítulo diz de onde vem cada número E qual o recorte de tempo.
 // ============================================================
 describe("subtítulo da prontidão para extubação", () => {
-  it("diz que o TRE vem do histórico de testes, não da última evolução", async () => {
+  it("diz que o TRE vem do histórico de testes das últimas 24 h", async () => {
     db.patient = { ...PACIENTE_BASE };
     db.evolutions = [
       {
         id: "e-1",
         patient_id: "p-1",
-        recorded_at: "2026-01-02T00:00:00Z",
+        recorded_at: horasAtras(2),
         fr: 16,
         vc: 400,
         peep: 8,
@@ -924,5 +996,8 @@ describe("subtítulo da prontidão para extubação", () => {
     const painel = screen.getByText("Prontidão para extubação").closest("section")!;
     expect(painel).toHaveTextContent(/última evolução/i);
     expect(painel).toHaveTextContent(/histórico de testes/i);
+    // A janela precisa estar na tela: é o que separa "TRE de algum dia" de
+    // "TRE que ainda vale". Quem lê isso está à beira do leito.
+    expect(painel).toHaveTextContent(/24\s?h/i);
   });
 });
