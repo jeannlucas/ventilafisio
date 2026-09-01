@@ -33,9 +33,11 @@ describe("página de fontes", () => {
     expect(screen.getAllByText(/pendente de revis/i)).toHaveLength(pendentes.length);
   });
 
-  it("mostra a ressalva de que Amato 2015 não define o corte de 13", () => {
+  it("mostra que o corte de 13 é sustentado por Guérin 2016, não por Amato", () => {
     renderPage();
-    expect(screen.getByText(/NÃO define o corte de 13/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/o corte de 13 usado pelo app é sustentado por Guérin 2016/i)
+    ).toBeInTheDocument();
   });
 
   it("mostra qual limiar cada fonte sustenta", () => {

@@ -69,7 +69,7 @@ export const REFERENCES: Reference[] = [
     citacaoCurta: "Amato, 2015",
     verificada: false,
     nota:
-      "Demonstra a driving pressure como a variável mais associada à sobrevida (RR 1,41 por incremento de ~7 cmH₂O). NÃO define o corte de 13 que o app usa hoje: essa faixa segue pendente de fonte.",
+      "Demonstra a driving pressure como a variável mais associada à sobrevida (RR 1,41 por incremento de ~7 cmH₂O). O corte de 13 usado pelo app é sustentado por Guérin 2016, não por este artigo.",
   },
   {
     id: "gattinoni_2016",
