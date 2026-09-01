@@ -193,4 +193,12 @@ export const REFERENCES: Reference[] = [
     nota:
       "A faixa de 48 a 59 no somatório MRC, classificada como força reduzida, foi validada por julgamento clínico. De Jonghe 2002 estabelece o corte < 48 para fraqueza adquirida na UTI, mas não define esta segunda faixa.",
   },
+  {
+    id: "parecer_tre_ph",
+    citacaoCurta: "Parecer clínico (TRE), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "01/09/2026",
+    nota:
+      "O corte de pH < 7,35 para interromper o TRE foi validado por julgamento clínico. Boles 2007 usa 7,32.",
+  },
 ];

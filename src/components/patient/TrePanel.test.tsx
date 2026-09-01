@@ -70,10 +70,13 @@ describe("TrePanel — sem sessão aberta", () => {
   it("grava a sessão com o modo anterior e a modalidade", async () => {
     const user = userEvent.setup();
     renderPanel();
+    // Escolhe uma modalidade diferente da primeira da lista: se o valor
+    // gravado fosse um default fixo, esta troca não apareceria no insert.
+    await user.selectOptions(screen.getByLabelText(/modalidade do teste/i), "tubo_t");
     await user.click(screen.getByRole("button", { name: /iniciar/i }));
     await waitFor(() => {
       expect(db.lastInsert).toMatchObject({
-        patient_id: "p1", owner_id: "u1", modo_antes: "PCV",
+        patient_id: "p1", owner_id: "u1", modo_antes: "PCV", modo_durante: "tubo_t",
       });
     });
   });
@@ -101,7 +104,10 @@ describe("TrePanel — em andamento", () => {
   // terapeuta. Isso precisa estar dito na tela, não só no spec.
   it("diz que a persistência de 5 minutos é julgada pelo terapeuta", () => {
     renderPanel([sessao()]);
-    expect(screen.getByText(/5 min/i)).toBeInTheDocument();
+    // "5 min" sozinho passaria também com uma contagem regressiva por
+    // critério — que é exatamente o que este app nunca deve mostrar. O que
+    // prova a garantia é a frase que diz quem julga e o que é cronometrado.
+    expect(screen.getByText(/cronometra a sessão, não cada critério/i)).toBeInTheDocument();
   });
 
   it("mostra o que ainda reprova na triagem sem bloquear o início", () => {

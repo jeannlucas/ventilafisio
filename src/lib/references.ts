@@ -29,7 +29,7 @@ export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   mrc: ["dejonghe_2002", "parecer_mrc_faixa"],
   rass: ["sessler_2002"],
   ims: ["hodgson_2014"],
-  treFalha: ["boles_2007", "amib_sbpt_2024"],
+  treFalha: ["boles_2007", "amib_sbpt_2024", "parecer_tre_ph"],
 };
 
 const BY_ID = new Map(REFERENCES.map((r) => [r.id, r]));
