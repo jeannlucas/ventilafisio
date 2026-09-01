@@ -207,3 +207,26 @@ O alvo é a linha 7, não a mais recente: o vitest 3.2.7 não aceita vite 8.
    `apple-touch-icon.png` são gerados por `scripts/gerar-icones.py`, que
    redesenha a geometria do SVG com Pillow (não há conversor SVG para PNG na
    máquina). Mexeu no SVG, rode o script.
+9. **O teste do gráfico de MRC depende de como o Recharts serializa o path,
+   não de uma contagem óbvia.** `src/components/patient/TrendCharts.test.tsx`
+   prova que a série de MRC não interpola através de um dia sem avaliação
+   completa. Contar elementos `<path>` não distingue nada — é sempre 1 por
+   linha, com ou sem lacuna. O que distingue é o atributo `d`: o gerador de
+   curva do d3 abre um novo comando `M` (moveto) a cada ponto nulo quando a
+   lacuna é preservada, e usa um único `M` quando os nulos são interpolados.
+   O teste conta esses `M`: 2 significa lacuna preservada, 1 significa que
+   virou interpolação. Recharts está na 2.15.4 hoje; se uma subida de versão
+   mudar a serialização do path e quebrar esse teste, a quebra não é ruído
+   para apagar — é o teste avisando que o app passou a desenhar uma
+   recuperação de força que ninguém mediu, e é exatamente isso que ele existe
+   para impedir.
+10. **`abaEscolhidaPeloUsuario`, em `PatientDetail.tsx`, não é reiniciado
+    quando o `id` da rota muda.** O sinalizador existe para impedir que a
+    carga assíncrona de evoluções troque a aba de quem já clicou numa; ele é
+    lido dentro de `load()`, mas nunca é zerado no `useEffect` que reage a
+    `[id]`. Hoje isso é inofensivo porque nenhum link do aplicativo pula do
+    detalhe de um paciente para o de outro sem recarregar a página. No dia em
+    que existir navegação de "próximo paciente", a aba escolhida para o
+    paciente A vai vazar para o paciente B e suprimir a escolha automática de
+    aba que deveria valer para ele. Quem adicionar essa navegação precisa
+    zerar o sinalizador junto com a troca de `id`.
