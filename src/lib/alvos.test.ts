@@ -86,7 +86,7 @@ describe("sugerirVc", () => {
 describe("sugerirPeepFio2", () => {
   it("sem gasometria e sem oximetria devolve o preset de admissão", () => {
     const a = sugerirPeepFio2(null, null);
-    expect(a.valor).toEqual({ fio2: 100, peep: 5, admission: true });
+    expect(a.valor).toEqual({ fio2: 100, peep: 5, presetAdmissao: true });
     expect(a.modulacoes).toEqual([]);
   });
 
@@ -105,7 +105,7 @@ describe("sugerirPeepFio2", () => {
     expect(sugerirPeepFio2(null, 95).valor).toMatchObject({
       fio2: 40,
       peep: 5,
-      admission: false,
+      presetAdmissao: false,
     });
   });
 });

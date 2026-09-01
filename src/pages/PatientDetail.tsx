@@ -363,12 +363,12 @@ function AdmissionCard({ patient }: { patient: Patient }) {
       accent={T.accent}
       sub="Ponto de partida para colocar o paciente na ventilação — complete os dados depois para refinar"
     >
-      {(sug.pbwEstimado || sug.obesoIndeterminado || peepFio2.valor.admission) && (
+      {(sug.pbwEstimado || sug.obesoIndeterminado || peepFio2.valor.presetAdmissao) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
           {sug.pbwEstimado && (
             <Badge text={`PBW estimado (altura média) — informe a altura para precisão`} />
           )}
-          {peepFio2.valor.admission && (
+          {peepFio2.valor.presetAdmissao && (
             <Badge text="FiO₂/PEEP de admissão — titular pela gasometria/SpO₂" />
           )}
           {sug.obesoIndeterminado && (

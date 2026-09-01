@@ -96,14 +96,14 @@ const ARDSNET_LOW = [
 export interface AlvoPeepFio2 {
   fio2: number;
   peep: number;
-  admission: boolean;
+  presetAdmissao: boolean;
 }
 
 // Sem modulação nesta fase: patologia ainda não muda a tabela. Fase 8.
 export function sugerirPeepFio2(pf: number | null, spo2: number | null): Alvo<AlvoPeepFio2> {
   // Sem gasometria nem oximetria: preset de admissão (titular FiO2 para baixo).
   if (!num(pf) && !num(spo2)) {
-    return semModulacao({ fio2: 100, peep: 5, admission: true });
+    return semModulacao({ fio2: 100, peep: 5, presetAdmissao: true });
   }
   let fio2: number;
   if (!num(pf)) fio2 = 40;
@@ -113,7 +113,7 @@ export function sugerirPeepFio2(pf: number | null, spo2: number | null): Alvo<Al
   else fio2 = 80;
   if (num(spo2) && spo2 < 90) fio2 = Math.min(100, fio2 + 10);
   const row = ARDSNET_LOW.find((r) => r.fio2 >= fio2) ?? ARDSNET_LOW[ARDSNET_LOW.length - 1];
-  return semModulacao({ fio2: row.fio2, peep: row.peep, admission: false });
+  return semModulacao({ fio2: row.fio2, peep: row.peep, presetAdmissao: false });
 }
 
 // ---------- Frequência / volume-minuto ----------
