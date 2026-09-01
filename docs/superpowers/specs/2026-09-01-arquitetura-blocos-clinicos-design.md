@@ -111,8 +111,12 @@ Característica nova depois não muda assinatura nenhuma.
 modulam alvo é conteúdo clínico e pertence à Fase 8, junto do mentor. O que
 este documento fixa é que ela existe, que é derivada do que já se captura
 (`patients.comorbidities` e `imaging` da evolução) e que entra no perfil em vez
-de virar parâmetro novo. A Fase 4 constrói o perfil com a lista vazia; nada
-depende do conteúdo dela até a Fase 8.
+de virar parâmetro novo. A Fase 4 constrói o perfil copiando
+`patient.comorbidities` para `patologias` como estão — chaves cruas de
+comorbidade, ainda não o vocabulário curado de patologia (que inclui também os
+achados de imagem citados acima); esse mapeamento fica deliberadamente para a
+fase que decide qual patologia modula qual alvo. Nada depende do conteúdo de
+`patologias` até a Fase 8.
 
 ### 3.3 `Alvo<T>`
 

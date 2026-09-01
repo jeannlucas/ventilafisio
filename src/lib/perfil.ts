@@ -20,6 +20,14 @@ export interface PerfilClinico {
   obeso: boolean;
   /** Sem IMC não dá para afirmar. Assume-se a faixa protetora, mas sinalizado. */
   obesoIndeterminado: boolean;
+  /**
+   * Hoje guarda as chaves cruas de `patient.comorbidities`, copiadas como
+   * vieram do paciente — ainda não o vocabulário curado de patologia que a
+   * Fase 8 vai definir, que também incorpora os achados de imagem da
+   * evolução (`imaging`). Mapear comorbidade + imagem para uma patologia que
+   * de fato module um alvo é conteúdo clínico, decidido com o mentor, e fica
+   * deliberadamente para a fase que decidir qual patologia modula qual alvo.
+   */
   patologias: PatologiaKey[];
 }
 
