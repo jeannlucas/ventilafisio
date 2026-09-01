@@ -32,6 +32,12 @@ export default function PatientDetail() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState("admissao");
+  // A aba padrão depende do estado do paciente, mas as evoluções chegam
+  // assíncronas: a escolha acontece ao fim da carga, não na inicialização.
+  // Este sinalizador impede que a carga troque a aba de quem já navegou —
+  // comparar com "admissao" não serviria, porque o usuário pode ter clicado
+  // nela de propósito.
+  const [abaEscolhidaPeloUsuario, setAbaEscolhidaPeloUsuario] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -58,6 +64,9 @@ export default function PatientDetail() {
     setPatient(p as Patient);
     setVentilators((v as Ventilator[]) ?? []);
     setEvolutions((ev as DailyEvolution[]) ?? []);
+    if (!abaEscolhidaPeloUsuario) {
+      setTab(((ev as DailyEvolution[]) ?? []).length > 0 ? "evolucao" : "admissao");
+    }
     setAsyncs((asy as Asynchrony[]) ?? []);
     setCareActions((ca as CareAction[]) ?? []);
     // Nomes dos autores das evoluções (RPC escopado por acesso).
@@ -104,7 +113,14 @@ export default function PatientDetail() {
         <ArchiveControl patient={patient} onUpdate={load} />
       </div>
 
-      <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      <Tabs
+        tabs={tabs}
+        active={tab}
+        onChange={(t) => {
+          setAbaEscolhidaPeloUsuario(true);
+          setTab(t);
+        }}
+      />
 
       {tab === "admissao" && (
         <div style={{ display: "grid", gap: 20 }}>

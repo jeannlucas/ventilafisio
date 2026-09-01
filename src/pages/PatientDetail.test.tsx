@@ -454,3 +454,71 @@ describe("embasamento clínico", () => {
     expect(footers.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+// ============================================================
+// Aba padrão conforme o estado do paciente: antes, `tab` nascia fixo em
+// "admissao", então um paciente no oitavo dia de VM abria mostrando como
+// colocá-lo no ventilador, e não o estado atual dele.
+// ============================================================
+describe("aba padrão ao abrir o paciente", () => {
+  const EVOLUCAO_BASE = {
+    id: "e-1",
+    patient_id: "p-1",
+    recorded_at: "2026-01-02T00:00:00Z",
+    fr: 16,
+    vc: 400,
+    peep: 8,
+    fio2: 40,
+    pao2: 120,
+    pplat: 24,
+    ppico: 30,
+    paw: 18,
+    glasgow: 10,
+    rass: -1,
+    ims: 0,
+    vasopressor: true,
+    peak_cough_flow: 60,
+    tre_result: "success",
+    pimax: 50,
+  };
+
+  it("abre em Evolução quando o paciente já tem evolução registrada", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    renderDetail();
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /evolução/i })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(screen.getByRole("tab", { name: /admissão/i })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("abre em Admissão quando não há evolução nenhuma", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [];
+    renderDetail();
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /admissão/i })).toHaveAttribute("aria-selected", "true");
+    });
+  });
+
+  it("não troca a aba de quem já navegou quando a carga termina depois", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    // Usuário navega deliberadamente para Admissão, mesmo havendo evolução.
+    await userEvent.click(screen.getByRole("tab", { name: /admissão/i }));
+    expect(screen.getByRole("tab", { name: /admissão/i })).toHaveAttribute("aria-selected", "true");
+
+    // Recarrega (salvar o cabeçalho dispara load() de novo) sem que a aba
+    // escolhida pelo usuário seja trocada por baixo dele.
+    await userEvent.click(screen.getByRole("button", { name: /editar/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^salvar$/i }));
+
+    await waitFor(() => expect(db.lastUpdate).not.toBeNull());
+    expect(screen.getByRole("tab", { name: /admissão/i })).toHaveAttribute("aria-selected", "true");
+  });
+});
