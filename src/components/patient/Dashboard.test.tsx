@@ -131,6 +131,7 @@ describe("PatientHeader", () => {
         vent={undefined}
         ventilators={[]}
         onUpdate={vi.fn()}
+        rassAtual={null}
       />
     );
 

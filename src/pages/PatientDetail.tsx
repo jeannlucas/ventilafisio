@@ -107,7 +107,13 @@ export default function PatientDetail() {
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      <PatientHeader patient={patient} vent={vent} ventilators={ventilators} onUpdate={load} />
+      <PatientHeader
+        patient={patient}
+        vent={vent}
+        ventilators={ventilators}
+        onUpdate={load}
+        rassAtual={last?.rass ?? null}
+      />
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap-reverse", alignItems: "center" }}>
         <ShareControl patient={patient} ownerId={session!.user.id} />
         <ArchiveControl patient={patient} onUpdate={load} />

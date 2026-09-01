@@ -9,12 +9,14 @@ import { COMORBIDITIES } from "../../data/comorbidities";
 
 // ---------- Header com troca de ventilador/modo ----------
 export function PatientHeader({
-  patient, vent, ventilators, onUpdate,
+  patient, vent, ventilators, onUpdate, rassAtual,
 }: {
   patient: Patient;
   vent?: Ventilator;
   ventilators: Ventilator[];
   onUpdate: () => void;
+  /** RASS da evolução mais recente. null quando não foi registrado. */
+  rassAtual: number | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [ventId, setVentId] = useState(patient.ventilator_id ?? "");
@@ -37,6 +39,9 @@ export function PatientHeader({
     ...(patient.comorbidities ?? []).map((k) => rotuloComorbidade.get(k) ?? k),
     patient.airway === "tot" ? "TOT" : patient.airway === "tqt" ? "TQT" : null,
     diasVM != null ? `${diasVM}º dia de VM` : null,
+    // RASS zero é medida real ("alerta e calmo"), nunca ausência: a
+    // comparação é != null, jamais uma checagem falsy.
+    rassAtual != null ? `RASS ${rassAtual < 0 ? `−${Math.abs(rassAtual)}` : rassAtual}` : null,
   ].filter((c): c is string => Boolean(c));
 
   const save = async () => {
