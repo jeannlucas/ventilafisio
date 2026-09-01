@@ -719,3 +719,75 @@ describe("painel de avaliação motora na página", () => {
     expect(await screen.findByText("Avaliação motora")).toBeInTheDocument();
   });
 });
+
+// ============================================================
+// Fase 5, Task 6: o painel de TRE é montado na aba Desmame. O painel tem
+// teste próprio em TrePanel.test.tsx, e funcionar isolado não prova que ele
+// está na tela: sem este bloco, apagar `<TrePanel/>` de PatientDetail.tsx
+// não derrubaria nenhum teste da suíte — foi exatamente o defeito que a
+// Fase 2 embarcou e teve que corrigir depois.
+//
+// "Teste de respiração espontânea" é o título do Panel do TrePanel e é
+// inequívoco: o único outro painel da aba é o de prontidão, cujo título é
+// "Prontidão para extubação". Nenhum outro texto renderizado por esta
+// página contém a frase (as demais ocorrências no repositório são
+// comentário em lib/tre.ts e data/tre.ts, e o catálogo de fontes em
+// Sources.tsx, que é outra rota).
+// ============================================================
+describe("painel de TRE na página do paciente", () => {
+  const EVOLUCAO_BASE = {
+    id: "e-1",
+    patient_id: "p-1",
+    recorded_at: "2026-01-02T00:00:00Z",
+    fr: 16,
+    vc: 400,
+    peep: 8,
+    fio2: 40,
+    pao2: 120,
+    pplat: 24,
+    ppico: 30,
+    paw: 18,
+    glasgow: 10,
+    rass: -1,
+    ims: 0,
+    // Vasopressor em uso reprova "Sem vasopressor elevado" na triagem, e é
+    // isso que o segundo teste usa para provar a fiação das pendências.
+    vasopressor: true,
+    peak_cough_flow: 60,
+    tre_result: "pass",
+    pimax: 50,
+  };
+
+  it("mostra o painel de TRE na aba Desmame", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    db.treSessions = [];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    expect(await screen.findByText("Teste de respiração espontânea")).toBeInTheDocument();
+    // O botão vive dentro do <section> do próprio painel: prova que o que
+    // apareceu é o painel inteiro, não uma string solta com o mesmo texto.
+    const painel = screen.getByText("Teste de respiração espontânea").closest("section")!;
+    expect(within(painel).getByRole("button", { name: /iniciar teste/i })).toBeInTheDocument();
+  });
+
+  // O plano trava um ponto de projeto: TrePanel e ExtubationCard leem o MESMO
+  // objeto de triagem, calculado uma vez no corpo da página. Este teste é o
+  // que amarra o `pendencias` do painel a essa triagem — sem ele, passar uma
+  // lista vazia constante satisfaria o teste de montagem acima.
+  it("lista na pendência do TRE o mesmo critério que a triagem reprova", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    db.treSessions = [];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    expect(await screen.findByTestId("tre-pendencias")).toHaveTextContent("Sem vasopressor elevado");
+
+    // E o mesmo critério aparece reprovado no cartão de prontidão: um único
+    // cálculo alimentando os dois painéis.
+    const cartao = screen.getByText("Prontidão para extubação").closest("section")!;
+    expect(within(cartao).getByText(/✗ Sem vasopressor elevado/)).toBeInTheDocument();
+  });
+});

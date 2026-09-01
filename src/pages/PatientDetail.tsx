@@ -14,10 +14,11 @@ import { CareBundlePanel } from "../components/patient/CareBundlePanel";
 import { EvolutionHistory } from "../components/patient/EvolutionHistory";
 import { TrendCharts } from "../components/patient/TrendCharts";
 import { MotorPanel } from "../components/patient/MotorPanel";
+import { TrePanel } from "../components/patient/TrePanel";
 import { SourceFooter } from "../components/SourceFooter";
 import type { Mrc } from "../lib/scores";
 import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding, TreSession } from "../types";
-import { resultadoTreParaTriagem } from "../lib/tre";
+import { resultadoTreParaTriagem, pendenciasParaIniciar } from "../lib/tre";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
 import { sugestaoAdmissao } from "../lib/alvos";
@@ -102,6 +103,20 @@ export default function PatientDetail() {
   const vent = ventilators.find((v) => v.id === patient.ventilator_id);
   const last = evolutions[evolutions.length - 1];
 
+  // A triagem de extubação é calculada UMA vez e lida pelos dois painéis da
+  // aba Desmame: o de TRE, que mostra o que hoje reprova antes de o terapeuta
+  // decidir testar, e o de prontidão. Dois cálculos independentes da mesma
+  // pergunta clínica divergem com o tempo; um só não tem como.
+  // É null exatamente quando não há evolução — o que a aba já usa como guarda.
+  const triagem: C.ExtubationReadiness | null = last
+    ? C.extubationReadiness({
+        fio2: last.fio2, peep: last.peep, tobinVal: C.tobin(last.fr, last.vc), pimaxVal: last.pimax,
+        glasgow: last.glasgow, rass: last.rass, vasopressor: last.vasopressor,
+        treResult: resultadoTreParaTriagem(treSessions, last.tre_result),
+        peakCoughFlow: last.peak_cough_flow,
+      })
+    : null;
+
   const tabs = [
     { key: "admissao", label: "Admissão" },
     { key: "evolucao", label: "Evolução" },
@@ -171,8 +186,22 @@ export default function PatientDetail() {
       )}
 
       {tab === "desmame" && (
-        last
-          ? <ExtubationCard ev={last} treSessions={treSessions} />
+        triagem
+          ? (
+            <div style={{ display: "grid", gap: 20 }}>
+              {/* O TRE vem antes da triagem porque é o teste que alimenta um
+                  dos critérios dela. */}
+              <TrePanel
+                patientId={patient.id}
+                ownerId={session!.user.id}
+                modoAtual={patient.current_mode}
+                sessoes={treSessions}
+                pendencias={pendenciasParaIniciar(triagem)}
+                onChange={load}
+              />
+              <ExtubationCard triagem={triagem} />
+            </div>
+          )
           : hint("Registre uma evolução para avaliar a prontidão para extubação.")
       )}
     </div>
@@ -618,15 +647,9 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
 }
 
 // ---------- Predição de extubação ----------
-function ExtubationCard({ ev, treSessions }: { ev?: DailyEvolution; treSessions: TreSession[] }) {
-  if (!ev) return null;
-  const tobinVal = C.tobin(ev.fr, ev.vc);
-  const r = C.extubationReadiness({
-    fio2: ev.fio2, peep: ev.peep, tobinVal, pimaxVal: ev.pimax,
-    glasgow: ev.glasgow, rass: ev.rass, vasopressor: ev.vasopressor,
-    treResult: resultadoTreParaTriagem(treSessions, ev.tre_result),
-    peakCoughFlow: ev.peak_cough_flow,
-  });
+// A triagem chega pronta do corpo da página: é o mesmo objeto que o painel de
+// TRE lê para listar as pendências. Ver o comentário em `triagem`, acima.
+function ExtubationCard({ triagem: r }: { triagem: C.ExtubationReadiness }) {
   const veredito = {
     favorable: { c: T.ok, t: "Critérios favoráveis para extubação" },
     borderline: { c: T.warn, t: "Critérios parciais, reavaliar" },
