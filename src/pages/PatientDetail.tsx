@@ -8,6 +8,7 @@ import { invalidMeasurements, inconsistentMeasurements } from "../lib/measuremen
 import VentilatorGuide from "../components/VentilatorGuide";
 import { PatientHeader } from "../components/patient/PatientHeader";
 import { Dashboard } from "../components/patient/Dashboard";
+import { LinhaModulacao } from "../components/patient/LinhaModulacao";
 import { ScoresPanel } from "../components/patient/ScoresPanel";
 import { CareBundlePanel } from "../components/patient/CareBundlePanel";
 import { EvolutionHistory } from "../components/patient/EvolutionHistory";
@@ -348,7 +349,13 @@ function AdmissionCard({ patient }: { patient: Patient }) {
     null,
     patient.current_mode
   );
-  const { vc, peepFio2, ventilacao } = sug;
+  const { vc, peepFio2 } = sug;
+  // sug.ventilacao é nullable no tipo porque nem toda chamada do motor de
+  // alvos tem a garantia abaixo — mas perfil.pbw vem de pbwOrEstimate, que
+  // sempre devolve um número finito, e vc.valor.target é derivado dele.
+  // sugerirVentilacao nunca cai no ramo null aqui. Assertion documentada,
+  // não suposição: sem ela sobrava um `ventilacao &&` morto.
+  const ventilacao = sug.ventilacao!;
 
   return (
     <Panel
@@ -371,17 +378,16 @@ function AdmissionCard({ patient }: { patient: Patient }) {
       )}
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        {vc && (
-          <SugBox
-            label="VOLUME CORRENTE"
-            big={`${vc.valor.target} mL`}
-            sub={`faixa ${vc.valor.low}–${vc.valor.high} mL · PBW ${sug.pbw.toFixed(0)} kg`}
-          />
-        )}
+        <SugBox
+          label="VOLUME CORRENTE"
+          big={`${vc.valor.target} mL`}
+          sub={`faixa ${vc.valor.low}–${vc.valor.high} mL · PBW ${sug.pbw.toFixed(0)} kg`}
+        />
         <SugBox label="PEEP / FiO₂" big={`${peepFio2.valor.peep} cmH₂O`} sub={`FiO₂ ${peepFio2.valor.fio2}%`} />
-        {ventilacao && <SugBox label="FREQUÊNCIA" big={`${ventilacao.valor.fr} /min`} sub="derivada do VC alvo" />}
-        {ventilacao && <SugBox label="VOLUME-MINUTO" big={`${fmt(ventilacao.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />}
+        <SugBox label="FREQUÊNCIA" big={`${ventilacao.valor.fr} /min`} sub="derivada do VC alvo" />
+        <SugBox label="VOLUME-MINUTO" big={`${fmt(ventilacao.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />
       </div>
+      <LinhaModulacao alvo={vc} />
 
       <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
         Assim que registrar a primeira evolução (gasometria, pressões), os 4 indicadores e a

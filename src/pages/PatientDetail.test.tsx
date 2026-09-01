@@ -494,6 +494,36 @@ describe("embasamento clínico", () => {
 });
 
 // ============================================================
+// Item 2 da onda de fechamento: o AdmissionCard (aba Admissão) mostrava um
+// alvo modulado (obesidade) sem nenhum sinal na tela — o mesmo defeito que
+// o Dashboard já havia corrigido.
+// ============================================================
+describe("sugestão de admissão", () => {
+  it("mostra o alvo padrão quando a obesidade deslocou a faixa de VC", async () => {
+    // 95 kg e 1,70 m dão IMC ~32,9 (95 / 1,70²): obeso.
+    db.patient = { ...PACIENTE_BASE, height_cm: 170, weight_kg: 95 };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    // O "6–8" também aparece em texto fixo de apoio na tela; escopar em
+    // `alvo-modulacao` é o que garante que é a linha de modulação que
+    // mostra o valor ajustado, não qualquer "6–8" da tela.
+    const linha = screen.getByTestId("alvo-modulacao");
+    expect(linha).toHaveTextContent(/6–8/);
+    expect(screen.getByText(/padrão.*4–6/i)).toBeInTheDocument();
+  });
+
+  it("não mostra alvo padrão quando não houve modulação", async () => {
+    // 70 kg e 1,70 m dão IMC ~24,2: não obeso, sem modulação.
+    db.patient = { ...PACIENTE_BASE, height_cm: 170, weight_kg: 70 };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    expect(screen.queryByText(/padrão/i)).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================
 // Aba padrão conforme o estado do paciente: antes, `tab` nascia fixo em
 // "admissao", então um paciente no oitavo dia de VM abria mostrando como
 // colocá-lo no ventilador, e não o estado atual dele.

@@ -5,6 +5,7 @@ import * as C from "../../lib/clinical";
 import { sugerirVc, sugerirPeepFio2, sugerirVentilacao } from "../../lib/alvos";
 import { derivarPerfil } from "../../lib/perfil";
 import { SourceFooter } from "../SourceFooter";
+import { LinhaModulacao } from "./LinhaModulacao";
 
 // ---------- Dashboard 4 indicadores + sugestão ----------
 export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
@@ -19,7 +20,11 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
 
   const sVc = sugerirVc(perfil);
   const sPeep = sugerirPeepFio2(pf, ev.spo2);
-  const sVent = sVc ? sugerirVentilacao(pbwVal, sVc.valor.target) : null;
+  // sVc nunca é null (sugerirVc devolve Alvo<AlvoVc> sempre) e perfil.pbw vem
+  // de pbwOrEstimate, que sempre devolve um número finito — então
+  // sugerirVentilacao nunca cai no ramo null nesta chamada. Assertion
+  // documentada, não suposição: sem ela sobrava um `sVc ?` morto.
+  const sVent = sugerirVentilacao(pbwVal, sVc.valor.target)!;
 
   // Conteúdo de apoio à decisão exibido quando o indicador sai da faixa (item 2).
   // A validar pela equipe; não altera nenhuma fórmula nem os limites de classify.
@@ -107,35 +112,20 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
         </Panel>
       )}
 
-      {sVc && (
-        <Panel title={`Sugestão inicial · ${patient.current_mode ?? ""}`} accent={T.accent}
-          sub={`${obese ? "obeso (IMC ≥30): alvo 6–8 ml/kg sobre peso predito" : "alvo protetor 4–6 ml/kg"} · ponto de partida, ajuste pela resposta`}>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <SugBox label="VOLUME CORRENTE" big={`${sVc.valor.target} mL`} sub={`faixa ${sVc.valor.low}–${sVc.valor.high} mL · 6kg=${sVc.valor.ml6} 8kg=${sVc.valor.ml8}`} />
-            <SugBox label="PEEP / FiO₂" big={`${sPeep.valor.peep} cmH₂O`} sub={`FiO₂ ${sPeep.valor.fio2}% · tabela ARDSnet`} />
-            {sVent && <SugBox label="FREQUÊNCIA" big={`${sVent.valor.fr} /min`} sub="derivada do VC alvo" />}
-            {sVent && <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />}
-          </div>
-          {/* Só aparece quando alguma modulação deslocou o alvo (hoje, só
-              obesidade). Sem esta linha o Alvo<T> é encanamento morto: o
-              avaliador precisa ver o motivo e o valor padrão para poder
-              discordar da sugestão.
-              data-testid deliberado: o "6–8" desta linha também aparece no
-              `sub` do Panel acima (texto fixo, independente de modulação),
-              então escopar por aqui é o que garante que o teste verifica
-              esta linha, não qualquer "6–8" da tela. */}
-          {sVc.modulacoes.length > 0 && (
-            <p data-testid="alvo-modulacao" style={{ margin: "8px 0 0", fontSize: 11, color: T.dim }}>
-              {sVc.modulacoes.map((m) => m.motivo).join(" ")} Padrão sem essa modulação:{" "}
-              {sVc.base.low}–{sVc.base.high} mL ({sVc.base.lowKg}–{sVc.base.highKg} ml/kg de peso predito).
-            </p>
-          )}
-          <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
-            A Pressão de Platô é o limite de segurança: se passar de 30 cmH₂O, reduza o VC mesmo dentro da faixa.
-          </p>
-          <SourceFooter sourceKeys={["vcTarget", "peepFio2"]} />
-        </Panel>
-      )}
+      <Panel title={`Sugestão inicial · ${patient.current_mode ?? ""}`} accent={T.accent}
+        sub={`${obese ? "obeso (IMC ≥30): alvo 6–8 ml/kg sobre peso predito" : "alvo protetor 4–6 ml/kg"} · ponto de partida, ajuste pela resposta`}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <SugBox label="VOLUME CORRENTE" big={`${sVc.valor.target} mL`} sub={`faixa ${sVc.valor.low}–${sVc.valor.high} mL · 6kg=${sVc.valor.ml6} 8kg=${sVc.valor.ml8}`} />
+          <SugBox label="PEEP / FiO₂" big={`${sPeep.valor.peep} cmH₂O`} sub={`FiO₂ ${sPeep.valor.fio2}% · tabela ARDSnet`} />
+          <SugBox label="FREQUÊNCIA" big={`${sVent.valor.fr} /min`} sub="derivada do VC alvo" />
+          <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />
+        </div>
+        <LinhaModulacao alvo={sVc} />
+        <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
+          A Pressão de Platô é o limite de segurança: se passar de 30 cmH₂O, reduza o VC mesmo dentro da faixa.
+        </p>
+        <SourceFooter sourceKeys={["vcTarget", "peepFio2"]} />
+      </Panel>
     </div>
   );
 }
