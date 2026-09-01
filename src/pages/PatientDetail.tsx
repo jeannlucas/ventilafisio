@@ -10,15 +10,14 @@ import { PatientHeader } from "../components/patient/PatientHeader";
 import { Dashboard } from "../components/patient/Dashboard";
 import { ScoresPanel } from "../components/patient/ScoresPanel";
 import { CareBundlePanel } from "../components/patient/CareBundlePanel";
+import { EvolutionHistory } from "../components/patient/EvolutionHistory";
+import { TrendCharts } from "../components/patient/TrendCharts";
 import { SourceFooter } from "../components/SourceFooter";
 import type { Mrc } from "../lib/scores";
 import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding } from "../types";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
 import { ASYNCHRONIES, ASYNC_BY_KEY } from "../data/asynchronies";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from "recharts";
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -603,70 +602,6 @@ function EvolutionForm({ patient, ownerId, previous, onSaved }: { patient: Patie
   );
 }
 
-// ---------- Histórico de evoluções (autor + data, passagem de plantão) ----------
-
-const IMAGING_LABEL: Record<string, string> = Object.fromEntries(
-  IMAGING_FINDINGS.map((f) => [f.key, f.label])
-);
-const TUBE_LABEL: Record<string, string> = Object.fromEntries(FEEDING_TUBES.map((o) => [o.v, o.t]));
-const DIET_LABEL: Record<string, string> = Object.fromEntries(DIET_TYPES.map((o) => [o.v, o.t]));
-
-function boardSummary(e: DailyEvolution) {
-  const findings = [
-    ...(e.imaging?.xray ?? []),
-    ...(e.imaging?.ct ?? []),
-    ...(e.imaging?.mri ?? []),
-  ].map((k) => IMAGING_LABEL[k] ?? k);
-  const medsOn = IV_MED_CATEGORIES.filter(
-    (m) => e.iv_meds?.[m.key]?.on
-  ).map((m) => m.label);
-  const tube = e.feeding?.tube && e.feeding.tube !== "none" ? TUBE_LABEL[e.feeding.tube] : null;
-  const diet = e.feeding?.diet ? DIET_LABEL[e.feeding.diet] : null;
-  const hasContent = !!e.notes || findings.length > 0 || medsOn.length > 0 || !!tube || !!diet;
-  return { findings, medsOn, tube, diet, hasContent };
-}
-
-function EvolutionHistory({ evolutions, authors }: { evolutions: DailyEvolution[]; authors: Record<string, string> }) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  if (evolutions.length === 0) return null;
-  const ordered = [...evolutions].reverse();
-  return (
-    <Panel title="Histórico de evoluções" sub="Quem registrou e quando (toque para ver o quadro clínico do dia)">
-      <div style={{ display: "grid", gap: 8 }}>
-        {ordered.map((e) => {
-          const b = boardSummary(e);
-          const open = openId === e.id;
-          return (
-            <div key={e.id} style={{ borderTop: `1px solid ${T.line}`, paddingTop: 8 }}>
-              <div
-                onClick={() => b.hasContent && setOpenId(open ? null : e.id)}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: b.hasContent ? "pointer" : "default" }}
-              >
-                <div style={{ fontSize: 13, color: T.txt }}>
-                  {b.hasContent ? <span style={{ color: T.dim }}>{open ? "▾ " : "▸ "}</span> : null}
-                  {new Date(e.recorded_at).toLocaleString("pt-BR", {
-                    day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
-                  })}
-                  {e.mode ? <span style={{ color: T.dim }}> · {e.mode}</span> : null}
-                </div>
-                <div style={{ fontSize: 12, color: T.dim }}>{authors[e.owner_id] ?? "Profissional"}</div>
-              </div>
-              {open && b.hasContent && (
-                <div style={{ marginTop: 8, display: "grid", gap: 6, fontSize: 13, color: T.txt, background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 10, padding: 12 }}>
-                  {e.notes && <div><span style={{ color: T.dim }}>Impressão: </span>{e.notes}</div>}
-                  {b.findings.length > 0 && <div><span style={{ color: T.dim }}>Imagem: </span>{b.findings.join(", ")}</div>}
-                  {b.medsOn.length > 0 && <div><span style={{ color: T.dim }}>Medicamentos: </span>{b.medsOn.join(", ")}</div>}
-                  {(b.tube || b.diet) && <div><span style={{ color: T.dim }}>Sonda/dieta: </span>{[b.tube, b.diet].filter(Boolean).join(" · ")}</div>}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
-  );
-}
-
 // ---------- Predição de extubação ----------
 function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
   if (!ev) return null;
@@ -712,53 +647,6 @@ function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
         ))}
       </div>
       <SourceFooter sourceKeys={["extubation", "tobin", "pimax"]} />
-    </Panel>
-  );
-}
-
-// ---------- Gráficos de tendência ----------
-function TrendCharts({ patient, evolutions }: { patient: Patient; evolutions: DailyEvolution[] }) {
-  const pbwVal = C.pbw((patient.sex ?? "M") as "M" | "F", patient.height_cm);
-  const data = evolutions.map((e) => {
-    const dp = C.drivingPressure(e.pplat, e.peep);
-    return {
-      date: new Date(e.recorded_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-      dp,
-      pplat: e.pplat,
-      pf: C.pfRatio(e.pao2, e.fio2),
-      cst: C.cStat(e.vc, e.pplat, e.peep),
-      tobin: C.tobin(e.fr, e.vc),
-      vcKg: C.vcPerKg(e.vc, pbwVal),
-    };
-  });
-
-  const charts = [
-    { title: "Driving Pressure & Platô", keys: [{ k: "dp", c: T.accent, n: "DP" }, { k: "pplat", c: T.warn, n: "Platô" }] },
-    { title: "Oxigenação (P/F)", keys: [{ k: "pf", c: T.ok, n: "P/F" }] },
-    { title: "Complacência estática", keys: [{ k: "cst", c: T.accent, n: "Cst" }] },
-    { title: "Tobin (desmame)", keys: [{ k: "tobin", c: T.warn, n: "Tobin" }] },
-  ];
-
-  return (
-    <Panel title="Evolução gráfica" sub="Tendência ao longo dos registros — recrutamento, rigidez e prontidão de desmame">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 16 }}>
-        {charts.map((ch) => (
-          <div key={ch.title}>
-            <div style={{ fontSize: 12, color: T.dim, marginBottom: 8 }}>{ch.title}</div>
-            <ResponsiveContainer width="100%" height={160}>
-              <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
-                <CartesianGrid stroke={T.line} strokeDasharray="3 3" />
-                <XAxis dataKey="date" stroke={T.dim} fontSize={11} />
-                <YAxis stroke={T.dim} fontSize={11} />
-                <Tooltip contentStyle={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: T.txt }} />
-                {ch.keys.map((kk) => (
-                  <Line key={kk.k} type="monotone" dataKey={kk.k} name={kk.n} stroke={kk.c} strokeWidth={2} dot={{ r: 2 }} connectNulls />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ))}
-      </div>
     </Panel>
   );
 }
