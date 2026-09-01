@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { MRC_GROUPS } from "../data/scores";
@@ -453,6 +453,43 @@ describe("embasamento clínico", () => {
     // ExtubationCard exibe embasamento
     const footers = screen.getAllByText(/ver embasamento/i);
     expect(footers.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // O critério "RASS entre −2 e +1" apareceu na triagem (Fase 4) sem que o
+  // rodapé do próprio painel citasse a fonte do RASS (Sessler, 2002). A
+  // busca é restrita ao <section> do painel de extubação porque o painel de
+  // escores (ScoresPanel, aba "Evolução") também cita Sessler para o RASS —
+  // uma busca na página inteira passaria mesmo se a fonte estivesse só lá.
+  it("cita a fonte do RASS no rodapé da prontidão para extubação", async () => {
+    const EVOLUCAO_BASE = {
+      id: "e-1",
+      patient_id: "p-1",
+      recorded_at: "2026-01-02T00:00:00Z",
+      fr: 16,
+      vc: 400,
+      peep: 8,
+      fio2: 40,
+      pao2: 120,
+      pplat: 24,
+      ppico: 30,
+      paw: 18,
+      glasgow: 10,
+      rass: -1,
+      ims: 0,
+      vasopressor: true,
+      peak_cough_flow: 60,
+      tre_result: "success",
+      pimax: 50,
+    };
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    await userEvent.click(screen.getByRole("tab", { name: /desmame/i }));
+
+    const painel = screen.getByText("Prontidão para extubação").closest("section")!;
+    expect(within(painel).getByText(/Sessler, 2002/)).toBeInTheDocument();
   });
 });
 

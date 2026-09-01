@@ -648,7 +648,7 @@ function ExtubationCard({ ev }: { ev?: DailyEvolution }) {
           <div key={m} style={{ fontSize: 13, color: T.dim }}>○ {m} <span style={{ fontSize: 11 }}>(não medido)</span></div>
         ))}
       </div>
-      <SourceFooter sourceKeys={["extubation", "tobin", "pimax"]} />
+      <SourceFooter sourceKeys={["extubation", "tobin", "pimax", "rass"]} />
     </Panel>
   );
 }
