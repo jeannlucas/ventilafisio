@@ -116,6 +116,16 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
             {sVent && <SugBox label="FREQUÊNCIA" big={`${sVent.valor.fr} /min`} sub="derivada do VC alvo" />}
             {sVent && <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />}
           </div>
+          {/* Só aparece quando alguma modulação deslocou o alvo (hoje, só
+              obesidade). Sem esta linha o Alvo<T> é encanamento morto: o
+              avaliador precisa ver o motivo e o valor padrão para poder
+              discordar da sugestão. */}
+          {sVc.modulacoes.length > 0 && (
+            <p style={{ margin: "8px 0 0", fontSize: 11, color: T.dim }}>
+              {sVc.modulacoes.map((m) => m.motivo).join(" ")} Padrão sem essa modulação:{" "}
+              {sVc.base.low}–{sVc.base.high} mL ({sVc.base.lowKg}–{sVc.base.highKg} ml/kg de peso predito).
+            </p>
+          )}
           <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
             A Pressão de Platô é o limite de segurança: se passar de 30 cmH₂O, reduza o VC mesmo dentro da faixa.
           </p>

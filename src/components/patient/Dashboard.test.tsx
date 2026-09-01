@@ -75,10 +75,14 @@ const EVOLUCAO_COM_ALERTA: DailyEvolution = {
   peep: 8,
 };
 
-function renderDashboard(ev: DailyEvolution) {
+// `overrides.patient` permite variar altura/peso (IMC) sem duplicar o
+// fixture inteiro. Toda chamada existente, com um único argumento, continua
+// funcionando: o parâmetro é opcional.
+function renderDashboard(ev: DailyEvolution, overrides: { patient?: Partial<Patient> } = {}) {
+  const patient: Patient = { ...PACIENTE, ...overrides.patient };
   return render(
     <MemoryRouter>
-      <Dashboard patient={PACIENTE} ev={ev} />
+      <Dashboard patient={patient} ev={ev} />
     </MemoryRouter>
   );
 }
@@ -117,6 +121,27 @@ describe("Dashboard", () => {
     // "ARDSnet, 2000" já aparece no rodapé incondicional dos HeroCards
     // (via pf/pplat/vcKg); o painel de sugestão precisa do seu próprio.
     expect(screen.getAllByText(/ARDSnet, 2000/).length).toBeGreaterThanOrEqual(2);
+  });
+
+  // A tela precisa mostrar quando `Alvo<T>` trouxe modulação: sem isso o
+  // tipo é encanamento morto (Fase 4, Tarefa 5).
+  it("mostra o alvo padrão quando a obesidade deslocou a faixa", () => {
+    // 95 kg e 1,70 m dão IMC ~32,9 (95 / 1,70²): obeso.
+    renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 95 } });
+
+    // O "6–8" (faixa modulada) já aparece em mais de um lugar da tela; o que
+    // importa aqui é confirmar que existe, sem exigir unicidade de elemento.
+    expect(screen.getAllByText(/6–8/).length).toBeGreaterThan(0);
+    // A faixa padrão (sem modulação) tem de aparecer explicitamente, para o
+    // avaliador poder julgar o tamanho do ajuste.
+    expect(screen.getByText(/padrão.*4–6/i)).toBeInTheDocument();
+  });
+
+  it("não mostra alvo padrão quando não houve modulação", () => {
+    // 70 kg e 1,70 m dão IMC ~24,2: não obeso, sem modulação.
+    renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 70 } });
+
+    expect(screen.queryByText(/padrão/i)).not.toBeInTheDocument();
   });
 });
 
