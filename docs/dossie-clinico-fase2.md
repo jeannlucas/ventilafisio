@@ -24,13 +24,15 @@ dado bibliográfico (volume, página ou ano) com segurança, o campo diz
 leitor é validar, corrigir ou completar cada item; nada aqui deve ser lido
 como decisão já tomada.
 
-## Parte 1 — As oito perguntas em aberto
+## Parte 1 — As oito pendências da fase anterior
 
 Estas pendências vêm da fase anterior (catálogo de fontes, contexto do
 paciente, escores de força/sedação/mobilidade e bundle de cuidados), que já
 está implementada e em uso. Nenhuma delas bloqueou aquela entrega — todas
-aparecem na tela do aplicativo marcadas como não revisadas — mas nenhuma foi
-respondida ainda.
+aparecem na tela do aplicativo marcadas como não revisadas. Sete continuam sem
+resposta; a pendência 8 deixou de ser dúvida clínica nesta fase, porque o
+trabalho de entrega que ela cobrava foi concluído — ela permanece registrada
+abaixo por ser parte do mesmo levantamento, não porque ainda esteja em aberto.
 
 **1. Faixa da driving pressure.** O aplicativo classifica hoje a driving
 pressure (pressão de platô menos PEEP) como ideal abaixo de 13 cmH₂O, atenção
@@ -48,9 +50,12 @@ ser reformulada (por exemplo, unificando o alerta em ≤15 cmH₂O)?
 
 **2. Grupos musculares do MRC.** O somatório de força muscular (escore MRC)
 usado no aplicativo tem seis grupos por lado, e a literatura diverge sobre se
-o cotovelo deve entrar por flexão ou por extensão. O rótulo ficou
-propositalmente neutro no catálogo interno até esta decisão. Pergunta: qual
-lista de doze movimentos adotar?
+o cotovelo deve entrar por flexão ou por extensão. O aplicativo hoje já toma
+posição: o grupo aparece rotulado "Flexão de cotovelo", e essa fase o tornou
+visível em duas telas (o painel de avaliação motora e a grade de digitação do
+escore) — não é mais um rótulo interno, é o que o profissional lê à beira do
+leito. Pergunta: o rótulo "Flexão de cotovelo" permanece, ou a lista de doze
+movimentos deve mudar para extensão?
 
 **3. RASS e o critério de extubação por Glasgow.** O critério de prontidão
 para extubação usa hoje Glasgow ≥ 8. Um paciente intubado não tem resposta
@@ -94,13 +99,15 @@ muscular adquirida na UTI, mas não define a faixa intermediária entre 48 e
 59, que hoje aparece no aplicativo com "Força reduzida" atribuída à mesma
 fonte. Pergunta: essa faixa intermediária permanece, e sob qual fonte?
 
-**8. Escores gravados mas nunca exibidos.** RASS, IMS e MRC já são
-capturados e salvos, mas nenhuma tela hoje os traz de volta: não aparecem em
-gráfico de tendência, no histórico de evolução, nem no cabeçalho do
-paciente. Não é uma dúvida clínica — é uma lacuna de entrega. Registrada
-aqui, como já estava no documento técnico da fase anterior, para que não
-apareça como surpresa numa demonstração ao cliente: a leitura desses três
-escores é trabalho desta fase em diante.
+**8. Escores gravados mas nunca exibidos — resolvida nesta fase.** Na fase
+anterior, RASS, IMS e MRC eram capturados e salvos, mas nenhuma tela os trazia
+de volta. Esta fase fechou essa lacuna: os três escores agora aparecem no
+cabeçalho do paciente (RASS mais recente), no histórico de evolução (os três,
+por dia registrado) e no gráfico de tendência (as três séries ao longo do
+tempo). O MRC ganhou também uma tela própria, o painel de avaliação motora,
+com o detalhamento por grupo muscular e lado. Não sobra pergunta clínica
+aberta aqui: é registro de que a lacuna de entrega foi fechada, não mais uma
+pendência para o mentor decidir.
 
 ## Parte 2 — Fontes candidatas para os próximos blocos
 
@@ -432,13 +439,13 @@ aplicativo deve ir, e onde termina o que é escopo de fisioterapia?
 | Pergunta / bloco | Se resolvida, o efeito na tela |
 |---|---|
 | 1. Faixa da driving pressure | Rodapé do painel de driving pressure passa a citar a fonte correta (ou os números da faixa mudam, se for essa a decisão) |
-| 2. Grupos musculares do MRC | O rótulo do grupo "cotovelo" no painel de escores passa a dizer flexão ou extensão |
+| 2. Grupos musculares do MRC | Se a decisão for extensão, o rótulo "Flexão de cotovelo" muda nas duas telas onde aparece hoje (painel de avaliação motora e grade de digitação do escore); se for flexão, o rótulo atual permanece |
 | 3. RASS x Glasgow na extubação | O card de prontidão para extubação passa a checar RASS, Glasgow, ou os dois, conforme a decisão |
 | 4. PImax e PCF | Os rodapés dos painéis de PImax e de tosse eficaz ganham citação (hoje não têm nenhuma) |
 | 5. Catálogo do bundle | A aba "Cuidados" passa a listar as ações definitivas, com os nomes definitivos |
 | 6. Comorbidades | O formulário de admissão e o cabeçalho do paciente passam a usar a lista fechada |
 | 7. Faixa 48-59 do MRC | O rodapé do painel de MRC passa a citar corretamente a faixa intermediária, ou ela é removida |
-| 8. Escores só de escrita | RASS, IMS e MRC passam a aparecer no gráfico de tendência, no histórico de evolução e no cabeçalho do paciente |
+| 8. Escores só de escrita | Resolvida nesta fase: RASS, IMS e MRC já aparecem no gráfico de tendência, no histórico de evolução, no cabeçalho do paciente e, o MRC, também no painel de avaliação motora |
 | Gasometria interpretada | Novo painel na aba de evolução mostra o distúrbio ácido-base identificado, com rodapé citando as fontes da Parte 2 |
 | Mecânica nova (P0.1, Pmus, ΔPocc, R/I ratio) | Novos painéis na aba de mecânica/desmame, cada um citando sua fonte e, no caso do R/I ratio, com aviso explícito sobre a natureza do corte de 0,5 |
 | TRE passo a passo | Novo checklist guiado na aba de desmame, com os critérios de aptidão e de falha da fonte escolhida (Boles, AMIB/SBPT ou uma combinação decidida pelo mentor) |
