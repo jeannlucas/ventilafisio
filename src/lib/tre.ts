@@ -13,9 +13,19 @@ export function criteriosAtingidos(s: TreSession): string[] {
     .map(([k]) => k);
 }
 
-/** A sessão ainda sem desfecho, se houver. */
+/**
+ * A sessão ainda sem desfecho, se houver — a mais recente delas.
+ *
+ * Ordena por `iniciado_em` em vez de confiar na ordem do array: essa ordem vem
+ * do ORDER BY da query do Supabase, que nenhum teste fixa. Duas sessões abertas
+ * não deveriam existir, mas se existirem a resposta não pode depender de como a
+ * lista chegou. Mesma ordenação de `resultadoTreParaTriagem`.
+ */
 export function sessaoEmAndamento(sessoes: TreSession[]): TreSession | null {
-  return sessoes.find((s) => s.desfecho == null) ?? null;
+  const abertas = sessoes
+    .filter((s) => s.desfecho == null)
+    .sort((a, b) => new Date(a.iniciado_em).getTime() - new Date(b.iniciado_em).getTime());
+  return abertas[abertas.length - 1] ?? null;
 }
 
 /**

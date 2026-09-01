@@ -55,6 +55,17 @@ describe("sessaoEmAndamento", () => {
   it("devolve null sem sessão alguma", () => {
     expect(sessaoEmAndamento([])).toBeNull();
   });
+
+  // Duas sessões abertas não deveriam existir, mas a resposta não pode depender
+  // da ordem em que a lista chegou: essa ordem vem do ORDER BY da query, não do
+  // domínio. O array vai DESORDENADO de propósito — em ordem cronológica um
+  // `.find` ingênuo acertaria por acidente e o teste não provaria nada.
+  it("com duas abertas, devolve a mais recente, não a primeira do array", () => {
+    const antiga = sessao({ id: "antiga", iniciado_em: "2026-08-30T10:00:00Z" });
+    const nova = sessao({ id: "nova", iniciado_em: "2026-09-01T10:00:00Z" });
+    expect(sessaoEmAndamento([nova, antiga])?.id).toBe("nova");
+    expect(sessaoEmAndamento([antiga, nova])?.id).toBe("nova");
+  });
 });
 
 describe("resultadoTreParaTriagem", () => {
@@ -78,9 +89,13 @@ describe("resultadoTreParaTriagem", () => {
     expect(resultadoTreParaTriagem([sessao({ desfecho: null })], null)).toBeNull();
   });
 
-  it("usa a sessão mais recente quando há várias", () => {
+  // O array vai DESORDENADO de propósito. Com [antiga, nova] uma implementação
+  // que jogasse o sort fora e lesse o último elemento passaria igual, e o teste
+  // não provaria que existe ordenação nenhuma.
+  it("usa a sessão mais recente quando há várias, não a última do array", () => {
     const antiga = sessao({ iniciado_em: "2026-08-30T10:00:00Z", desfecho: "falhou" });
     const nova = sessao({ iniciado_em: "2026-09-01T10:00:00Z", desfecho: "aprovado" });
+    expect(resultadoTreParaTriagem([nova, antiga], null)).toBe("pass");
     expect(resultadoTreParaTriagem([antiga, nova], null)).toBe("pass");
   });
 
