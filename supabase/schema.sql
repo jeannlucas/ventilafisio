@@ -423,6 +423,44 @@ create policy "care_actions_delete_member"
 
 create index if not exists idx_care_actions_patient on public.care_actions (patient_id, at desc);
 
+-- ---------- TRE SESSIONS (teste de respiração espontânea) ----------
+-- Um TRE é procedimento cronometrado: começa, roda de 30 a 120 minutos e pode
+-- ser interrompido. Isso é EVENTO, não atributo do dia — mesma natureza do
+-- care_actions.
+-- `desfecho` nulo significa EM ANDAMENTO, e não dado faltando.
+-- 'interrompido' (exame, transporte) NÃO é 'falhou': o paciente não reprovou,
+-- o teste não aconteceu. A triagem trata os dois de forma diferente.
+create table if not exists public.tre_sessions (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references public.patients (id) on delete cascade,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  iniciado_em timestamptz not null default now(),
+  encerrado_em timestamptz,
+  modo_antes text,
+  modo_durante text,
+  desfecho text check (desfecho is null or desfecho in ('aprovado','falhou','interrompido')),
+  motivo_interrupcao text,
+  criterios jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+alter table public.tre_sessions enable row level security;
+
+drop policy if exists "tre_select_member" on public.tre_sessions;
+create policy "tre_select_member"
+  on public.tre_sessions for select using (public.can_access_patient(patient_id));
+drop policy if exists "tre_insert_member" on public.tre_sessions;
+create policy "tre_insert_member"
+  on public.tre_sessions for insert with check (public.can_access_patient(patient_id) and auth.uid() = owner_id);
+drop policy if exists "tre_update_member" on public.tre_sessions;
+create policy "tre_update_member"
+  on public.tre_sessions for update using (public.can_access_patient(patient_id));
+drop policy if exists "tre_delete_member" on public.tre_sessions;
+create policy "tre_delete_member"
+  on public.tre_sessions for delete using (public.can_access_patient(patient_id));
+
+create index if not exists idx_tre_patient on public.tre_sessions (patient_id, iniciado_em desc);
+
 -- ---------- ASYNCHRONIES (registro de assincronias) ----------
 create table if not exists public.asynchronies (
   id uuid primary key default gen_random_uuid(),
@@ -481,6 +519,9 @@ grant execute on function public.evolution_authors(uuid) to authenticated;
 --   asynchronies.evolution_id  nunca preenchida
 --   asynchronies.notes         nunca preenchida
 --   profiles.role              nenhuma regra de autorização a usa
+--   daily_evolutions.tre_result legada desde 01/09/2026 (Fase 5): substituída
+--     por public.tre_sessions. Continua sendo LIDA como fallback para pacientes
+--     registrados antes da mudança; deixou de ser escrita. Não derrubar.
 --
 -- Caso decida remover, confira antes que não há dado real gravado:
 --   select count(*) from public.daily_evolutions where hco3 is not null or be is not null;

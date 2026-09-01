@@ -132,3 +132,29 @@ export interface CareAction {
   at: string;
   note: string | null;
 }
+
+/** Desfecho de um TRE. `null` significa em andamento, não dado faltando. */
+export type TreDesfecho = "aprovado" | "falhou" | "interrompido";
+
+/**
+ * Estado de um critério de falha. A AUSÊNCIA da chave no jsonb significa
+ * "não avaliado" — diferente de presente com `atingido: false`, que significa
+ * avaliado e não atingido.
+ */
+export interface TreCriterio {
+  atingido: boolean;
+  observacao?: string;
+}
+
+export interface TreSession {
+  id: string;
+  patient_id: string;
+  owner_id: string;
+  iniciado_em: string;
+  encerrado_em: string | null;
+  modo_antes: string | null;
+  modo_durante: string | null;
+  desfecho: TreDesfecho | null;
+  motivo_interrupcao: string | null;
+  criterios: Record<string, TreCriterio>;
+}
