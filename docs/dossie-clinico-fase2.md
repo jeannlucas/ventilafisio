@@ -125,7 +125,9 @@ tomada de memória.
   sustenta: é artigo de revisão, não estudo original — as fórmulas que
   reproduz vêm, em última instância, de estudos fisiológicos anteriores.
   Confirmado por busca direta (autores, periódico, volume, fascículo e
-  páginas conferem).
+  páginas conferem). **A confirmar:** não foi possível verificar se o
+  próprio artigo também trata ânion-gap — o acesso ao texto completo está
+  bloqueado, e essa parte da checagem ficou pendente.
 
 - **AMIB/SBPT. Orientações Práticas em Ventilação Mecânica, edição 2024**
   (já catalogada na página de fontes do aplicativo). Sustenta: dedica um tema inteiro
