@@ -167,3 +167,70 @@ export function hipercapniaCronica(e: EntradaGasometria): boolean {
   const hco3Compativel = num(e.hco3) && e.hco3 > 28;
   return phCompativel || hco3Compativel;
 }
+
+export interface Compensacao {
+  esperada: number;
+  medida: number;
+  margem: number;
+  adequada: boolean;
+}
+
+const MARGEM_WINTERS = 2;
+
+/**
+ * Compensação respiratória PREVISTA.
+ *
+ * Só existe na acidose metabólica, pela fórmula de Winters
+ * (Albert, Dell e Winters, 1967): PaCO₂ esperada = 1,5 × HCO₃⁻ + 8 ± 2.
+ *
+ * NA ALCALOSE METABÓLICA O APLICATIVO NÃO DÁ NÚMERO, E ISSO É DELIBERADO.
+ * Decisão do mentor em 01/09/2026, tomada depois de saber que o estudo
+ * primário da fórmula de 0,7 é em CÃES (Madias 1984) e que Berend 2014
+ * registra em nota de rodapé que a previsão neste distúrbio é difícil.
+ * A tela diz que se espera hipoventilação e que a previsão quantitativa aqui
+ * é pouco confiável. Isto NÃO é implementação faltando.
+ */
+export function compensacao(e: EntradaGasometria): Compensacao | null {
+  if (disturbioPrimario(e) !== "acidose_metabolica") return null;
+  if (!num(e.hco3) || !num(e.paco2)) return null;
+  const esperada = 1.5 * e.hco3 + 8;
+  return {
+    esperada,
+    medida: e.paco2,
+    margem: MARGEM_WINTERS,
+    adequada: Math.abs(e.paco2 - esperada) <= MARGEM_WINTERS,
+  };
+}
+
+export interface AnionGap {
+  bruto: number;
+  /** null quando não há albumina: a correção não é adivinhada. */
+  corrigido: number | null;
+  albuminaUsada: number | null;
+}
+
+/** Albumina de referência da correção de Figge. Fixa, e visível na tela. */
+export const ALBUMINA_REFERENCIA = 4.0;
+const CORRECAO_POR_G_DL = 2.5;
+
+/**
+ * Ânion gap sem potássio: Na⁺ − (Cl⁻ + HCO₃⁻). Fórmula de Berend 2014,
+ * confirmada pelo mentor em 01/09/2026.
+ *
+ * A correção pela albumina (Figge 1998, medida em 152 pacientes de UTI) não é
+ * refinamento acadêmico aqui: hipoalbuminemia é regra em paciente crítico e
+ * derruba o gap calculado, escondendo acidose por ânion gap elevado.
+ *
+ * O aplicativo NÃO afirma faixa de normalidade: ela depende do analisador do
+ * laboratório e as fontes divergem de 3-12 a 8,5-15.
+ */
+export function anionGap(e: EntradaGasometria): AnionGap | null {
+  if (!num(e.na) || !num(e.cl) || !num(e.hco3)) return null;
+  const bruto = e.na - (e.cl + e.hco3);
+  if (!num(e.albumina)) return { bruto, corrigido: null, albuminaUsada: null };
+  return {
+    bruto,
+    corrigido: bruto + CORRECAO_POR_G_DL * (ALBUMINA_REFERENCIA - e.albumina),
+    albuminaUsada: e.albumina,
+  };
+}

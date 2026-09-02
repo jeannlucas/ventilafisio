@@ -3,6 +3,8 @@ import {
   disturbioPrimario,
   temporalidade,
   hipercapniaCronica,
+  compensacao,
+  anionGap,
   type EntradaGasometria,
 } from "./gasometria";
 
@@ -135,5 +137,66 @@ describe("hipercapniaCronica", () => {
   // O E externo continua sendo E: sem PaCO₂ elevada não há hipercapnia.
   it("sem PaCO₂ elevada é falso mesmo com bicarbonato alto", () => {
     expect(hipercapniaCronica(gaso({ ph: 7.45, paco2: 40, hco3: 32 }))).toBe(false);
+  });
+});
+
+describe("compensacao", () => {
+  // Winters: 1,5 × 12 + 8 = 26, margem ± 2.
+  it("acidose metabólica: usa Winters", () => {
+    const c = compensacao(gaso({ ph: 7.25, paco2: 26, hco3: 12 }));
+    expect(c).not.toBeNull();
+    expect(c!.esperada).toBeCloseTo(26, 5);
+    expect(c!.margem).toBe(2);
+    expect(c!.adequada).toBe(true);
+  });
+
+  it("acidose metabólica: PaCO₂ fora da margem é compensação inadequada", () => {
+    const c = compensacao(gaso({ ph: 7.2, paco2: 34, hco3: 12 }));
+    expect(c!.adequada).toBe(false);
+  });
+
+  // DECISÃO DO MENTOR, 01/09/2026: na alcalose metabólica o app NÃO dá número.
+  // A fórmula de 0,7 tem estudo primário em CÃES e Berend 2014 avisa em nota
+  // de rodapé que a previsão aqui é difícil. Se este teste começar a falhar
+  // porque alguém implementou o cálculo, a implementação é que está errada.
+  it("alcalose metabólica NÃO tem número de compensação", () => {
+    expect(compensacao(gaso({ ph: 7.5, paco2: 45, hco3: 34 }))).toBeNull();
+  });
+
+  it("distúrbio respiratório não usa Winters", () => {
+    expect(compensacao(gaso({ ph: 7.25, paco2: 60, hco3: 26 }))).toBeNull();
+  });
+});
+
+describe("anionGap", () => {
+  it("calcula sem potássio", () => {
+    const ag = anionGap(gaso({ na: 140, cl: 105, hco3: 20 }));
+    expect(ag!.bruto).toBeCloseTo(15, 5);
+  });
+
+  // Em UTI a albumina baixa derruba o gap calculado. Sem correção o app
+  // deixaria de enxergar acidose exatamente na população que ele atende.
+  it("corrige pela albumina", () => {
+    const ag = anionGap(gaso({ na: 140, cl: 105, hco3: 20, albumina: 2.0 }));
+    expect(ag!.corrigido).toBeCloseTo(20, 5);
+    expect(ag!.albuminaUsada).toBe(2.0);
+  });
+
+  it("albumina normal não muda o valor", () => {
+    const ag = anionGap(gaso({ na: 140, cl: 105, hco3: 20, albumina: 4.0 }));
+    expect(ag!.corrigido).toBeCloseTo(15, 5);
+  });
+
+  // Sem albumina o app NÃO adivinha: não usa 4,0 como se fosse medida, e não
+  // rotula o bruto como corrigido.
+  it("sem albumina, corrigido é null", () => {
+    const ag = anionGap(gaso({ na: 140, cl: 105, hco3: 20 }));
+    expect(ag!.corrigido).toBeNull();
+    expect(ag!.albuminaUsada).toBeNull();
+  });
+
+  it("sem sódio ou sem cloro, não há ânion gap", () => {
+    expect(anionGap(gaso({ na: null, cl: 105, hco3: 20 }))).toBeNull();
+    expect(anionGap(gaso({ na: 140, cl: null, hco3: 20 }))).toBeNull();
   });
 });
