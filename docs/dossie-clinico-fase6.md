@@ -1050,7 +1050,23 @@ Ele não deu faixa normal. Mantida a decisão do dossiê: o aplicativo **não
 afirma faixa**, mostra o valor e o valor corrigido pela albumina, e avisa que a
 faixa depende do analisador do laboratório.
 
-### 4. Critério de cronicidade da BTS: **em aberto**
+### 4. Critério de cronicidade da BTS: **qualquer um dos dois basta**
 
-Ainda sem resposta. Enquanto não vier, `gasometria.ts` não conclui cronicidade
-por esse critério.
+Apresentados dois casos concretos, ele respondeu "pode ser nos dois":
+
+- Caso A — PaCO₂ 55, pH 7,36, HCO₃⁻ 26 (só o pH bate): é compatível.
+- Caso B — PaCO₂ 55, pH 7,30, HCO₃⁻ 30 (só o bicarbonato bate): é compatível.
+
+Logo o "e/ou" da BTS vira **OU**:
+
+```
+cronicidade = PaCO₂ elevada E (pH >= 7,35 OU HCO₃⁻ > 28)
+```
+
+O E externo continua sendo E: sem PaCO₂ elevada não há hipercapnia de que
+falar. O OU é só entre os dois marcadores de adaptação.
+
+Nota de segurança: OU é o critério mais SENSÍVEL, então marca como crônico
+mais gente do que o E marcaria. Por isso a tela diz **"compatível com"**, nunca
+"é": a distinção aguda/crônica é temporal e depende da história do paciente,
+que o aplicativo não tem.
