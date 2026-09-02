@@ -165,3 +165,29 @@ export interface TreSession {
   motivo_interrupcao: string | null;
   criterios: Record<string, TreCriterio>;
 }
+
+/**
+ * Desfecho de uma manobra de recrutabilidade. `null` significa em andamento.
+ *
+ * 'abortada' é a manobra que não pôde ser feita (paciente não passivo);
+ * 'inconclusiva' é a que foi feita e não produziu número. Nenhuma das duas é
+ * falha do paciente, e nenhuma é o mesmo que 'concluida'.
+ */
+export type ManobraDesfecho = "concluida" | "abortada" | "inconclusiva";
+
+export interface RecruitmentManeuver {
+  id: string;
+  patient_id: string;
+  owner_id: string;
+  realizada_em: string;
+  passivo: boolean | null;
+  fechamento_via_aerea: boolean | null;
+  pressao_abertura: number | null;
+  peep_alta: number | null;
+  peep_baixa: number | null;
+  volume_expirado_extra: number | null;
+  pplat_baixa: number | null;
+  vc_baixa: number | null;
+  desfecho: ManobraDesfecho | null;
+  motivo: string | null;
+}

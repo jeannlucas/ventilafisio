@@ -472,6 +472,48 @@ create policy "tre_delete_member"
 
 create index if not exists idx_tre_patient on public.tre_sessions (patient_id, iniciado_em desc);
 
+-- ---------- RECRUITMENT_MANEUVERS (manobra de recrutabilidade) ----------
+-- `desfecho` nulo significa EM ANDAMENTO, e não dado faltando — mesma
+-- convenção de tre_sessions.
+-- 'abortada' é a manobra que não pôde ser feita (paciente não passivo);
+-- 'inconclusiva' é a que foi feita e não produziu número. As duas são
+-- diferentes de 'concluida', e nenhuma delas é falha do paciente.
+create table if not exists public.recruitment_maneuvers (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references public.patients (id) on delete cascade,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  realizada_em timestamptz not null default now(),
+  passivo boolean,
+  fechamento_via_aerea boolean,
+  pressao_abertura numeric,
+  peep_alta numeric,
+  peep_baixa numeric,
+  volume_expirado_extra numeric,
+  pplat_baixa numeric,
+  vc_baixa numeric,
+  desfecho text check (desfecho is null or desfecho in ('concluida','abortada','inconclusiva')),
+  motivo text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.recruitment_maneuvers enable row level security;
+
+drop policy if exists "recruitment_select_member" on public.recruitment_maneuvers;
+create policy "recruitment_select_member"
+  on public.recruitment_maneuvers for select using (public.can_access_patient(patient_id));
+drop policy if exists "recruitment_insert_member" on public.recruitment_maneuvers;
+create policy "recruitment_insert_member"
+  on public.recruitment_maneuvers for insert with check (public.can_access_patient(patient_id) and auth.uid() = owner_id);
+drop policy if exists "recruitment_update_member" on public.recruitment_maneuvers;
+create policy "recruitment_update_member"
+  on public.recruitment_maneuvers for update using (public.can_access_patient(patient_id));
+drop policy if exists "recruitment_delete_member" on public.recruitment_maneuvers;
+create policy "recruitment_delete_member"
+  on public.recruitment_maneuvers for delete using (public.can_access_patient(patient_id));
+
+create index if not exists idx_recruitment_patient
+  on public.recruitment_maneuvers (patient_id, realizada_em desc);
+
 -- ---------- ASYNCHRONIES (registro de assincronias) ----------
 create table if not exists public.asynchronies (
   id uuid primary key default gen_random_uuid(),
