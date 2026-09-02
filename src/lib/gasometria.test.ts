@@ -247,9 +247,20 @@ describe("interpretar", () => {
   });
 
   // O tipo Conduta não tem campo de dose, e nenhum texto pode trazer número
-  // de mEq: quem prescreve é a equipe médica.
-  it("nenhuma conduta carrega dose", () => {
-    const r = interpretar(gaso({ ph: 7.1, paco2: 26, hco3: 8 }))!;
+  // de mEq: quem prescreve é a equipe médica. As quatro entradas abaixo
+  // isolam, uma de cada vez, as quatro condutas que `interpretar` pode
+  // gerar hoje — bicarbonato, volume-minuto, hiperventilação e alvo de
+  // SpO₂ — para que uma dose enfiada em qualquer uma delas seja pega, não
+  // só na do bicarbonato. O regex de dose não reage a "88 a 92%": é alvo
+  // fisiológico de saturação, não número seguido de mEq/mg/ml.
+  it.each([
+    ["bicarbonato", gaso({ ph: 7.1, paco2: 26, hco3: 8 })],
+    ["volume-minuto", gaso({ ph: 7.25, paco2: 60, hco3: 26 })],
+    ["hiperventilação", gaso({ ph: 7.52, paco2: 28, hco3: 22 })],
+    ["alvo de SpO₂ do DPOC", gaso({ ph: 7.38, paco2: 60, hco3: 34 })],
+  ])("nenhuma conduta carrega dose: %s", (_nome, entrada) => {
+    const r = interpretar(entrada)!;
+    expect(r.condutas.length).toBeGreaterThan(0);
     for (const c of r.condutas) {
       expect(c).not.toHaveProperty("dose");
       expect(c.texto).not.toMatch(/\d+\s*(mEq|mg|ml|mL)\b/);
@@ -294,5 +305,19 @@ describe("interpretar", () => {
     expect(sem.sourceKeys).not.toContain("dpocOxigenio");
     const com = interpretar(gaso({ ph: 7.38, paco2: 60, hco3: 34 }))!;
     expect(com.sourceKeys).toContain("dpocOxigenio");
+  });
+
+  // Gasometria internamente inconsistente (pH fora da faixa, mas PaCO₂ e
+  // HCO₃⁻ dentro das suas) NÃO é o mesmo que "sem distúrbio": aqui os
+  // números discordam entre si, não é ausência de problema. Uma conduta
+  // futura que dispare olhando só "disturbio !== null", em vez de checar a
+  // lista explícita de distúrbios, passaria a sugerir conduta ácido-base
+  // sobre um gás que não faz sentido clínico — e a chave "dpocOxigenio" não
+  // pode vazar aqui, porque não há hipercapnia crônica nenhuma.
+  it("gasometria indeterminada não gera conduta nenhuma", () => {
+    const r = interpretar(gaso({ ph: 7.3, paco2: 40, hco3: 24 }))!;
+    expect(r.disturbio).toBe("indeterminado");
+    expect(r.condutas).toEqual([]);
+    expect(r.sourceKeys).not.toContain("dpocOxigenio");
   });
 });
