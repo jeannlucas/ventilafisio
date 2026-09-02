@@ -82,18 +82,46 @@ const DESCONHECIDO: Rotulo = {
   cor: T.warn,
 };
 
+/** `temporalidade()` só existe nestes dois distúrbios; ver `lib/gasometria.ts`. */
+type DisturbioComTemporalidade = "acidose_respiratoria" | "alcalose_respiratoria";
+
+/**
+ * O texto de indeterminada não fala de subir nem de cair: serve aos dois
+ * distúrbios sem alterar uma palavra, e por isso é compartilhado.
+ */
+const TEMPORALIDADE_INDETERMINADA =
+  "Compatível com quadro agudo ou crônico: o bicarbonato medido não se aproxima o bastante de nenhum dos dois padrões, e a gasometria isolada não separa os dois.";
+
 /**
  * Aguda ou crônica é distinção TEMPORAL e depende da história do paciente, que
  * o app não tem. Por isso todo texto começa em "Compatível com", nunca em "É".
+ *
+ * A cópia é indexada pelo DISTÚRBIO além da temporalidade. Quando havia um
+ * texto só, uma alcalose respiratória aguda (pH 7,52 / PaCO₂ 28 / HCO₃⁻ 22)
+ * lia na tela que o bicarbonato "ainda não subiu o que subiria numa retenção de
+ * longa data": na alcalose respiratória o bicarbonato CAI, e retenção nenhuma
+ * existe ali. A aritmética do módulo estava certa; a frase é que contradizia o
+ * resultado. Aqui não há regra clínica — só escolha de frase.
  */
-const TEMPORALIDADE: Record<Temporalidade, string> = {
-  aguda:
-    "Compatível com quadro agudo: o bicarbonato ainda não subiu o que subiria numa retenção de longa data.",
-  cronica:
-    "Compatível com quadro crônico: o bicarbonato acompanha o padrão de uma retenção de longa data.",
-  indeterminada:
-    "Compatível com quadro agudo ou crônico: o bicarbonato medido não se aproxima o bastante de nenhum dos dois padrões, e a gasometria isolada não separa os dois.",
+const TEMPORALIDADE: Record<DisturbioComTemporalidade, Record<Temporalidade, string>> = {
+  acidose_respiratoria: {
+    aguda:
+      "Compatível com quadro agudo: o bicarbonato ainda não subiu o que subiria numa retenção de longa data.",
+    cronica:
+      "Compatível com quadro crônico: o bicarbonato acompanha o padrão de uma retenção de longa data.",
+    indeterminada: TEMPORALIDADE_INDETERMINADA,
+  },
+  alcalose_respiratoria: {
+    aguda:
+      "Compatível com quadro agudo: o bicarbonato ainda não caiu o que cairia numa hipocapnia de longa data.",
+    cronica:
+      "Compatível com quadro crônico: o bicarbonato acompanha o padrão de uma hipocapnia de longa data.",
+    indeterminada: TEMPORALIDADE_INDETERMINADA,
+  },
 };
+
+const temComTemporalidade = (d: DisturbioPrimario): d is DisturbioComTemporalidade =>
+  d === "acidose_respiratoria" || d === "alcalose_respiratoria";
 
 const rotuloAviso = { fontSize: 11, color: T.dim, letterSpacing: 0.3, margin: "0 0 6px" } as const;
 
@@ -131,6 +159,13 @@ export function GasometriaPanel({ ev }: { ev: DailyEvolution }) {
 
   const d = DISTURBIO[r.disturbio] ?? DESCONHECIDO;
   const ag = r.anionGap;
+  // O módulo já garante que temporalidade só vem nos dois distúrbios
+  // respiratórios; a guarda dupla existe para que a cópia nunca seja escolhida
+  // por um distúrbio que não a tenha, e não para reimplementar a regra.
+  const textoTemporalidade =
+    r.temporalidade && temComTemporalidade(r.disturbio)
+      ? TEMPORALIDADE[r.disturbio][r.temporalidade]
+      : null;
 
   return (
     <Panel
@@ -146,11 +181,11 @@ export function GasometriaPanel({ ev }: { ev: DailyEvolution }) {
           </p>
         </div>
 
-        {r.temporalidade && (
+        {textoTemporalidade && (
           <div data-testid="gaso-temporalidade" style={caixa(T.dim)}>
             <div style={rotuloAviso}>TEMPORALIDADE</div>
             <p style={{ margin: 0, fontSize: 12.5, color: T.txt, lineHeight: 1.6 }}>
-              {TEMPORALIDADE[r.temporalidade]}
+              {textoTemporalidade}
             </p>
             {/* Leitura auxiliar, em texto secundário: a regra do pH por 10 mmHg
                 é convenção de livro-texto sem estudo primário rastreável, e
