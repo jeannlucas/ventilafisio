@@ -96,6 +96,15 @@ describe("estimarEsforco", () => {
     expect(e.dpLDinamica).toBeNull();
     expect(e.pmus).toBeCloseTo(9, 5);
   });
+
+  // ZEEP é configuração válida de ventilador, não dado faltando. Um futuro
+  // refactor que troque num(peep) por guarda de veracidade nesse campo passaria
+  // nos testes existentes e faria todo paciente com ZEEP perder a estimativa de
+  // estresse. Este teste existe para impedir isso.
+  it("PEEP zero (ZEEP) é valor presente e a ΔP_L,dyn é calculada", () => {
+    const e = estimarEsforco(-9, 30, 0)!;
+    expect(e.dpLDinamica).toBeCloseTo(36, 5);
+  });
 });
 
 const manobra = (over: Partial<RecrutabilidadeEntrada> = {}): RecrutabilidadeEntrada => ({

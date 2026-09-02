@@ -147,6 +147,10 @@ export function calcularRi(e: RecrutabilidadeEntrada): Recrutabilidade | null {
 
   const deltaPeep = e.peepAlta - peepBaixaEfetiva;
   const deltaPressao = e.pplatBaixa - peepBaixaEfetiva;
+  // A guarda de deltaPeep é redundante com a de vInflado abaixo: como cBaixa é
+  // sempre positiva (deltaPressao > 0 já foi validado), vInflado > 0 iff
+  // deltaPeep > 0. Nenhum fixture consegue fazer essa guarda disparar sozinha.
+  // Mantemos pela clareza: ela expressa a pergunta no ponto onde ela é feita.
   if (deltaPeep <= 0 || deltaPressao <= 0) return null;
 
   const cBaixa = e.vcBaixa / deltaPressao;
