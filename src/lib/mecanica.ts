@@ -90,3 +90,69 @@ export function estimarEsforco(
     num(ppico) && num(peep) ? ppico - peep + COEF_DPL * modulo : null;
   return { pmus, faixa: classificarEsforco(pmus), dpLDinamica };
 }
+
+export interface RecrutabilidadeEntrada {
+  passivo: boolean | null;
+  fechamentoViaAerea: boolean | null;
+  pressaoAbertura: number | null;
+  peepAlta: number | null;
+  peepBaixa: number | null;
+  volumeExpiradoExtra: number | null;
+  pplatBaixa: number | null;
+  vcBaixa: number | null;
+}
+
+export interface Recrutabilidade {
+  cBaixa: number;
+  vInflado: number;
+  vRecrutado: number;
+  ri: number;
+  /** A PEEP baixa usada: a medida, ou a de abertura se houve fechamento. */
+  peepBaixaEfetiva: number;
+}
+
+/**
+ * Faixa OBSERVADA na coorte de Chen 2020, para referência descritiva na tela.
+ * NÃO é faixa de normalidade e NÃO é limiar de decisão.
+ */
+export const FAIXA_RI_OBSERVADA = { min: 0, max: 2.0 } as const;
+
+/**
+ * Razão de recrutamento sobre insuflação (Chen 2020).
+ *
+ *   PEEP baixa efetiva = fechamento ? pressão de abertura : PEEP baixa
+ *   C_baixa            = VC baixa / (Pplat baixa − PEEP baixa efetiva)
+ *   V_inflado          = C_baixa × (PEEP alta − PEEP baixa efetiva)
+ *   V_recrutado        = volume expirado extra − V_inflado
+ *   R/I                = V_recrutado / V_inflado
+ *
+ * A substituição pela pressão de abertura quando há fechamento completo de via
+ * aérea vem do artigo. Sem ela a conta erra exatamente no paciente em que ela
+ * mais importa.
+ *
+ * ESTA FUNÇÃO NÃO EMITE VEREDITO, e o tipo não tem onde guardar um. O 0,5 que
+ * circula como corte é a mediana da coorte de derivação (n = 45), usada ali
+ * para dicotomizar a análise, e não ponto de corte validado contra desfecho.
+ */
+export function calcularRi(e: RecrutabilidadeEntrada): Recrutabilidade | null {
+  // A manobra pressupõe paciente passivo. Sem essa confirmação não há número.
+  if (e.passivo !== true) return null;
+
+  const peepBaixaEfetiva = e.fechamentoViaAerea
+    ? e.pressaoAbertura
+    : e.peepBaixa;
+  if (!num(peepBaixaEfetiva)) return null;
+  if (!num(e.peepAlta) || !num(e.pplatBaixa)) return null;
+  if (!num(e.vcBaixa) || !num(e.volumeExpiradoExtra)) return null;
+
+  const deltaPeep = e.peepAlta - peepBaixaEfetiva;
+  const deltaPressao = e.pplatBaixa - peepBaixaEfetiva;
+  if (deltaPeep <= 0 || deltaPressao <= 0) return null;
+
+  const cBaixa = e.vcBaixa / deltaPressao;
+  const vInflado = cBaixa * deltaPeep;
+  if (vInflado <= 0) return null;
+
+  const vRecrutado = e.volumeExpiradoExtra - vInflado;
+  return { cBaixa, vInflado, vRecrutado, ri: vRecrutado / vInflado, peepBaixaEfetiva };
+}

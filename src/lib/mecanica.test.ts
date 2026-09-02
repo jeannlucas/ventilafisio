@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  classificarDrive, classificarEsforco, estimarEsforco,
+  classificarDrive, classificarEsforco, estimarEsforco, calcularRi,
+  type RecrutabilidadeEntrada,
 } from "./mecanica";
 
 describe("classificarDrive", () => {
@@ -94,5 +95,82 @@ describe("estimarEsforco", () => {
     const e = estimarEsforco(-12, null, 10)!;
     expect(e.dpLDinamica).toBeNull();
     expect(e.pmus).toBeCloseTo(9, 5);
+  });
+});
+
+const manobra = (over: Partial<RecrutabilidadeEntrada> = {}): RecrutabilidadeEntrada => ({
+  passivo: true,
+  fechamentoViaAerea: false,
+  pressaoAbertura: null,
+  peepAlta: 15,
+  peepBaixa: 5,
+  volumeExpiradoExtra: 450,
+  pplatBaixa: 20,
+  vcBaixa: 450,
+  ...over,
+});
+
+describe("calcularRi", () => {
+  // C_baixa = 450/(20-5) = 30; V_inflado = 30×10 = 300;
+  // V_recrutado = 450-300 = 150; R/I = 150/300 = 0,5.
+  it("calcula a razão pela fórmula de Chen", () => {
+    const r = calcularRi(manobra())!;
+    expect(r.cBaixa).toBeCloseTo(30, 5);
+    expect(r.vInflado).toBeCloseTo(300, 5);
+    expect(r.vRecrutado).toBeCloseTo(150, 5);
+    expect(r.ri).toBeCloseTo(0.5, 5);
+  });
+
+  // R/I zero é RESULTADO: não recrutou nada. Diferente de manobra não feita.
+  it("R/I zero é resultado, não ausência", () => {
+    const r = calcularRi(manobra({ volumeExpiradoExtra: 300 }))!;
+    expect(r.ri).toBe(0);
+  });
+
+  // Com fechamento de via aérea a PEEP baixa efetiva é a pressão de ABERTURA.
+  // Sem essa substituição a conta erra exatamente no paciente em que ela mais
+  // importa: aqui daria 0,5 em vez de 5/7.
+  it("usa a pressão de abertura quando há fechamento de via aérea", () => {
+    const r = calcularRi(manobra({ fechamentoViaAerea: true, pressaoAbertura: 8 }))!;
+    expect(r.peepBaixaEfetiva).toBe(8);
+    expect(r.ri).toBeCloseTo(5 / 7, 5);
+    expect(r.ri).not.toBeCloseTo(0.5, 2);
+  });
+
+  it("sem pressão de abertura declarada, o fechamento não pode ser aplicado", () => {
+    expect(calcularRi(manobra({ fechamentoViaAerea: true, pressaoAbertura: null })))
+      .toBeNull();
+  });
+
+  // A manobra exige paciente passivo. Não sendo, não há número a devolver.
+  it("paciente não passivo não produz razão", () => {
+    expect(calcularRi(manobra({ passivo: false }))).toBeNull();
+  });
+
+  it("sem saber se é passivo, não produz razão", () => {
+    expect(calcularRi(manobra({ passivo: null }))).toBeNull();
+  });
+
+  it("falta de qualquer medida devolve null", () => {
+    expect(calcularRi(manobra({ vcBaixa: null }))).toBeNull();
+    expect(calcularRi(manobra({ pplatBaixa: null }))).toBeNull();
+    expect(calcularRi(manobra({ volumeExpiradoExtra: null }))).toBeNull();
+  });
+
+  // Divisão por zero produz Infinity, que passa por isNaN e chegaria à tela
+  // como se fosse número.
+  it("ΔPEEP não positivo devolve null", () => {
+    expect(calcularRi(manobra({ peepAlta: 5 }))).toBeNull();
+  });
+
+  it("complacência não positiva devolve null", () => {
+    expect(calcularRi(manobra({ pplatBaixa: 5 }))).toBeNull();
+  });
+
+  // O tipo não tem onde guardar um veredito, e isto prende essa decisão.
+  it("não devolve veredito de recrutabilidade", () => {
+    const r = calcularRi(manobra())!;
+    expect(r).not.toHaveProperty("recrutavel");
+    expect(r).not.toHaveProperty("veredito");
   });
 });
