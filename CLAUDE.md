@@ -7,8 +7,8 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 02/09/2026: a suíte roda e passa. `pnpm test` devolve **444 testes
-em 25 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
+Estado em 02/09/2026: a suíte roda e passa. `pnpm test` devolve **527 testes
+em 28 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
 nenhum ajuste: nem em teste, nem em `vite.config.ts`, nem em `src/test-setup.ts`.
@@ -378,6 +378,104 @@ Também segue sem fonte a lista `MODALIDADES_TESTE` da Fase 5, e o `verificada:
 true` das seis publicações novas vale confirmar com ele, porque é o que suprime
 o aviso de "pendente de revisão" na tela.
 
+## Esforço, drive e recrutabilidade: o que o app mede e o que ele se recusa a dizer
+
+A Fase 7 acrescentou o bloco de mecânica do esforço. `src/lib/mecanica.ts` faz
+todo o raciocínio; dois painéis desenham o que ele devolve e **não têm número
+clínico nenhum dentro**.
+
+### As duas armadilhas opostas, no mesmo commit
+
+**P0.1 é positivo e ZERO É VALOR VÁLIDO E GRAVE**: significa ausência de drive.
+Um `ACIMA_DE_ZERO` ali barraria justamente o achado mais sério que o campo pode
+ter.
+
+**ΔPocc é NEGATIVO por definição** — é a deflexão abaixo da PEEP. Um `min: 0`
+ali barraria **toda medida que existe**, exatamente como barraria todo BE de
+paciente acidótico.
+
+Os limites são `p01: { min: 0, max: 30 }` e `pocc: { min: -60, max: 0 }`, e cada
+um tem teste de aceitação **e** de reprovação: campo sem entrada no mapa é
+ignorado em silêncio por `invalidMeasurements`, então o de aceitação sozinho não
+prova nada.
+
+### O que é publicado, o que é parecer
+
+| Número | Procedência |
+|---|---|
+| P0.1 acima de **3,5** | `telias_2020` |
+| P0.1 abaixo de **1,5** | `parecer_p01_faixa` — Telias publica **1,0**, e o mentor reafirmou 1,5 depois de ver isso |
+| `Pmus = 0,75 × \|ΔPocc\|` | `bertoni_2019` |
+| `ΔP_L,dyn = (P_pico − PEEP) + 2/3 × \|ΔPocc\|` | `bertoni_2019` |
+| Faixas 4, 8, 12 do Pmus | `parecer_pmus_faixas` — Bertoni valida a CONVERSÃO, não as faixas |
+| R/I | `chen_2020` |
+
+As operating characteristics do Telias (sensibilidade 80%, especificidade 77%)
+foram medidas contra **esforço esofágico**, não contra desfecho clínico, e a
+tela diz isso. É a diferença entre "prevê esforço alto" e "prevê que o paciente
+vai mal".
+
+O **15** que aparece no texto da faixa mais alta é frase, **não fronteira**. As
+fronteiras são 4, 8 e 12. O mentor escreveu as bordas de forma difusa ("< 3-4",
+"> 12-15") e código precisa de número.
+
+### Três recusas deliberadas, cada uma com teste
+
+1. **A ΔP_L,dyn não recebe faixa nem cor de status.** O mentor não foi
+   perguntado sobre limiares dela; a literatura tem 15 e 20. A ausência de cor
+   é testada por `borderLeftColor`, porque trocar `T.dim` por uma cor de status
+   não mudaria texto nenhum e a suíte ficaria verde.
+2. **O app não diz se o paciente é recrutável.** O 0,5 que circula como corte é
+   a **mediana da coorte de derivação de Chen 2020 (n = 45)**, o erro de medida
+   em torno dele é da ordem da distância entre os limiares propostos, e a
+   validação por tomografia mais recente deu AUC 0,70 com IC de 0,52 a 0,89.
+   Toda razão exibida na tela carrega essa ressalva, e há teste que confere o
+   container inteiro — não só o elemento do número.
+3. **A razão pode ser NEGATIVA e não é recortada.** Quando o volume expirado
+   extra fica abaixo do insuflado, o R/I sai negativo: é artefato de medida, e
+   recortar esconderia o sinal. Os dois lugares que exibem razão carregam a
+   frase que explica isso, de uma constante única.
+
+### Fechamento de via aérea desconhecido RECUSA calcular
+
+Quando há fechamento completo, a PEEP baixa efetiva é a **pressão de abertura**
+(Chen 2020). Sem essa substituição a conta erra exatamente no paciente em que
+ela mais importa.
+
+`fechamentoViaAerea` exige booleano declarado: `null` devolve `null`, igual ao
+`passivo`. Não saber se há fechamento **não é o mesmo** que saber que não há —
+calcular pelo caminho sem substituição para uma pergunta não respondida seria o
+erro que a substituição existe para impedir.
+
+A assimetria com o `passivo` é proposital: `passivo` recusa `false` também,
+porque paciente não passivo não pode fazer a manobra; `fechamento` aceita
+`false`, porque "não há" é resposta legítima que muda a conta.
+
+### Nada derivado é gravado
+
+`Pmus` e `ΔP_L,dyn` são recalculadas na exibição. O banco guarda `pocc`,
+`ppico` e `peep`. Se o mentor mudar um coeficiente amanhã, **o histórico inteiro
+se corrige sozinho**, em vez de ficar com números velhos cristalizados no banco
+afirmando o que a versão anterior achava.
+
+### O que ficou pendente
+
+- **Os oito valores da manobra não têm teto de escala.** A cerca reusa
+  `measurement-limits.ts` e barra negativo, zero onde zero não existe e não
+  numérico. Mas `peep`, `pplat` e `vc` **não têm `max` em lugar nenhum do app**,
+  nem para a evolução diária, então PEEP 150 ou volume 4500 passam e produzem
+  razão formatada. Não foi inventado teto: teto de escala é número clínico e
+  precisa de fonte. Se entrar, entra em `measurement-limits.ts` para o app
+  inteiro, não só para a manobra.
+- **A ΔP_L,dyn merece faixas?** A literatura tem 15 e 20; o mentor não foi
+  consultado.
+- **A origem do P0.1 muda a leitura** (valor do ventilador contra oclusão
+  dedicada, que Telias mostra não serem intercambiáveis), e o app não a
+  distingue.
+- **A garantia da ressalva são três variáveis mantidas em sincronia à mão**, não
+  uma lista derivada. Os três sítios que hoje imprimem razão estão cobertos; um
+  quarto reintroduziria o defeito.
+
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
    mudança em cálculo, faixa de referência ou recomendação tem consequência
@@ -440,3 +538,10 @@ o aviso de "pendente de revisão" na tela.
     `tre_sessions`. Sem elas, o formulário grava os demais campos e falha nos
     três; e sem sódio e cloro o app simplesmente não mostra ânion gap nenhum,
     que é o comportamento correto e não um defeito.
+14. **P0.1 e ΔPocc caem em armadilhas OPOSTAS.** Zero é grave no P0.1 (ausência
+    de drive) e o campo é positivo; o ΔPocc é negativo por definição e zero é
+    "esforço não detectado". Piso positivo num, teto zero no outro: inverter
+    qualquer um dos dois barra medida real.
+15. **A tabela `recruitment_maneuvers` e as colunas `p01` e `pocc` são
+    aplicadas à mão**, como as anteriores. Sem elas o formulário falha nos dois
+    campos e o painel da manobra monta mas não grava.
