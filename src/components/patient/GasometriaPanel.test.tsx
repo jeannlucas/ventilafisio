@@ -31,6 +31,14 @@ describe("GasometriaPanel", () => {
   it("sem os três parâmetros, avisa em vez de interpretar", () => {
     renderPanel(ev({ hco3: null }));
     expect(screen.queryByTestId("gaso-disturbio")).not.toBeInTheDocument();
+    // A ausência sozinha não prova nada: apagar o parágrafo de aviso deixava
+    // este teste verde, apesar do nome prometer que o app AVISA. A asserção
+    // positiva abaixo é a metade que faltava, e cita quais valores o app pede.
+    const aviso = screen.getByTestId("gaso-incompleto");
+    expect(aviso).toHaveTextContent(/faltam dados/i);
+    expect(aviso).toHaveTextContent(/pH/);
+    expect(aviso).toHaveTextContent(/PaCO₂/);
+    expect(aviso).toHaveTextContent(/HCO₃⁻/);
   });
 
   it("nomeia o distúrbio do retentor crônico", () => {
@@ -83,11 +91,6 @@ describe("GasometriaPanel", () => {
     expect(screen.queryByTestId("gaso-anion-gap")).not.toBeInTheDocument();
   });
 
-  it("conduta de alçada médica avisa de quem é a decisão", () => {
-    renderPanel(ev({ ph: 7.15, paco2: 26, hco3: 10 }));
-    expect(screen.getByTestId("gaso-condutas")).toHaveTextContent(/equipe médica/i);
-  });
-
   // O rodapé cita o parecer que sustenta o 5,0, e não só as publicações.
   it("cita as fontes do que exibe", () => {
     renderPanel(ev({ ph: 7.38, paco2: 60, hco3: 34 }));
@@ -121,9 +124,11 @@ describe("GasometriaPanel", () => {
   });
 
   // ----------------------------------------------------------------
-  // Testes acrescentados: o do brief para a alçada médica passa mesmo sem
-  // selo nenhum, porque o TEXTO da conduta de bicarbonato já contém "equipe
-  // médica". Os dois abaixo separam o selo do texto, e falham se ele sumir.
+  // O selo de alçada médica é asserido pelos dois testes abaixo, que separam o
+  // SELO do texto da conduta. Havia aqui um terceiro teste que só procurava
+  // "equipe médica" dentro de `gaso-condutas`: ele passava com o selo removido,
+  // porque essa expressão vem do próprio texto que `lib/gasometria.ts` emite.
+  // Foi apagado em 02/09/2026 — cobertura que não existia.
   // ----------------------------------------------------------------
   it("marca a conduta de alçada médica com selo próprio", () => {
     renderPanel(ev({ ph: 7.15, paco2: 26, hco3: 10 }));
@@ -146,5 +151,29 @@ describe("GasometriaPanel", () => {
     const d = screen.getByTestId("gaso-disturbio");
     expect(d).toHaveTextContent(/não fecham|indetermina/i);
     expect(d).not.toHaveTextContent(/sem distúrbio/i);
+  });
+
+  // Alcalose metabólica de diurético ou de sonda nasogástrica, com PaCO₂ acima
+  // de 45 por hipoventilação compensatória. Não é retentor crônico: nem o bloco
+  // de hipercapnia de longa data nem o alvo restritivo de SpO₂ podem aparecer.
+  it("gasometria alcalêmica não anuncia hipercapnia de longa data", () => {
+    const { container } = renderPanel(ev({ ph: 7.48, paco2: 48, hco3: 35 }));
+    // Positiva primeiro: o painel de fato interpretou esta gasometria, então as
+    // ausências abaixo são ausência do bloco e do alvo, e não de painel nenhum.
+    expect(screen.getByTestId("gaso-disturbio")).toHaveTextContent(/alcalose metabólica/i);
+    expect(screen.queryByTestId("gaso-hipercapnia-cronica")).not.toBeInTheDocument();
+    // Em lugar nenhum da tela: o alvo restritivo de SpO₂ não é para este
+    // paciente. `container` cobre o painel inteiro, e não só o bloco de conduta,
+    // que aqui nem chega a existir.
+    expect(container).not.toHaveTextContent(/88 a 92/);
+  });
+
+  // Na alcalose respiratória o bicarbonato CAI: falar de retenção aqui
+  // contradiz a própria aritmética que o módulo usou para datar o quadro.
+  it("alcalose respiratória não fala de retenção na temporalidade", () => {
+    renderPanel(ev({ ph: 7.52, paco2: 28, hco3: 22 }));
+    const bloco = screen.getByTestId("gaso-temporalidade");
+    expect(bloco).toHaveTextContent(/compatível com/i);
+    expect(bloco).not.toHaveTextContent(/reten/i);
   });
 });
