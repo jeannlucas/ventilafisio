@@ -5,6 +5,7 @@ import {
   hipercapniaCronica,
   compensacao,
   anionGap,
+  interpretar,
   type EntradaGasometria,
 } from "./gasometria";
 
@@ -198,5 +199,63 @@ describe("anionGap", () => {
   it("sem sódio ou sem cloro, não há ânion gap", () => {
     expect(anionGap(gaso({ na: null, cl: 105, hco3: 20 }))).toBeNull();
     expect(anionGap(gaso({ na: 140, cl: null, hco3: 20 }))).toBeNull();
+  });
+});
+
+describe("interpretar", () => {
+  it("devolve null sem os três parâmetros mínimos", () => {
+    expect(interpretar(gaso({ hco3: null }))).toBeNull();
+  });
+
+  it("o retentor crônico sai completo", () => {
+    const r = interpretar(gaso({ ph: 7.38, paco2: 60, hco3: 34 }))!;
+    expect(r.disturbio).toBe("acidose_respiratoria");
+    expect(r.temporalidade).toBe("cronica");
+    expect(r.hipercapniaCronica).toBe(true);
+    expect(r.compensacao).toBeNull();
+  });
+
+  // Gatilho do mentor: pH < 7,20.
+  it("sinaliza bicarbonato abaixo de 7,20", () => {
+    const r = interpretar(gaso({ ph: 7.15, paco2: 26, hco3: 10 }))!;
+    const c = r.condutas.find((x) => /bicarbonato/i.test(x.texto));
+    expect(c).toBeDefined();
+    expect(c!.alcada).toBe("medica");
+  });
+
+  it("não sinaliza bicarbonato em 7,25", () => {
+    const r = interpretar(gaso({ ph: 7.25, paco2: 28, hco3: 12 }))!;
+    expect(r.condutas.some((x) => /bicarbonato/i.test(x.texto))).toBe(false);
+  });
+
+  // O tipo Conduta não tem campo de dose, e nenhum texto pode trazer número
+  // de mEq: quem prescreve é a equipe médica.
+  it("nenhuma conduta carrega dose", () => {
+    const r = interpretar(gaso({ ph: 7.1, paco2: 26, hco3: 8 }))!;
+    for (const c of r.condutas) {
+      expect(c).not.toHaveProperty("dose");
+      expect(c.texto).not.toMatch(/\d+\s*(mEq|mg|ml|mL)\b/);
+    }
+  });
+
+  it("hipercapnia crônica traz o alvo de saturação do DPOC", () => {
+    const r = interpretar(gaso({ ph: 7.38, paco2: 60, hco3: 34 }))!;
+    const c = r.condutas.find((x) => /88/.test(x.texto));
+    expect(c).toBeDefined();
+    expect(c!.alcada).toBe("fisio");
+  });
+
+  it("as chaves de fonte cobrem o ânion gap só quando ele existe", () => {
+    const sem = interpretar(gaso({ ph: 7.4, paco2: 40, hco3: 24 }))!;
+    expect(sem.sourceKeys).not.toContain("anionGap");
+    const com = interpretar(gaso({ ph: 7.4, paco2: 40, hco3: 24, na: 140, cl: 105 }))!;
+    expect(com.sourceKeys).toContain("anionGap");
+  });
+
+  it("as chaves de fonte cobrem o DPOC só na hipercapnia crônica", () => {
+    const sem = interpretar(gaso({ ph: 7.25, paco2: 60, hco3: 26 }))!;
+    expect(sem.sourceKeys).not.toContain("dpocOxigenio");
+    const com = interpretar(gaso({ ph: 7.38, paco2: 60, hco3: 34 }))!;
+    expect(com.sourceKeys).toContain("dpocOxigenio");
   });
 });

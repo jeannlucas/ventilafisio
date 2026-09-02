@@ -4,6 +4,8 @@
 // Faixas e regras de compensação: Berend 2014 (N Engl J Med).
 // Winters: Albert, Dell e Winters, 1967.
 // ============================================================
+import type { Conduta } from "./condutas";
+import type { SourceKey } from "./references";
 
 export interface EntradaGasometria {
   ph: number | null;
@@ -232,5 +234,82 @@ export function anionGap(e: EntradaGasometria): AnionGap | null {
     bruto,
     corrigido: bruto + CORRECAO_POR_G_DL * (ALBUMINA_REFERENCIA - e.albumina),
     albuminaUsada: e.albumina,
+  };
+}
+
+export interface Interpretacao {
+  disturbio: DisturbioPrimario;
+  /** null em distúrbio metabólico ou misto. */
+  temporalidade: Temporalidade | null;
+  /** Só na acidose metabólica. Ver `compensacao`. */
+  compensacao: Compensacao | null;
+  /**
+   * Não é opcional: `interpretar` só devolve resultado com os três parâmetros
+   * presentes, e com eles o critério da BTS é sempre decidível. Um null que não
+   * pode acontecer vira ramo morto que ninguém consegue testar.
+   */
+  hipercapniaCronica: boolean;
+  anionGap: AnionGap | null;
+  condutas: Conduta[];
+  /** Derivadas do resultado, não escritas à mão no painel. */
+  sourceKeys: SourceKey[];
+}
+
+/** Limiar do bicarbonato, parecer do mentor em 01/09/2026. */
+const PH_BICARBONATO = 7.2;
+
+export function interpretar(e: EntradaGasometria): Interpretacao | null {
+  const disturbio = disturbioPrimario(e);
+  if (disturbio === null) return null;
+
+  const temp = temporalidade(e);
+  const cronica = hipercapniaCronica(e);
+  const ag = anionGap(e);
+  const condutas: Conduta[] = [];
+
+  if (num(e.ph) && e.ph < PH_BICARBONATO) {
+    condutas.push({
+      texto:
+        "Considerar bicarbonato de sódio. A indicação e a dose são da equipe médica.",
+      alcada: "medica",
+      sourceKey: "acidoBase",
+    });
+  }
+  if (disturbio === "acidose_respiratoria" && temp === "aguda") {
+    condutas.push({
+      texto: "Reavaliar o volume-minuto: frequência e volume corrente.",
+      alcada: "fisio",
+      sourceKey: "acidoBase",
+    });
+  }
+  if (disturbio === "alcalose_respiratoria") {
+    condutas.push({
+      texto:
+        "Verificar hiperventilação induzida pelo ventilador antes de atribuir o quadro ao paciente.",
+      alcada: "fisio",
+      sourceKey: "acidoBase",
+    });
+  }
+  if (cronica) {
+    condutas.push({
+      texto:
+        "Alvo de SpO₂ de 88 a 92%. Saturação acima da faixa não é melhor neste paciente.",
+      alcada: "fisio",
+      sourceKey: "dpocOxigenio",
+    });
+  }
+
+  const sourceKeys: SourceKey[] = ["acidoBase"];
+  if (ag) sourceKeys.push("anionGap");
+  if (cronica) sourceKeys.push("dpocOxigenio");
+
+  return {
+    disturbio,
+    temporalidade: temp,
+    compensacao: compensacao(e),
+    hipercapniaCronica: cronica,
+    anionGap: ag,
+    condutas,
+    sourceKeys,
   };
 }
