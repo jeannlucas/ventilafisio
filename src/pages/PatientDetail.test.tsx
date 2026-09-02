@@ -1001,3 +1001,40 @@ describe("subtítulo da prontidão para extubação", () => {
     expect(painel).toHaveTextContent(/24\s?h/i);
   });
 });
+
+// ============================================================
+// Fase 6, Task 8: o GasometriaPanel foi construído na Task 7 e passou a
+// existir isolado, mas nada garantia que ele estivesse montado na aba
+// Evolução. Sem este teste, apagar a linha `<GasometriaPanel/>` não quebraria
+// nada — foi exatamente o defeito que a Fase 2 embarcou e teve que corrigir
+// depois.
+// ============================================================
+describe("painel de gasometria na aba Evolução", () => {
+  it("mostra o painel de gasometria na aba Evolução", async () => {
+    const EVOLUCAO_BASE = {
+      id: "e-1",
+      patient_id: "p-1",
+      recorded_at: "2026-01-02T00:00:00Z",
+      fr: 16,
+      vc: 400,
+      peep: 8,
+      fio2: 40,
+      pao2: 120,
+      pplat: 24,
+      ppico: 30,
+      paw: 18,
+      glasgow: 10,
+      rass: -1,
+      ims: 0,
+      vasopressor: true,
+      peak_cough_flow: 60,
+      tre_result: "pass",
+      pimax: 50,
+    };
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE, ph: 7.38, paco2: 60, hco3: 34 }];
+    renderDetail();
+    const painel = (await screen.findByText(/Gasometria interpretada/i)).closest("section")!;
+    expect(within(painel).getByTestId("gaso-disturbio")).toHaveTextContent(/acidose respiratória/i);
+  });
+});

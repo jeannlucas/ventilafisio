@@ -14,6 +14,7 @@ import { CareBundlePanel } from "../components/patient/CareBundlePanel";
 import { EvolutionHistory } from "../components/patient/EvolutionHistory";
 import { TrendCharts } from "../components/patient/TrendCharts";
 import { MotorPanel } from "../components/patient/MotorPanel";
+import { GasometriaPanel } from "../components/patient/GasometriaPanel";
 import { TrePanel } from "../components/patient/TrePanel";
 import { SourceFooter } from "../components/SourceFooter";
 import type { Mrc } from "../lib/scores";
@@ -168,6 +169,7 @@ export default function PatientDetail() {
       {tab === "evolucao" && (
         <div style={{ display: "grid", gap: 20 }}>
           {last ? <Dashboard patient={patient} ev={last} /> : hint("Registre a primeira evolução para ver os 4 indicadores.")}
+          {last && <GasometriaPanel ev={last} />}
           <MotorPanel evolutions={evolutions} />
           <Grid min={340}>
             <EvolutionForm patient={patient} ownerId={session!.user.id} previous={last} onSaved={load} />
