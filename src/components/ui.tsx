@@ -420,6 +420,27 @@ export function Grid({ children, min = 320 }: { children: ReactNode; min?: numbe
   );
 }
 
+/**
+ * Caixa de leitura: fundo, borda fina e uma faixa colorida à esquerda que
+ * carrega o status do que está escrito dentro.
+ *
+ * Nasceu copiada em três painéis (gasometria, mecânica e recrutabilidade),
+ * byte a byte. Três ocorrências é o gatilho de extração deste projeto, e o
+ * lugar dela é aqui, junto do resto do vocabulário visual compartilhado. É
+ * mudança de endereço, não de desenho: o estilo devolvido é o mesmo de antes.
+ *
+ * A cor entra como argumento de propósito. Quem decide o status é o painel, a
+ * partir do que o módulo de domínio devolveu — e `statusColor(null)` é a
+ * resposta honesta para número que ninguém autorizou classificar.
+ */
+export const caixa = (cor: string): CSSProperties => ({
+  padding: "10px 14px",
+  borderRadius: 10,
+  background: T.panel2,
+  border: `1px solid ${T.line}`,
+  borderLeft: `4px solid ${cor}`,
+});
+
 export function Row({ children, cols = 3 }: { children: ReactNode; cols?: number }) {
   return (
     <div className="vf-row" style={{ ["--cols" as string]: cols } as CSSProperties}>

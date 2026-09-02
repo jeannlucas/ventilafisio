@@ -169,7 +169,9 @@ export interface TreSession {
 /**
  * Desfecho de uma manobra de recrutabilidade. `null` significa em andamento.
  *
- * 'abortada' é a manobra que não pôde ser feita (paciente não passivo);
+ * 'abortada' é a manobra que não chegou a ser realizada, e o `motivo`
+ * registrado é quem diz por quê: paciente não passivo, instabilidade
+ * hemodinâmica, dessaturação. Não presuma a causa a partir do desfecho.
  * 'inconclusiva' é a que foi feita e não produziu número. Nenhuma das duas é
  * falha do paciente, e nenhuma é o mesmo que 'concluida'.
  */

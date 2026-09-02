@@ -475,7 +475,9 @@ create index if not exists idx_tre_patient on public.tre_sessions (patient_id, i
 -- ---------- RECRUITMENT_MANEUVERS (manobra de recrutabilidade) ----------
 -- `desfecho` nulo significa EM ANDAMENTO, e não dado faltando — mesma
 -- convenção de tre_sessions.
--- 'abortada' é a manobra que não pôde ser feita (paciente não passivo);
+-- 'abortada' é a manobra que não chegou a ser realizada, e a coluna `motivo` é
+-- quem diz por quê: paciente não passivo, instabilidade hemodinâmica,
+-- dessaturação. O desfecho não carrega a causa.
 -- 'inconclusiva' é a que foi feita e não produziu número. As duas são
 -- diferentes de 'concluida', e nenhuma delas é falha do paciente.
 create table if not exists public.recruitment_maneuvers (

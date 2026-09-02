@@ -1,5 +1,5 @@
 import { CSSProperties, useState } from "react";
-import { Panel, Alert, Field, Btn, Row } from "../ui";
+import { Panel, Alert, Field, Btn, Row, caixa } from "../ui";
 import { SourceFooter } from "../SourceFooter";
 import {
   calcularRi,
@@ -7,6 +7,7 @@ import {
   type Recrutabilidade,
   type RecrutabilidadeEntrada,
 } from "../../lib/mecanica";
+import { invalidMeasurements } from "../../lib/measurement-limits";
 import { supabase } from "../../lib/supabase";
 import { T, fmt } from "../../lib/theme";
 import type { ManobraDesfecho, RecruitmentManeuver } from "../../types";
@@ -30,9 +31,16 @@ import type { ManobraDesfecho, RecruitmentManeuver } from "../../types";
  * O que cada desfecho significa, dito na tela.
  *
  * Os três são coisas diferentes e nenhum é falha do paciente: 'concluida'
- * produziu número; 'abortada' não pôde ser feita, porque a manobra pressupõe
- * paciente passivo; 'inconclusiva' foi feita e não produziu número. Confundir
- * as duas últimas apaga a diferença entre medida ausente e medida tentada.
+ * produziu número; 'abortada' não chegou a ser realizada, e o motivo
+ * registrado diz por quê; 'inconclusiva' foi feita e não produziu número.
+ * Confundir as duas últimas apaga a diferença entre medida ausente e medida
+ * tentada.
+ *
+ * O motivo do aborto NÃO é sempre "paciente não passivo". Esse é o caso que o
+ * formulário de registro detecta sozinho, mas o botão de abortar existe também
+ * para a manobra em andamento, e ali o motivo é o que o terapeuta escreveu:
+ * instabilidade hemodinâmica e dessaturação caem aqui do mesmo jeito. A tela
+ * deixou de afirmar a causa única; este comentário acompanha.
  */
 const DESFECHO: Record<ManobraDesfecho, { rotulo: string; cor: string; efeito: string }> = {
   concluida: {
@@ -90,6 +98,50 @@ const numero = (s: string): number | null => {
 const booleano = (s: string): boolean | null =>
   s === "sim" ? true : s === "nao" ? false : null;
 
+/**
+ * Cada campo numérico da manobra e a medida análoga que `measurement-limits.ts`
+ * já cerca.
+ *
+ * A cerca é a MESMA do resto do aplicativo de propósito. Estes campos medem as
+ * mesmas grandezas físicas dos campos da evolução — PEEP é PEEP, platô é platô,
+ * volume é volume — e abrir aqui uma segunda tabela de limites criaria duas
+ * opiniões sobre o que é fisicamente possível, que divergiriam na primeira
+ * revisão. Nenhum número novo entra neste arquivo: o `analogo` é uma chave,
+ * não um limite.
+ *
+ * O que a cerca barra é o impossível (negativo onde não há negativo, zero onde
+ * zero não existe, texto que não é número), e nada mais. Ela NÃO é faixa
+ * clínica, e não pega erro de escala como uma PEEP de 150: `peep` e `vc` não
+ * têm teto em lugar nenhum do app, e inventar um aqui seria cravar número
+ * clínico sem fonte. A coerência entre os valores continua sendo de
+ * `calcularRi`, que se recusa a produzir razão quando a combinação não fecha.
+ */
+const ANALOGO_DE_MEDIDA = {
+  pAbertura: { rotulo: "Pressão de abertura", campo: "peep" },
+  peepAlta: { rotulo: "PEEP alta", campo: "peep" },
+  peepBaixa: { rotulo: "PEEP baixa", campo: "peep" },
+  volExtra: { rotulo: "Volume expirado extra", campo: "vc" },
+  pplatBaixa: { rotulo: "Platô em PEEP baixa", campo: "pplat" },
+  vcBaixa: { rotulo: "Volume corrente em PEEP baixa", campo: "vc" },
+} as const;
+
+type CampoDaManobra = keyof typeof ANALOGO_DE_MEDIDA;
+
+/**
+ * Os problemas de plausibilidade dos valores que estão prestes a ser gravados.
+ *
+ * Um campo por vez, e não um objeto só, porque dois campos da manobra caem no
+ * mesmo análogo (as duas PEEP, os dois volumes) e um objeto perderia um deles.
+ * A mensagem sai prefixada pelo rótulo da manobra: o texto da cerca fala em
+ * "PEEP", e sem o prefixo o terapeuta não saberia qual das duas corrigir.
+ */
+function problemasDeMedida(valores: Partial<Record<CampoDaManobra, string>>): string[] {
+  return Object.entries(valores).flatMap(([chave, texto]) => {
+    const { rotulo, campo } = ANALOGO_DE_MEDIDA[chave as CampoDaManobra];
+    return invalidMeasurements({ [campo]: texto }).map((e) => `${rotulo}: ${e.message}`);
+  });
+}
+
 const entradaDe = (m: RecruitmentManeuver): RecrutabilidadeEntrada => ({
   passivo: m.passivo,
   fechamentoViaAerea: m.fechamento_via_aerea,
@@ -118,20 +170,27 @@ const rotuloBloco: CSSProperties = {
   marginBottom: 4,
 };
 
-const caixa = (cor: string): CSSProperties => ({
-  padding: "10px 14px",
-  borderRadius: 10,
-  background: T.panel2,
-  border: `1px solid ${T.line}`,
-  borderLeft: `4px solid ${cor}`,
-});
-
 const textoMenor: CSSProperties = {
   margin: "6px 0 0",
   fontSize: 11.5,
   color: T.dim,
   lineHeight: 1.6,
 };
+
+/**
+ * O que uma razão negativa significa, dito em UM lugar só e usado onde quer que
+ * a razão apareça.
+ *
+ * `calcularRi` não recorta o valor negativo de propósito: ele é artefato de
+ * medida, e escondê-lo esconderia o sinal. Mas "-0.3" sozinho é lido como
+ * recrutabilidade muito baixa, que é justamente o que ele NÃO é — e a ressalva
+ * geral do painel não socorre aqui: ela explica a mediana da coorte, e não diz
+ * nada sobre sinal negativo. Por isso a frase acompanha a razão no destaque E
+ * na linha do histórico, e por isso mora numa constante: cópia duplicada
+ * diverge, e o canto que ficar para trás volta a imprimir número nu.
+ */
+const TEXTO_RAZAO_NEGATIVA =
+  "Razão negativa: o volume expirado extra ficou abaixo do volume insuflado. Isso aponta problema na medida, e o valor aparece como saiu justamente para que o problema apareça.";
 
 /**
  * A razão em destaque, com o texto que diz que o aplicativo não classifica.
@@ -165,8 +224,7 @@ function BlocoRi({ r, testId }: { r: Recrutabilidade; testId: string }) {
       </div>
       <p style={{ margin: "4px 0 0", fontSize: 12.5, color: T.txt, lineHeight: 1.6 }}>
         O aplicativo mostra a razão medida e não a classifica.
-        {r.ri < 0 &&
-          " Razão negativa: o volume expirado extra ficou abaixo do volume insuflado. Isso aponta problema na medida, e o valor aparece como saiu justamente para que o problema apareça."}
+        {r.ri < 0 && ` ${TEXTO_RAZAO_NEGATIVA}`}
       </p>
     </div>
   );
@@ -276,9 +334,34 @@ export function RecrutabilidadePanel({
    */
   const registrar = async () => {
     if (salvando || !respondeuAsPerguntas) return;
+    const temFechamento = fechamento === "sim";
+
+    // Medida impossível não entra no banco. Vale aqui a mesma decisão do
+    // formulário de evolução: conferir ANTES de gravar, mostrar tudo o que está
+    // errado de uma vez e não escrever nada. Sem isto, um valor impossível
+    // atravessava a tela inteira e voltava formatado com uma casa decimal, como
+    // se fosse medida — que é a forma de defeito mais antiga deste projeto.
+    //
+    // Confere só o que vai ser GRAVADO: na manobra abortada no registro os
+    // campos numéricos nem aparecem na tela e vão nulos para o banco, e um
+    // valor que sobrou no estado não pode bloquear o registro de um aborto.
+    const problemas = abortandoNoRegistro
+      ? []
+      : problemasDeMedida({
+          ...(temFechamento ? { pAbertura } : {}),
+          peepAlta,
+          peepBaixa,
+          volExtra,
+          pplatBaixa,
+          vcBaixa,
+        });
+    if (problemas.length > 0) {
+      setErro(problemas.join(" "));
+      return;
+    }
+
     setErro(null);
     setSalvando(true);
-    const temFechamento = fechamento === "sim";
     const { error } = await supabase.from("recruitment_maneuvers").insert({
       patient_id: patientId,
       owner_id: ownerId,
@@ -546,6 +629,16 @@ export function RecrutabilidadePanel({
                       </span>
                     )}
                   </div>
+                  {/* A razão negativa não viaja sozinha nem aqui. A linha do
+                      histórico é resumida de propósito, mas "R/I -0.3" sem
+                      explicação vira leitura de recrutabilidade pífia em vez de
+                      aviso de medida errada — e é a única linha do painel onde
+                      isso ainda acontecia. */}
+                  {r && r.ri < 0 && (
+                    <div style={{ fontSize: 12, color: T.txt, marginTop: 4, lineHeight: 1.5 }}>
+                      {TEXTO_RAZAO_NEGATIVA}
+                    </div>
+                  )}
                   {m.motivo && (
                     <div style={{ fontSize: 12.5, color: T.txt, marginTop: 4 }}>Motivo: {m.motivo}</div>
                   )}
@@ -569,6 +662,14 @@ export function RecrutabilidadePanel({
         </p>
       )}
 
+      {/* O rodapé fica MESMO SEM manobra nenhuma na tela, e isso é de propósito
+          — não é descuido a ser "harmonizado" com o MecanicaPanel, que não
+          mostra rodapé no estado vazio. Lá a regra é "fonte sem afirmação acima
+          dela é ruído", e ela vale: sem P0.1 e sem ΔPocc não há o que atribuir.
+          Aqui o formulário de oito passos É o protocolo de Chen — a ordem das
+          perguntas, a substituição pela pressão de abertura, o volume expirado
+          extra. Citar a fonte ao lado dele é atribuição do que a tela já está
+          fazendo, não fonte pendurada em afirmação inexistente. */}
       <div data-testid="rec-fonte">
         <SourceFooter sourceKeys={["recrutabilidade"]} />
       </div>

@@ -186,6 +186,39 @@ describe("RecrutabilidadePanel — histórico de manobras anteriores", () => {
     expect(screen.getByTestId("rec-historico-m-3")).toHaveTextContent("R/I 0.5");
   });
 
+  // A razão negativa é artefato de medida, e a linha do histórico é o único
+  // canto do painel onde ela aparecia nua: "R/I -0.3" ao lado de uma ressalva
+  // que fala da mediana da coorte e não diz nada sobre sinal negativo se lê
+  // como recrutabilidade pífia, que é o contrário do que o número significa.
+  // Fixture: a antiga tem volume expirado extra abaixo do insuflado (300).
+  it("razão negativa no histórico vem com o problema de medida dito", () => {
+    renderPanel([
+      manobra(),
+      manobra({
+        id: "m-2",
+        realizada_em: "2026-08-30T10:00:00Z",
+        volume_expirado_extra: 200,
+      }),
+    ]);
+    const linha = screen.getByTestId("rec-historico-m-2");
+    expect(linha).toHaveTextContent("R/I -0.3");
+    expect(linha).toHaveTextContent(/negativa/i);
+    expect(linha).toHaveTextContent(/volume expirado extra ficou abaixo/i);
+  });
+
+  // O contrário do teste acima: razão que não é negativa não pode carregar o
+  // aviso de artefato, ou ele viraria decoração de toda linha e pararia de
+  // avisar coisa nenhuma.
+  it("razão não negativa no histórico não recebe o aviso de artefato", () => {
+    renderPanel([
+      manobra(),
+      manobra({ id: "m-2", realizada_em: "2026-08-30T10:00:00Z" }),
+    ]);
+    const linha = screen.getByTestId("rec-historico-m-2");
+    expect(linha).toHaveTextContent("R/I 0.5");
+    expect(linha).not.toHaveTextContent(/negativa/i);
+  });
+
   it("desfecho fora do domínio não vira 'undefined' na tela", () => {
     renderPanel([
       manobra(),
@@ -250,6 +283,64 @@ describe("RecrutabilidadePanel — gravação", () => {
     await user.click(screen.getByRole("button", { name: /concluir manobra/i }));
     await waitFor(() => {
       expect(db.lastUpdate).toMatchObject({ desfecho: "concluida", motivo: null });
+    });
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  /**
+   * Preenche a manobra inteira, com o volume corrente em PEEP baixa por
+   * parâmetro: é o campo que os dois testes de plausibilidade variam.
+   */
+  const preencher = async (
+    user: ReturnType<typeof userEvent.setup>,
+    vcBaixa: string
+  ) => {
+    await user.selectOptions(screen.getByLabelText("1. Paciente passivo?"), "sim");
+    await user.selectOptions(screen.getByLabelText("2. Fechamento de via aérea?"), "nao");
+    await user.type(screen.getByLabelText(/4\. PEEP alta/), "15");
+    await user.type(screen.getByLabelText(/5\. PEEP baixa/), "5");
+    await user.type(screen.getByLabelText(/6\. Volume expirado extra/), "450");
+    await user.type(screen.getByLabelText(/7\. Platô em PEEP baixa/), "20");
+    await user.type(screen.getByLabelText(/8\. Volume corrente em PEEP baixa/), vcBaixa);
+    await user.click(screen.getByRole("button", { name: /registrar manobra/i }));
+  };
+
+  // Volume corrente zero em paciente ventilado não existe: a mesma cerca de
+  // plausibilidade que o resto do app usa recusa o valor. Sem ela, o número
+  // atravessava a tela e voltava formatado com uma casa decimal, como se fosse
+  // medida — a forma de defeito mais antiga deste projeto.
+  it("valor implausível não é gravado e o problema aparece na tela", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel([], onChange);
+    await preencher(user, "0");
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/volume corrente em peep baixa/i);
+    });
+    // O rótulo da manobra é o que diz QUAL campo corrigir: a cerca fala em
+    // "VC", e dois campos da manobra caem nela.
+    expect(screen.getByRole("alert")).toHaveTextContent(/maior que zero/i);
+    expect(db.lastInsert).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("a manobra plausível continua sendo gravada", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel([], onChange);
+    await preencher(user, "450");
+    await waitFor(() => {
+      expect(db.lastInsert).toMatchObject({
+        patient_id: "p-1",
+        passivo: true,
+        fechamento_via_aerea: false,
+        peep_alta: 15,
+        peep_baixa: 5,
+        volume_expirado_extra: 450,
+        pplat_baixa: 20,
+        vc_baixa: 450,
+        desfecho: null,
+      });
     });
     expect(onChange).toHaveBeenCalled();
   });

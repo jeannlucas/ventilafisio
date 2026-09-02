@@ -1,4 +1,4 @@
-import { Panel } from "../ui";
+import { Panel, caixa } from "../ui";
 import { SourceFooter } from "../SourceFooter";
 import {
   classificarDrive,
@@ -97,14 +97,6 @@ const ESFORCO_DESCONHECIDO: Rotulo = {
 };
 
 const rotuloAviso = { fontSize: 11, color: T.dim, letterSpacing: 0.3, margin: "0 0 6px" } as const;
-
-const caixa = (cor: string) => ({
-  padding: "10px 14px",
-  borderRadius: 10,
-  background: T.panel2,
-  border: `1px solid ${T.line}`,
-  borderLeft: `4px solid ${cor}`,
-});
 
 const textoRessalva = {
   margin: "6px 0 0",
