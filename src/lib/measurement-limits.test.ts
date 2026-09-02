@@ -202,3 +202,35 @@ describe("gasometria da Fase 6", () => {
     expect(invalidMeasurements({ albumina: "-1.5" }).length).toBe(1);
   });
 });
+
+describe("mecânica da Fase 7", () => {
+  // P0.1 zero é ausência de drive: medida real e grave, não campo vazio.
+  it("aceita P0.1 zero", () => {
+    expect(invalidMeasurements({ p01: "0" })).toEqual([]);
+  });
+
+  it("aceita P0.1 positivo", () => {
+    expect(invalidMeasurements({ p01: "2.5" })).toEqual([]);
+  });
+
+  it("barra P0.1 negativo", () => {
+    expect(invalidMeasurements({ p01: "-1" }).length).toBe(1);
+  });
+
+  // ΔPocc é negativo por definição. Um piso em zero rejeitaria toda medida.
+  it("aceita ΔPocc negativo", () => {
+    expect(invalidMeasurements({ pocc: "-12" })).toEqual([]);
+  });
+
+  it("aceita ΔPocc zero", () => {
+    expect(invalidMeasurements({ pocc: "0" })).toEqual([]);
+  });
+
+  it("barra ΔPocc positivo", () => {
+    expect(invalidMeasurements({ pocc: "5" }).length).toBe(1);
+  });
+
+  it("barra ΔPocc fisicamente impossível", () => {
+    expect(invalidMeasurements({ pocc: "-90" }).length).toBe(1);
+  });
+});

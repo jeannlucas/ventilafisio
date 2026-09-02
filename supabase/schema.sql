@@ -363,6 +363,11 @@ alter table public.daily_evolutions add column if not exists na numeric;
 alter table public.daily_evolutions add column if not exists cl numeric;
 alter table public.daily_evolutions add column if not exists albumina numeric;
 
+-- Esforço e drive da Fase 7. `pocc` é NEGATIVO por definição (deflexão abaixo
+-- da PEEP); `p01` é positivo e zero significa ausência de drive.
+alter table public.daily_evolutions add column if not exists p01 numeric;
+alter table public.daily_evolutions add column if not exists pocc numeric;
+
 alter table public.daily_evolutions enable row level security;
 
 drop policy if exists "evolutions_select_own" on public.daily_evolutions;

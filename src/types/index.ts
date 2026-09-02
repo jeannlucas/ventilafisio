@@ -92,6 +92,8 @@ export interface DailyEvolution {
   ppico: number | null;
   pplat: number | null;
   flow: number | null;
+  p01: number | null;
+  pocc: number | null;
   ph: number | null;
   pao2: number | null;
   paco2: number | null;

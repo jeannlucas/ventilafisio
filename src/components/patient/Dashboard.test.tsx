@@ -45,6 +45,8 @@ const EVOLUCAO_ESTAVEL: DailyEvolution = {
   ppico: 26,
   pplat: 24,
   flow: null,
+  p01: null,
+  pocc: null,
   ph: null,
   pao2: 90,
   paco2: null,

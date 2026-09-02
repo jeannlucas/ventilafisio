@@ -48,6 +48,8 @@ const LABELS: Record<string, string> = {
   height_cm: "Altura",
   weight_kg: "Peso",
   age: "Idade",
+  p01: "P0.1",
+  pocc: "ΔPocc",
 };
 
 // Menor incremento representável acima de zero para "tem que ser positivo".
@@ -94,6 +96,15 @@ export const MEASUREMENT_LIMITS: Record<string, MeasurementLimit> = {
   height_cm: { min: ACIMA_DE_ZERO },
   weight_kg: { min: ACIMA_DE_ZERO },
   age: { min: 0 },
+
+  // Esforço e drive
+  // P0.1 é positivo por convenção de tela, e ZERO É VALOR VÁLIDO E GRAVE:
+  // ausência de drive. Nunca ACIMA_DE_ZERO aqui.
+  p01: { min: 0, max: 30 },
+  // ΔPocc é NEGATIVO por definição: deflexão abaixo da PEEP. Piso em zero
+  // rejeitaria toda medida real, como `min: 0` rejeitaria todo BE de paciente
+  // acidótico. Cerca de plausibilidade, não faixa clínica.
+  pocc: { min: -60, max: 0 },
 };
 
 export function limitsFor(field: string): MeasurementLimit | undefined {
