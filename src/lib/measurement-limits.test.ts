@@ -182,4 +182,23 @@ describe("gasometria da Fase 6", () => {
   it("aceita sódio, cloro e albumina plausíveis", () => {
     expect(invalidMeasurements({ na: "140", cl: "105", albumina: "2.1" })).toEqual([]);
   });
+
+  // O teste de aceitação acima não prova nada: campos desconhecidos são
+  // silenciosamente ignorados, então passa mesmo que os limites não existam.
+  // É preciso um teste de rejeição por campo para provar que o limite está
+  // realmente ligado.
+  it("barra sódio zero ou negativo", () => {
+    expect(invalidMeasurements({ na: "0" }).length).toBe(1);
+    expect(invalidMeasurements({ na: "-10" }).length).toBe(1);
+  });
+
+  it("barra cloro zero ou negativo", () => {
+    expect(invalidMeasurements({ cl: "0" }).length).toBe(1);
+    expect(invalidMeasurements({ cl: "-5" }).length).toBe(1);
+  });
+
+  it("barra albumina zero ou negativa", () => {
+    expect(invalidMeasurements({ albumina: "0" }).length).toBe(1);
+    expect(invalidMeasurements({ albumina: "-1.5" }).length).toBe(1);
+  });
 });
