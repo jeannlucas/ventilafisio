@@ -154,3 +154,42 @@ describe("fontes da gasometria (Fase 6)", () => {
     expect(sourcesFor("dpocOxigenio").map((r) => r.id)).toContain("austin_2010");
   });
 });
+
+describe("fontes da mecânica (Fase 7)", () => {
+  it("as três chaves novas resolvem para fontes existentes", () => {
+    for (const k of ["drive", "esforco", "recrutabilidade"] as const) {
+      expect(sourcesFor(k).length).toBeGreaterThan(0);
+    }
+  });
+
+  // O 1,5 do P0.1 NÃO está em publicação nenhuma: Telias 2020 publica 1,0.
+  // Atribuí-lo ao artigo seria pôr na tela uma citação que a fonte contradiz.
+  it("o parecer da faixa do P0.1 é Parecer, não Publicacao", () => {
+    const r = REFERENCES.find((x) => x.id === "parecer_p01_faixa");
+    expect(r).toBeDefined();
+    expect(ehParecer(r!)).toBe(true);
+  });
+
+  // Bertoni 2019 valida a CONVERSÃO; a leitura por faixas é prática do mentor.
+  it("as faixas de Pmus são Parecer, não Publicacao", () => {
+    const r = REFERENCES.find((x) => x.id === "parecer_pmus_faixas");
+    expect(r).toBeDefined();
+    expect(ehParecer(r!)).toBe(true);
+  });
+
+  it("drive cita Telias junto do parecer do limite inferior", () => {
+    const ids = sourcesFor("drive").map((r) => r.id);
+    expect(ids).toContain("telias_2020");
+    expect(ids).toContain("parecer_p01_faixa");
+  });
+
+  it("esforco cita Bertoni junto do parecer das faixas", () => {
+    const ids = sourcesFor("esforco").map((r) => r.id);
+    expect(ids).toContain("bertoni_2019");
+    expect(ids).toContain("parecer_pmus_faixas");
+  });
+
+  it("recrutabilidade cita o artigo da razão R/I", () => {
+    expect(sourcesFor("recrutabilidade").map((r) => r.id)).toContain("chen_2020");
+  });
+});

@@ -15,7 +15,9 @@ export type SourceKey =
   // teste de respiração espontânea
   | "treFalha"
   // gasometria interpretada
-  | "acidoBase" | "anionGap" | "dpocOxigenio";
+  | "acidoBase" | "anionGap" | "dpocOxigenio"
+  // mecânica: drive, esforço e recrutabilidade
+  | "drive" | "esforco" | "recrutabilidade";
 
 export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   pf: ["ardsnet_2000", "amib_sbpt_2024"],
@@ -54,6 +56,9 @@ export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   ],
   anionGap: ["berend_2014", "figge_1998"],
   dpocOxigenio: ["odriscoll_2017", "austin_2010", "parecer_cronicidade_ou"],
+  drive: ["telias_2020", "parecer_p01_faixa"],
+  esforco: ["bertoni_2019", "parecer_pmus_faixas"],
+  recrutabilidade: ["chen_2020"],
 };
 
 const BY_ID = new Map(REFERENCES.map((r) => [r.id, r]));

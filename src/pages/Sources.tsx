@@ -22,6 +22,9 @@ const LABELS: Record<SourceKey, string> = {
   acidoBase: "Distúrbios ácido-base e compensação",
   anionGap: "Ânion gap e correção pela albumina",
   dpocOxigenio: "Oxigenoterapia e hipercapnia crônica no DPOC",
+  drive: "Drive respiratório pelo P0.1",
+  esforco: "Esforço inspiratório e pressão transpulmonar dinâmica",
+  recrutabilidade: "Recrutabilidade pela razão R/I",
 };
 
 export default function Sources() {

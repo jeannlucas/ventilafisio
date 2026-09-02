@@ -278,6 +278,45 @@ export const REFERENCES: Reference[] = [
       "Ensaio randomizado, 405 pacientes. Oxigênio titulado contra liberal na exacerbação de DPOC: mortalidade menor no grupo titulado, e o efeito é maior no subgrupo com DPOC confirmada. É o que sustenta que saturação acima da faixa não é melhor.",
   },
   {
+    id: "telias_2020",
+    citacaoCurta: "Telias, 2020",
+    autores:
+      "Telias I, Junhasavasdikul D, Rittayamai N, Piquilloud L, Chen L, Ferguson ND, Goligher EC, Brochard L",
+    titulo:
+      "Airway Occlusion Pressure As an Estimate of Respiratory Drive and Inspiratory Effort during Assisted Ventilation",
+    veiculo: "Am J Respir Crit Care Med 2020;201(9):1086-1098",
+    ano: 2020,
+    verificada: true,
+    nota:
+      "P0.1 acima de 3,5 cmH₂O sugere esforço elevado (sensibilidade 80%, especificidade 77%). O limite INFERIOR publicado é 1,0, não 1,5. As duas medidas foram feitas contra esforço esofágico (PTPmus/min ≥ 200), não contra desfecho clínico.",
+  },
+  {
+    id: "bertoni_2019",
+    citacaoCurta: "Bertoni, 2019",
+    autores:
+      "Bertoni M, Telias I, Urner M, Long M, Del Sorbo L, Fan E, Sinderby C, Beck J, Liu L, Qiu H, Wong J, Slutsky AS, Ferguson ND, Brochard L, Goligher EC",
+    titulo:
+      "A novel non-invasive method to detect excessively high respiratory effort and dynamic transpulmonary driving pressure during mechanical ventilation",
+    veiculo: "Critical Care 2019;23:346",
+    ano: 2019,
+    verificada: true,
+    nota:
+      "Valida a oclusão expiratória como estimativa de esforço: Pmus ≈ 0,75 × |ΔPocc| e ΔP_L,dyn ≈ ΔPaw + 2/3 × |ΔPocc|. Coorte pequena: 16 pacientes na derivação e 12 na validação externa. Valida a CONVERSÃO, não faixas de interpretação.",
+  },
+  {
+    id: "chen_2020",
+    citacaoCurta: "Chen, 2020",
+    autores:
+      "Chen L, Del Sorbo L, Grieco DL, Junhasavasdikul D, Rittayamai N, Soliman I, Sklar MC, Rauseo M, Ferguson ND, Fan E, Richard JCM, Brochard L",
+    titulo:
+      "Potential for Lung Recruitment Estimated by the Recruitment-to-Inflation Ratio in Acute Respiratory Distress Syndrome. A Clinical Trial",
+    veiculo: "Am J Respir Crit Care Med 2020;201(2):178-187",
+    ano: 2020,
+    verificada: true,
+    nota:
+      "Introduz a razão R/I. O valor de 0,5 que circula como corte é a MEDIANA da coorte de derivação (n = 45), usada ali para dicotomizar a análise: não é ponto de corte validado contra desfecho. O erro de medida em torno de 0,5 é da ordem da distância entre os limiares propostos na literatura.",
+  },
+  {
     id: "parecer_mrc_faixa",
     citacaoCurta: "Parecer clínico, 2026",
     profissional: "Mentor clínico do projeto",
@@ -332,5 +371,21 @@ export const REFERENCES: Reference[] = [
     data: "01/09/2026",
     nota:
       "O aplicativo sinaliza bicarbonato a partir de pH < 7,20. Sinaliza o medicamento e nunca a dose: quem prescreve é a equipe médica.",
+  },
+  {
+    id: "parecer_p01_faixa",
+    citacaoCurta: "Parecer clínico (faixa do P0.1), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "02/09/2026",
+    nota:
+      "O limite inferior de 1,5 cmH₂O é escolha clínica, reafirmada depois de ver que Telias 2020 publica 1,0 (sensibilidade 100%, especificidade 92% para esforço baixo). O limite superior de 3,5 é o publicado.",
+  },
+  {
+    id: "parecer_pmus_faixas",
+    citacaoCurta: "Parecer clínico (faixas de Pmus), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "02/09/2026",
+    nota:
+      "A leitura do Pmus estimado por faixas (muito baixo abaixo de 4, adequado de 4 a 8, aumentado de 8 a 12, elevado acima de 12) é prática dele. Bertoni 2019 valida a conversão do ΔPocc em Pmus, não estas faixas.",
   },
 ];
