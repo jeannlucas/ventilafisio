@@ -45,7 +45,7 @@ const DESFECHO: Record<ManobraDesfecho, { rotulo: string; cor: string; efeito: s
     rotulo: "Abortada",
     cor: T.dim,
     efeito:
-      "A manobra não chegou a ser realizada, porque ela pressupõe paciente passivo. Não há razão a mostrar, e a ausência dela não é resultado.",
+      "A manobra não chegou a ser realizada, e o motivo é o que está registrado abaixo. Não há razão a mostrar, e a ausência dela não é resultado nem falha do paciente.",
   },
   inconclusiva: {
     rotulo: "Inconclusiva",
@@ -101,6 +101,16 @@ const entradaDe = (m: RecruitmentManeuver): RecrutabilidadeEntrada => ({
   vcBaixa: m.vc_baixa,
 });
 
+/**
+ * A razão de uma manobra encerrada, ou nada.
+ *
+ * Só a manobra declarada 'concluida' mostra número. Numa 'inconclusiva' os
+ * valores gravados podem até fechar a conta, mas quem esteve ao lado do
+ * paciente registrou que a medida não vale — a tela não desmente o registro.
+ */
+const razaoDe = (m: RecruitmentManeuver): Recrutabilidade | null =>
+  m.desfecho === "concluida" ? calcularRi(entradaDe(m)) : null;
+
 const rotuloBloco: CSSProperties = {
   fontSize: 11,
   color: T.dim,
@@ -124,12 +134,15 @@ const textoMenor: CSSProperties = {
 };
 
 /**
- * O ÚNICO lugar do arquivo que imprime a razão.
+ * A razão em destaque, com o texto que diz que o aplicativo não classifica.
  *
- * Ele é único de propósito: enquanto houver um só ponto de renderização do
- * número, um veredito acrescentado por descuido cai dentro do elemento que o
- * teste inspeciona, e a suíte morde. Espalhar cópias do bloco criaria cantos
- * onde a promessa de não classificar não é testada.
+ * NÃO é o único lugar do arquivo que imprime a razão: a linha do histórico
+ * também a imprime, resumida. Por isso a promessa de não classificar é
+ * conferida no painel inteiro (`container.textContent`), e não só dentro deste
+ * bloco — teste que olha um elemento só não cobre os outros cantos da tela. E
+ * por isso `mostraRessalva` é derivado da MESMA lista de razões que a tela
+ * renderiza: enquanto os dois saírem do mesmo cálculo, é impossível aparecer
+ * número sem a ressalva junto.
  *
  * Aqui dentro não entra NENHUM outro número: a asserção do teste é por
  * conteúdo de texto, e um dígito vindo de prosa vizinha a satisfaria pelo
@@ -273,7 +286,7 @@ export function RecrutabilidadePanel({
       fechamento_via_aerea: abortandoNoRegistro ? null : booleano(fechamento),
       // Pressão de abertura só existe quando há fechamento: gravá-la fora disso
       // deixaria no banco um número que a conta usaria em outro paciente.
-      pressao_abertura: temFechamento ? numero(pAbertura) : null,
+      pressao_abertura: !abortandoNoRegistro && temFechamento ? numero(pAbertura) : null,
       peep_alta: abortandoNoRegistro ? null : numero(peepAlta),
       peep_baixa: abortandoNoRegistro ? null : numero(peepBaixa),
       volume_expirado_extra: abortandoNoRegistro ? null : numero(volExtra),
@@ -315,11 +328,18 @@ export function RecrutabilidadePanel({
   };
 
   const riEmAndamento = emAndamento ? calcularRi(entradaDe(emAndamento)) : null;
-  // A razão só aparece na manobra que o terapeuta declarou concluída. Numa
-  // 'inconclusiva' os valores podem até fechar a conta, mas quem esteve ao lado
-  // do paciente disse que a medida não vale — a tela não desmente o registro.
-  const riUltima = ultima?.desfecho === "concluida" ? calcularRi(entradaDe(ultima)) : null;
-  const mostraRessalva = riEmAndamento != null || riUltima != null;
+  const riUltima = ultima ? razaoDe(ultima) : null;
+  // Uma razão por manobra anterior, na mesma ordem da lista: é ela que a linha
+  // do histórico imprime, e é ela que entra na conta da ressalva. Recalcular
+  // dentro do `map` deixava o histórico exibindo número que a ressalva não
+  // sabia que existia — foi exatamente esse o defeito.
+  const riAnteriores = anteriores.map(razaoDe);
+  // A ressalva acompanha QUALQUER razão na tela, venha ela do destaque, da
+  // manobra em andamento ou de uma linha do histórico. Ela é a única proteção
+  // que este painel oferece: número sem ela é o painel classificando por
+  // omissão.
+  const mostraRessalva =
+    riEmAndamento != null || riUltima != null || riAnteriores.some((r) => r != null);
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -512,9 +532,9 @@ export function RecrutabilidadePanel({
       {anteriores.length > 0 && (
         <Panel title="Manobras anteriores" sub="Da mais recente para a mais antiga">
           <div style={{ display: "grid", gap: 8 }}>
-            {anteriores.map((m) => {
+            {anteriores.map((m, i) => {
               const d = DESFECHO[m.desfecho as ManobraDesfecho] ?? DESFECHO_DESCONHECIDO;
-              const r = m.desfecho === "concluida" ? calcularRi(entradaDe(m)) : null;
+              const r = riAnteriores[i];
               return (
                 <div key={m.id} data-testid={`rec-historico-${m.id}`} style={caixa(d.cor)}>
                   <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>

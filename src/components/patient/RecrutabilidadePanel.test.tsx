@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { RecrutabilidadePanel } from "./RecrutabilidadePanel";
-import type { RecruitmentManeuver } from "../../types";
+import type { ManobraDesfecho, RecruitmentManeuver } from "../../types";
 
 const db = {
   lastInsert: null as Record<string, unknown> | null,
@@ -44,14 +45,17 @@ const manobra = (over: Partial<RecruitmentManeuver> = {}): RecruitmentManeuver =
     ...over,
   } as RecruitmentManeuver);
 
-const renderPanel = (manobras: RecruitmentManeuver[] = []) =>
+const renderPanel = (
+  manobras: RecruitmentManeuver[] = [],
+  onChange: () => void = vi.fn()
+) =>
   render(
     <MemoryRouter>
       <RecrutabilidadePanel
         patientId="p-1"
         ownerId="u-1"
         manobras={manobras}
-        onChange={vi.fn()}
+        onChange={onChange}
       />
     </MemoryRouter>
   );
@@ -84,7 +88,7 @@ describe("RecrutabilidadePanel", () => {
   it("nenhum canto do painel classifica o paciente", () => {
     const { container } = renderPanel([manobra()]);
     expect(container.textContent ?? "")
-      .not.toMatch(/recrut[áa]vel|respondedor|n[ãa]o responde/i);
+      .not.toMatch(/recrut[áa]vel|respondedor|\bresponde\b/i);
   });
 
   it("diz que o 0,5 é mediana de coorte e não ponto de corte", () => {
@@ -111,13 +115,20 @@ describe("RecrutabilidadePanel", () => {
     renderPanel([manobra({ volume_expirado_extra: 200 })]);
     const ri = screen.getByTestId("rec-ri");
     expect(ri).toHaveTextContent("-0.3");
-    expect(ri).toHaveTextContent(/medida/i);
+    // Ancorado no que só existe no caso negativo: /medida/i era satisfeito por
+    // "razão medida e não a classifica", que o bloco imprime sempre.
+    expect(ri).toHaveTextContent(/negativa/i);
+    expect(ri).toHaveTextContent(/volume expirado extra ficou abaixo/i);
   });
 
   it("manobra abortada não mostra razão e diz por quê", () => {
     renderPanel([manobra({ desfecho: "abortada", passivo: false, motivo: "paciente disparando" })]);
     expect(screen.queryByTestId("rec-ri")).not.toBeInTheDocument();
-    expect(screen.getByTestId("rec-desfecho")).toHaveTextContent(/abortada/i);
+    const desfecho = screen.getByTestId("rec-desfecho");
+    expect(desfecho).toHaveTextContent(/abortada/i);
+    // O porquê vem do que foi registrado, não de um motivo cravado no rótulo:
+    // abortar por instabilidade ou por dessaturação também cai aqui.
+    expect(desfecho).toHaveTextContent(/paciente disparando/i);
   });
 
   // Abortada e inconclusiva são coisas diferentes: uma não pôde ser feita, a
@@ -141,5 +152,117 @@ describe("RecrutabilidadePanel", () => {
   it("cita a fonte do que exibe", () => {
     renderPanel([manobra()]);
     expect(screen.getByTestId("rec-fonte")).toHaveTextContent(/Chen, 2020/);
+  });
+});
+
+/**
+ * Manobras anteriores: a segunda encerrada em diante, que caem na lista do
+ * histórico. Era o único ramo do painel sem teste nenhum, e foi por ali que
+ * passou uma razão impressa sem a ressalva ao lado.
+ */
+describe("RecrutabilidadePanel — histórico de manobras anteriores", () => {
+  // A mais recente é inconclusiva (não tem número); a antiga é concluída (tem).
+  // Sem a correção, a tela mostrava "R/I 0.5" no histórico e NENHUMA ressalva:
+  // número sem a única proteção que este painel oferece.
+  it("razão no histórico nunca aparece sem a ressalva", () => {
+    renderPanel([
+      manobra({ id: "m-1", desfecho: "inconclusiva" }),
+      manobra({ id: "m-2", realizada_em: "2026-09-01T10:00:00Z" }),
+    ]);
+    expect(screen.getByTestId("rec-historico-m-2")).toHaveTextContent("0.5");
+    expect(screen.getByTestId("rec-ressalva")).toHaveTextContent(/mediana/i);
+  });
+
+  it("a linha traz desfecho e data, e razão só quando existe", () => {
+    renderPanel([
+      manobra(),
+      manobra({ id: "m-2", realizada_em: "2026-08-30T10:00:00Z", desfecho: "inconclusiva" }),
+      manobra({ id: "m-3", realizada_em: "2026-08-29T10:00:00Z" }),
+    ]);
+    const semNumero = screen.getByTestId("rec-historico-m-2");
+    expect(semNumero).toHaveTextContent(/inconclusiva/i);
+    expect(semNumero).toHaveTextContent("30/08");
+    expect(semNumero).not.toHaveTextContent("R/I");
+    expect(screen.getByTestId("rec-historico-m-3")).toHaveTextContent("R/I 0.5");
+  });
+
+  it("desfecho fora do domínio não vira 'undefined' na tela", () => {
+    renderPanel([
+      manobra(),
+      manobra({
+        id: "m-9",
+        realizada_em: "2026-08-28T10:00:00Z",
+        desfecho: "coisa_nova" as ManobraDesfecho,
+      }),
+    ]);
+    const linha = screen.getByTestId("rec-historico-m-9");
+    expect(linha).toHaveTextContent(/não reconhecido/i);
+    expect(linha).not.toHaveTextContent(/undefined/i);
+  });
+});
+
+/**
+ * Gravação. Nenhum caminho pode alegar sucesso numa escrita que falhou: o erro
+ * aparece em `Alert` e o `onChange` só é chamado quando o banco aceitou.
+ */
+describe("RecrutabilidadePanel — gravação", () => {
+  const registrarAbortada = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.selectOptions(screen.getByLabelText(/paciente passivo/i), "nao");
+    await user.type(screen.getByLabelText("Motivo"), "paciente disparando");
+    await user.click(screen.getByRole("button", { name: /registrar manobra/i }));
+  };
+
+  // Paciente não passivo: a manobra não pôde ser feita, e nasce abortada. Nunca
+  // "em andamento", que afirmaria uma manobra que ninguém começou.
+  it("registra como abortada a manobra que não pôde ser feita", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel([], onChange);
+    await registrarAbortada(user);
+    await waitFor(() => {
+      expect(db.lastInsert).toMatchObject({
+        patient_id: "p-1",
+        owner_id: "u-1",
+        passivo: false,
+        desfecho: "abortada",
+        motivo: "paciente disparando",
+      });
+    });
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  it("insert recusado mostra o erro e não alega sucesso", async () => {
+    db.erro = { message: "row-level security" };
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel([], onChange);
+    await registrarAbortada(user);
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/row-level security/i);
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("concluir a manobra em andamento grava o desfecho", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel([manobra({ desfecho: null })], onChange);
+    await user.click(screen.getByRole("button", { name: /concluir manobra/i }));
+    await waitFor(() => {
+      expect(db.lastUpdate).toMatchObject({ desfecho: "concluida", motivo: null });
+    });
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  it("update recusado mostra o erro e não alega sucesso", async () => {
+    db.erro = { message: "update recusado" };
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel([manobra({ desfecho: null })], onChange);
+    await user.click(screen.getByRole("button", { name: /concluir manobra/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/update recusado/i);
+    });
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
