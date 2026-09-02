@@ -7,8 +7,8 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 01/09/2026: a suíte roda e passa. `pnpm test` devolve **364 testes
-em 23 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
+Estado em 02/09/2026: a suíte roda e passa. `pnpm test` devolve **444 testes
+em 25 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
 nenhum ajuste: nem em teste, nem em `vite.config.ts`, nem em `src/test-setup.ts`.
@@ -288,6 +288,96 @@ Quem decide é o terapeuta.
   absoluto; hoje pede confirmação, mas não dá para desfazer. É decisão de
   produto do Jeann.
 
+## A gasometria é interpretada, e cada número diz de onde vem
+
+A Fase 6 fez o app ler a gasometria em vez de só guardá-la: distúrbio primário,
+agudo ou crônico, compensação esperada, ânion gap corrigido pela albumina e
+condutas sugeridas. `src/lib/gasometria.ts` faz todo o raciocínio;
+`GasometriaPanel.tsx` só desenha o que ele devolveu e **não tem número clínico
+nenhum dentro**.
+
+### As decisões que parecem erradas e não são
+
+1. **`sem_disturbio` exige os TRÊS parâmetros na faixa, não só o pH.** Berend
+   2014 registra que na acidose respiratória crônica o pH pode estar normal ou
+   acima de 7,40. Um classificador que olhasse só o pH chamaria o retentor
+   crônico compensado de paciente sem distúrbio, que é a mesma forma do defeito
+   da FiO₂ zero virando P/F infinita em verde.
+2. **`indeterminado` não é `sem_disturbio`.** O primeiro significa que os
+   valores não fecham entre si; o segundo, que não há problema. Diferem em
+   rótulo, em explicação e em **cor** — âmbar contra verde, e a cor sobe para a
+   borda do painel. Nada de verde tranquilizador numa gasometria que não fecha.
+3. **O pH decide o LADO; só depois os parâmetros decidem o sistema.** Uma
+   acidose metabólica compensada tem PaCO₂ BAIXA: perguntar "a PaCO₂ está
+   baixa?" antes de olhar o pH devolve alcalose respiratória, o distúrbio
+   oposto, na tela de um app de decisão clínica.
+4. **Quem decide agudo × crônico é o BICARBONATO.** A regra do pH por 10 mmHg
+   (0,08 e 0,03) é convenção de livro-texto e a pesquisa desta fase não achou
+   estudo primário nenhum. Ela é leitura auxiliar, marcada como convenção, e
+   **os coeficientes não aparecem na tela** — há teste proibindo `/0[.,]0[83]/`
+   ali, justamente porque é onde alguém "completaria" a funcionalidade.
+5. **Na alcalose metabólica o app NÃO dá número.** Decisão do mentor em
+   01/09/2026, tomada depois de saber que o estudo primário da fórmula usual é
+   **em cães** (Madias 1984) e que Berend 2014 avisa em nota de rodapé que a
+   previsão nesse distúrbio é difícil. Isto é decisão de não exibir, não
+   implementação faltando, e é a coisa mais fácil da fase de alguém "consertar"
+   por engano. Há teste que fica vermelho se um número aparecer.
+
+### O ânion gap é sempre corrigido pela albumina
+
+`AG = Na⁺ − (Cl⁻ + HCO₃⁻)`, sem potássio. A correção é Figge 1998, medida em
+152 pacientes de UTI: `+2,5 mmol/L` por g/dL abaixo de 4,0.
+
+Em UTI a hipoalbuminemia é regra e derruba o gap calculado — sem correção o app
+deixaria de enxergar acidose exatamente na população que ele atende. Os dois
+valores aparecem, e **sem albumina o corrigido é `null`**: o app não usa 4,0
+como se tivesse sido medido nem rotula o bruto de corrigido.
+
+**O app não afirma faixa normal** para o ânion gap: ela depende do analisador do
+laboratório e as fontes divergem de 3-12 a 8,5-15.
+
+### `Conduta` não tem campo de dose
+
+O app nomeia o medicamento e nunca a quantidade. Não existe onde escrever um
+número de mEq, então quem quiser prescrever no futuro tem de alterar o tipo — e
+aí é decisão consciente, não deslize. O gatilho do bicarbonato é pH < 7,20,
+parecer do mentor.
+
+`alcada: "medica"` sai visualmente distinta e sempre acompanhada de que quem
+decide é a equipe médica. As quatro condutas têm a alçada afirmada por teste: a
+direção perigosa não é rotular fisioterapia como decisão médica, é o inverso.
+
+### O rodapé sai do resultado, nunca de lista escrita à mão
+
+`interpretar` devolve as `sourceKeys` que combinam com o que ele de fato
+produziu, e o painel só as repassa. Chave e conteúdo saem das mesmas variáveis,
+então não têm como divergir — este projeto embarcou três vezes um painel cujo
+rodapé não cobria o que ele exibia.
+
+### O que ficou pendente do mentor
+
+Duas perguntas abertas, e as duas são acopladas:
+
+1. **O critério de cronicidade da BTS foi ESTREITADO de forma interina.** Ele
+   disparava com qualquer PaCO₂ > 45, inclusive com pH alcalêmico: pH 7,48 /
+   PaCO₂ 48 / HCO₃⁻ 35, uma alcalose metabólica corriqueira de UTI, era rotulada
+   como hipercapnia de longa data e recebia a conduta de alvo de SpO₂ 88-92% —
+   restrição de oxigênio para quem não é retentor. O mentor decidiu o "OU" sobre
+   dois casos concretos, os **dois com pH ≤ 7,36**; nunca foi perguntado sobre
+   caso alcalêmico. Acrescentado `pH <= 7,45` ao portão externo, o que preserva
+   os dois casos dele. Falta a palavra final.
+2. **Retentor crônico com pH ≥ 7,40 cai em "alcalose metabólica".** O lado
+   alcalino não tem ramo para PaCO₂ alta com HCO₃⁻ alto. É a regra padrão de
+   livro-texto, mas o dossiê desta fase cita o NEJM dizendo que na acidose
+   respiratória crônica o pH pode estar acima de 7,40 — ou seja, a regra padrão
+   erra na população que este app atende. **Não corrigido de propósito**: é
+   pergunta clínica, e o conserto óbvio da pendência 1 apagaria o único sinal
+   correto que esse paciente ainda recebe.
+
+Também segue sem fonte a lista `MODALIDADES_TESTE` da Fase 5, e o `verificada:
+true` das seis publicações novas vale confirmar com ele, porque é o que suprime
+o aviso de "pendente de revisão" na tela.
+
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
    mudança em cálculo, faixa de referência ou recomendação tem consequência
@@ -341,3 +431,12 @@ Quem decide é o terapeuta.
     desenvolvimento e nenhum teste executa o `schema.sql`, então o DDL sai daqui
     revisado mas NÃO verificado. Sem ele aplicado no Supabase, o painel de TRE
     monta normalmente e falha só na hora de gravar. Quem aplica é o Jeann.
+12. **O BE é rotineiramente NEGATIVO e zero é o valor normal.** Um `if (!be)`
+    mata o −2 e o 0 na mesma linha. É a armadilha nº 5 num campo onde zero fica
+    no MEIO da escala, não na ponta — pior que nos escores. O limite em
+    `measurement-limits.ts` é `{ min: -50, max: 50 }`, cerca de plausibilidade e
+    não faixa clínica, sem piso positivo de propósito.
+13. **As colunas `na`, `cl` e `albumina` são aplicadas à mão**, como a
+    `tre_sessions`. Sem elas, o formulário grava os demais campos e falha nos
+    três; e sem sódio e cloro o app simplesmente não mostra ânion gap nenhum,
+    que é o comportamento correto e não um defeito.
