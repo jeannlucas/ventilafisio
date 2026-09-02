@@ -133,10 +133,20 @@ export const FAIXA_RI_OBSERVADA = { min: 0, max: 2.0 } as const;
  * ESTA FUNÇÃO NÃO EMITE VEREDITO, e o tipo não tem onde guardar um. O 0,5 que
  * circula como corte é a mediana da coorte de derivação (n = 45), usada ali
  * para dicotomizar a análise, e não ponto de corte validado contra desfecho.
+ *
+ * O R/I PODE DAR NEGATIVO, quando o volume expirado extra fica abaixo do
+ * V_inflado. Isso indica problema na medida, não recrutamento negativo, e a
+ * função deliberadamente não recorta esse valor: o painel precisa poder
+ * mostrar o que foi de fato medido.
  */
 export function calcularRi(e: RecrutabilidadeEntrada): Recrutabilidade | null {
   // A manobra pressupõe paciente passivo. Sem essa confirmação não há número.
   if (e.passivo !== true) return null;
+
+  // Não saber se houve fechamento de via aérea não é o mesmo que saber que não
+  // houve. Calcular pelo caminho sem substituição diante de uma pergunta sem
+  // resposta seria exatamente o erro que a substituição existe para evitar.
+  if (typeof e.fechamentoViaAerea !== "boolean") return null;
 
   const peepBaixaEfetiva = e.fechamentoViaAerea
     ? e.pressaoAbertura

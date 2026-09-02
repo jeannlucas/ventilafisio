@@ -151,6 +151,19 @@ describe("calcularRi", () => {
       .toBeNull();
   });
 
+  // Não saber se houve fechamento de via aérea não é o mesmo que saber que não
+  // houve: tratar null como "sem fechamento" seguiria pelo caminho sem
+  // substituição para uma pergunta sem resposta.
+  it("sem saber se houve fechamento de via aérea, não produz razão", () => {
+    expect(calcularRi(manobra({ fechamentoViaAerea: null }))).toBeNull();
+  });
+
+  it("fechamento declarado como ausente, com PEEP baixa válida, calcula normalmente", () => {
+    const r = calcularRi(manobra({ fechamentoViaAerea: false, peepBaixa: 5 }))!;
+    expect(r.peepBaixaEfetiva).toBe(5);
+    expect(r.ri).toBeCloseTo(0.5, 5);
+  });
+
   // A manobra exige paciente passivo. Não sendo, não há número a devolver.
   it("paciente não passivo não produz razão", () => {
     expect(calcularRi(manobra({ passivo: false }))).toBeNull();
@@ -167,9 +180,21 @@ describe("calcularRi", () => {
   });
 
   // Divisão por zero produz Infinity, que passa por isNaN e chegaria à tela
-  // como se fosse número.
-  it("ΔPEEP não positivo devolve null", () => {
+  // como se fosse número. A recusa aqui vem da guarda de vInflado, não da de
+  // deltaPeep: ver o comentário em mecanica.ts sobre por que nenhum fixture
+  // isola a guarda de deltaPeep sozinha.
+  it("ΔPEEP não positivo não produz razão", () => {
     expect(calcularRi(manobra({ peepAlta: 5 }))).toBeNull();
+  });
+
+  // Volume expirado extra abaixo do V_inflado é artefato de medida, não erro
+  // numérico: a função devolve o negativo em vez de recortar ou anular.
+  // C_baixa = 450/(20-5) = 30; V_inflado = 30×10 = 300;
+  // V_recrutado = 200-300 = -100; R/I = -100/300 = -1/3.
+  it("R/I negativo é devolvido, não recortado nem anulado", () => {
+    const r = calcularRi(manobra({ volumeExpiradoExtra: 200 }))!;
+    expect(r.vRecrutado).toBeCloseTo(-100, 5);
+    expect(r.ri).toBeCloseTo(-1 / 3, 5);
   });
 
   it("complacência não positiva devolve null", () => {
