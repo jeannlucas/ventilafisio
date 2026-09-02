@@ -85,3 +85,81 @@ export function disturbioPrimario(e: EntradaGasometria): DisturbioPrimario | nul
   // distúrbio a partir destes três valores.
   return "sem_disturbio";
 }
+
+export type Temporalidade = "aguda" | "cronica" | "indeterminada";
+
+/**
+ * Variação esperada do HCO₃⁻ por 10 mmHg de desvio da PaCO₂ em relação a 40.
+ *
+ * O 5,0 da acidose crônica é PARECER do mentor (01/09/2026): Berend 2014 dá a
+ * faixa de 4 a 5 e Martinu 2003 mediu 5,1 em DPOC estável. Nenhuma das duas
+ * diz 5,0. Os demais são de Berend 2014; o −4,5 da alcalose crônica é o meio
+ * da faixa de −4 a −5 que a revisão publica.
+ */
+const DELTA_HCO3_POR_10 = {
+  acidoseAguda: 1,
+  acidoseCronica: 5.0,
+  alcaloseAguda: 2,
+  alcaloseCronica: 4.5,
+} as const;
+
+/**
+ * Tolerância para o app se recusar a rotular. Não é limiar clínico: é o quanto
+ * o bicarbonato medido pode se afastar do mais próximo dos dois valores
+ * esperados antes de "indeterminada" ser a resposta honesta.
+ */
+const TOLERANCIA_HCO3 = 3;
+
+/**
+ * Aguda ou crônica, decidida pelo BICARBONATO.
+ *
+ * A regra do pH por 10 mmHg (0,08 agudo, 0,03 crônico) é convenção de
+ * livro-texto sem estudo primário rastreável, e por isso é só leitura auxiliar
+ * na tela — ver `parecer_ph_por_10`. Ela não decide nada aqui.
+ *
+ * Devolve null em distúrbio metabólico ou misto: não há compensação
+ * respiratória a datar.
+ */
+export function temporalidade(e: EntradaGasometria): Temporalidade | null {
+  const d = disturbioPrimario(e);
+  if (d !== "acidose_respiratoria" && d !== "alcalose_respiratoria") return null;
+  if (!num(e.paco2) || !num(e.hco3)) return null;
+
+  const unidades = (e.paco2 - 40) / 10;
+  const agudo = d === "acidose_respiratoria"
+    ? DELTA_HCO3_POR_10.acidoseAguda
+    : DELTA_HCO3_POR_10.alcaloseAguda;
+  const cronico = d === "acidose_respiratoria"
+    ? DELTA_HCO3_POR_10.acidoseCronica
+    : DELTA_HCO3_POR_10.alcaloseCronica;
+
+  // Os coeficientes são MAGNITUDES positivas e quem carrega a direção é
+  // `unidades`, que já é negativo quando a PaCO₂ está abaixo de 40. Coeficiente
+  // negativo aqui inverteria o sinal duas vezes e faria o bicarbonato esperado
+  // SUBIR na alcalose respiratória, que é o oposto do que acontece.
+  const esperadoAgudo = 24 + agudo * unidades;
+  const esperadoCronico = 24 + cronico * unidades;
+
+  const distAgudo = Math.abs(e.hco3 - esperadoAgudo);
+  const distCronico = Math.abs(e.hco3 - esperadoCronico);
+
+  if (Math.min(distAgudo, distCronico) > TOLERANCIA_HCO3) return "indeterminada";
+  return distAgudo <= distCronico ? "aguda" : "cronica";
+}
+
+/**
+ * Critério da BTS para hipercapnia de longa data.
+ *
+ * A diretriz escreve "pH ≥ 7,35 e/ou HCO₃⁻ > 28". O mentor resolveu o "e/ou"
+ * para OU em 01/09/2026, apresentados dois casos concretos. É o critério mais
+ * SENSÍVEL dos dois: marca como crônico mais gente do que o E marcaria, e por
+ * isso a tela diz "compatível com", nunca "é".
+ *
+ * O E externo continua sendo E: sem PaCO₂ elevada não há hipercapnia nenhuma.
+ */
+export function hipercapniaCronica(e: EntradaGasometria): boolean {
+  if (!num(e.paco2) || e.paco2 <= FAIXAS.paco2.max) return false;
+  const phCompativel = num(e.ph) && e.ph >= 7.35;
+  const hco3Compativel = num(e.hco3) && e.hco3 > 28;
+  return phCompativel || hco3Compativel;
+}

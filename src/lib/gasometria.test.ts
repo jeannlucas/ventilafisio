@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { disturbioPrimario, type EntradaGasometria } from "./gasometria";
+import {
+  disturbioPrimario,
+  temporalidade,
+  hipercapniaCronica,
+  type EntradaGasometria,
+} from "./gasometria";
 
 const gaso = (over: Partial<EntradaGasometria> = {}): EntradaGasometria => ({
   ph: 7.4, paco2: 40, hco3: 24, be: 0,
@@ -67,5 +72,59 @@ describe("disturbioPrimario", () => {
     expect(disturbioPrimario(gaso({ ph: null }))).toBeNull();
     expect(disturbioPrimario(gaso({ paco2: null }))).toBeNull();
     expect(disturbioPrimario(gaso({ hco3: null }))).toBeNull();
+  });
+});
+
+describe("temporalidade", () => {
+  // PaCO₂ 60 é 20 acima de 40, ou seja 2 unidades de 10 mmHg.
+  // Agudo esperaria 24 + 2×1 = 26. Crônico esperaria 24 + 2×5,0 = 34.
+  it("bicarbonato próximo do agudo é compatível com quadro agudo", () => {
+    expect(temporalidade(gaso({ ph: 7.25, paco2: 60, hco3: 26 }))).toBe("aguda");
+  });
+
+  it("bicarbonato próximo do crônico é compatível com quadro crônico", () => {
+    expect(temporalidade(gaso({ ph: 7.38, paco2: 60, hco3: 34 }))).toBe("cronica");
+  });
+
+  // Longe dos dois: o app não escolhe. Dizer "indeterminada" nunca afirma algo
+  // clínico que a gasometria não sustenta.
+  // HCO₃⁻ 22 continua DENTRO da faixa normal, então o distúrbio é respiratório
+  // puro. Com PaCO₂ 60 o agudo esperaria 26 e o crônico 34: 22 está a 4 do mais
+  // próximo, além da tolerância. Não usar HCO₃⁻ baixo aqui, que viraria
+  // acidose mista e devolveria null por outro motivo.
+  it("bicarbonato longe dos dois é indeterminada", () => {
+    expect(temporalidade(gaso({ ph: 7.2, paco2: 60, hco3: 22 }))).toBe("indeterminada");
+  });
+
+  it("alcalose respiratória aguda", () => {
+    expect(temporalidade(gaso({ ph: 7.52, paco2: 28, hco3: 22 }))).toBe("aguda");
+  });
+
+  it("distúrbio metabólico não tem temporalidade", () => {
+    expect(temporalidade(gaso({ ph: 7.25, paco2: 28, hco3: 12 }))).toBeNull();
+  });
+
+  it("distúrbio misto não tem temporalidade", () => {
+    expect(temporalidade(gaso({ ph: 7.15, paco2: 55, hco3: 18 }))).toBeNull();
+  });
+});
+
+describe("hipercapniaCronica", () => {
+  // Resposta do mentor a dois casos concretos: qualquer um dos dois basta.
+  it("caso A: só o pH bate", () => {
+    expect(hipercapniaCronica(gaso({ ph: 7.36, paco2: 55, hco3: 26 }))).toBe(true);
+  });
+
+  it("caso B: só o bicarbonato bate", () => {
+    expect(hipercapniaCronica(gaso({ ph: 7.3, paco2: 55, hco3: 30 }))).toBe(true);
+  });
+
+  it("nenhum dos dois bate", () => {
+    expect(hipercapniaCronica(gaso({ ph: 7.25, paco2: 55, hco3: 26 }))).toBe(false);
+  });
+
+  // O E externo continua sendo E: sem PaCO₂ elevada não há hipercapnia.
+  it("sem PaCO₂ elevada é falso mesmo com bicarbonato alto", () => {
+    expect(hipercapniaCronica(gaso({ ph: 7.45, paco2: 40, hco3: 32 }))).toBe(false);
   });
 });
