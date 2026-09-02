@@ -53,9 +53,17 @@ describe("GasometriaPanel", () => {
     expect(screen.getByTestId("gaso-alcalose-aviso")).toHaveTextContent(/pouco confiável/i);
   });
 
-  it("acidose metabólica mostra a PaCO₂ esperada de Winters", () => {
-    renderPanel(ev({ ph: 7.25, paco2: 26, hco3: 12 }));
-    expect(screen.getByTestId("gaso-compensacao")).toHaveTextContent("26");
+  // HCO₃⁻ 12 tem esperada de Winters 26; a medida é 34, valor distinto do
+  // esperado. Assim o teste prova que o painel mostra os DOIS números — a
+  // previsão e a medida — e não passaria se o componente só ecoasse a
+  // entrada. Com 8 mmHg de desvio (margem é 2), a compensação não é mais
+  // adequada, e a asserção de texto reflete esse estado.
+  it("acidose metabólica mostra a PaCO₂ esperada de Winters e a medida", () => {
+    renderPanel(ev({ ph: 7.25, paco2: 34, hco3: 12 }));
+    const bloco = screen.getByTestId("gaso-compensacao");
+    expect(bloco).toHaveTextContent("26");
+    expect(bloco).toHaveTextContent("34");
+    expect(bloco).toHaveTextContent(/fora do previsto/i);
   });
 
   it("mostra o ânion gap bruto e o corrigido", () => {
@@ -91,7 +99,25 @@ describe("GasometriaPanel", () => {
 
   it("sem hipercapnia crônica não cita o DPOC", () => {
     renderPanel(ev({ ph: 7.25, paco2: 60, hco3: 26 }));
-    expect(screen.getByTestId("gaso-fonte")).not.toHaveTextContent(/Austin, 2010/);
+    const fonte = screen.getByTestId("gaso-fonte");
+    // Positiva primeiro: o rodapé continua existindo e cita a fonte de
+    // acidoBase (Berend, 2014), que está em TODA interpretação — sem ela, a
+    // ausência de Austin abaixo seria satisfeita também por rodapé nenhum.
+    expect(fonte).toHaveTextContent(/Berend, 2014/);
+    expect(fonte).not.toHaveTextContent(/Austin, 2010/);
+  });
+
+  // Leitura auxiliar do pH por 10 mmHg: convenção de livro-texto sem estudo
+  // primário, que não decide nada aqui. Os coeficientes (0,08 agudo e 0,03
+  // crônico) são deliberadamente omitidos porque `lib/gasometria.ts` não os
+  // devolve, e o componente não pode calcular número clínico por conta própria.
+  it("leitura do pH por 10 mmHg não inventa coeficiente", () => {
+    renderPanel(ev({ ph: 7.38, paco2: 60, hco3: 34 }));
+    const bloco = screen.getByTestId("gaso-temporalidade");
+    expect(bloco).toHaveTextContent(/convenção de livro-texto, sem estudo primário rastreável/i);
+    // Guarda contra um commit futuro que "complete" a feature digitando os
+    // coeficientes 0,08 (agudo) ou 0,03 (crônico) que o módulo não fornece.
+    expect(bloco).not.toHaveTextContent(/0[.,]0[83]/);
   });
 
   // ----------------------------------------------------------------
