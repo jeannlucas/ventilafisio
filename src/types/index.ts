@@ -96,6 +96,11 @@ export interface DailyEvolution {
   pao2: number | null;
   paco2: number | null;
   spo2: number | null;
+  hco3: number | null;
+  be: number | null;
+  na: number | null;
+  cl: number | null;
+  albumina: number | null;
   pimax: number | null;
   peak_cough_flow: number | null;
   glasgow: number | null;

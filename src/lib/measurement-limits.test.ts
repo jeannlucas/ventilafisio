@@ -154,3 +154,32 @@ describe("inconsistentMeasurements", () => {
     expect(erros).toHaveLength(2);
   });
 });
+
+describe("gasometria da Fase 6", () => {
+  // BE negativo é o achado esperado em acidose metabólica, não erro de digitação.
+  it("aceita excesso de base negativo", () => {
+    expect(invalidMeasurements({ be: "-12" })).toEqual([]);
+  });
+
+  // Zero é o valor NORMAL do BE, não campo vazio.
+  it("aceita excesso de base zero", () => {
+    expect(invalidMeasurements({ be: "0" })).toEqual([]);
+  });
+
+  it("aceita excesso de base positivo", () => {
+    expect(invalidMeasurements({ be: "6" })).toEqual([]);
+  });
+
+  it("barra excesso de base fisicamente impossível", () => {
+    expect(invalidMeasurements({ be: "-90" }).length).toBe(1);
+  });
+
+  it("barra bicarbonato zero ou negativo", () => {
+    expect(invalidMeasurements({ hco3: "0" }).length).toBe(1);
+    expect(invalidMeasurements({ hco3: "-3" }).length).toBe(1);
+  });
+
+  it("aceita sódio, cloro e albumina plausíveis", () => {
+    expect(invalidMeasurements({ na: "140", cl: "105", albumina: "2.1" })).toEqual([]);
+  });
+});

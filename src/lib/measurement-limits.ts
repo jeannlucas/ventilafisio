@@ -33,6 +33,11 @@ const LABELS: Record<string, string> = {
   pao2: "PaO₂",
   paco2: "PaCO₂",
   spo2: "SpO₂",
+  hco3: "HCO₃⁻",
+  be: "BE",
+  na: "Na⁺",
+  cl: "Cl⁻",
+  albumina: "Albumina",
   pimax: "PImax",
   peak_cough_flow: "Pico de tosse",
   glasgow: "Glasgow",
@@ -64,6 +69,14 @@ export const MEASUREMENT_LIMITS: Record<string, MeasurementLimit> = {
   pao2: { min: ACIMA_DE_ZERO },
   paco2: { min: ACIMA_DE_ZERO },
   spo2: { min: 0, max: 100 },
+  hco3: { min: ACIMA_DE_ZERO },
+  // BE é rotineiramente NEGATIVO e zero é o valor normal. Não existe `min: 0`
+  // aqui: ele rejeitaria toda gasometria de paciente acidótico. Os limites são
+  // só o fisicamente impossível.
+  be: { min: -50, max: 50 },
+  na: { min: ACIMA_DE_ZERO },
+  cl: { min: ACIMA_DE_ZERO },
+  albumina: { min: ACIMA_DE_ZERO },
 
   // Desmame
   pimax: { max: 0 }, // pressão inspiratória máxima é negativa por convenção

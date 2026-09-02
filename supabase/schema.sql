@@ -357,6 +357,12 @@ alter table public.daily_evolutions add column if not exists rass int;
 alter table public.daily_evolutions add column if not exists ims int;
 alter table public.daily_evolutions add column if not exists mrc jsonb not null default '{}';
 
+-- Gasometria da Fase 6. `hco3` e `be` já existiam desde a criação da tabela;
+-- estas três são novas e sustentam o ânion gap corrigido pela albumina.
+alter table public.daily_evolutions add column if not exists na numeric;
+alter table public.daily_evolutions add column if not exists cl numeric;
+alter table public.daily_evolutions add column if not exists albumina numeric;
+
 alter table public.daily_evolutions enable row level security;
 
 drop policy if exists "evolutions_select_own" on public.daily_evolutions;
@@ -516,8 +522,6 @@ grant execute on function public.evolution_authors(uuid) to authenticated;
 --
 --   patients.active            substituída por patients.status
 --   patients.admission_date    nunca preenchida
---   daily_evolutions.hco3      não existe campo no formulário
---   daily_evolutions.be        não existe campo no formulário
 --   asynchronies.evolution_id  nunca preenchida
 --   asynchronies.notes         nunca preenchida
 --   profiles.role              nenhuma regra de autorização a usa
@@ -525,11 +529,11 @@ grant execute on function public.evolution_authors(uuid) to authenticated;
 --     por public.tre_sessions. Continua sendo LIDA como fallback para pacientes
 --     registrados antes da mudança; deixou de ser escrita. Não derrubar.
 --
--- Caso decida remover, confira antes que não há dado real gravado:
---   select count(*) from public.daily_evolutions where hco3 is not null or be is not null;
---
 -- Saíram desta lista em 31/08/2026 (Fase 1), agora escritas pelo app:
 --   patients.intubation_date, patients.comorbidities
+--
+-- Saíram desta lista em 01/09/2026 (Fase 6), agora escritas pelo app:
+--   daily_evolutions.hco3, daily_evolutions.be
 --
 -- ventilators.notes é caso diferente: TEM conteúdo curado (o seed abaixo
 -- preenche), mas nenhuma tela mostra. Ou passa a ser exibida, ou sai. Decisão

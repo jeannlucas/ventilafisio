@@ -465,7 +465,11 @@ const EV_FIELDS: { k: keyof DailyEvolution; label: string; unit?: string }[] = [
   { k: "ppico", label: "P. pico", unit: "cmH₂O" }, { k: "pplat", label: "P. platô", unit: "cmH₂O" },
   { k: "flow", label: "Fluxo", unit: "L/min" }, { k: "ph", label: "pH" },
   { k: "pao2", label: "PaO₂", unit: "mmHg" }, { k: "paco2", label: "PaCO₂", unit: "mmHg" },
-  { k: "spo2", label: "SpO₂", unit: "%" }, { k: "pimax", label: "PImax", unit: "cmH₂O" },
+  { k: "spo2", label: "SpO₂", unit: "%" },
+  { k: "hco3", label: "HCO₃⁻", unit: "mmol/L" }, { k: "be", label: "BE", unit: "mmol/L" },
+  { k: "na", label: "Na⁺", unit: "mmol/L" }, { k: "cl", label: "Cl⁻", unit: "mmol/L" },
+  { k: "albumina", label: "Albumina", unit: "g/dL" },
+  { k: "pimax", label: "PImax", unit: "cmH₂O" },
   { k: "peak_cough_flow", label: "Pico tosse", unit: "L/min" }, { k: "glasgow", label: "Glasgow" },
   { k: "hr", label: "FC", unit: "bpm" }, { k: "sbp", label: "PAS", unit: "mmHg" },
   { k: "dbp", label: "PAD", unit: "mmHg" }, { k: "lactate", label: "Lactato", unit: "mmol/L" },
@@ -484,7 +488,7 @@ const FIELD_BY_KEY = Object.fromEntries(
 // resultadoTreParaTriagem), mas nunca mais escrito.
 const EV_SECTIONS: { title: string; color: string; keys: string[] }[] = [
   { title: "Parâmetros do ventilador", color: T.accent, keys: ["fr", "vc", "peep", "fio2", "ppico", "pplat", "flow"] },
-  { title: "Gasometria", color: T.ok, keys: ["ph", "pao2", "paco2", "spo2"] },
+  { title: "Gasometria", color: T.ok, keys: ["ph", "pao2", "paco2", "spo2", "hco3", "be", "na", "cl", "albumina"] },
   { title: "Desmame", color: T.purple, keys: ["pimax", "peak_cough_flow", "glasgow"] },
   { title: "Hemodinâmica", color: T.warn, keys: ["hr", "sbp", "dbp", "lactate"] },
 ];
