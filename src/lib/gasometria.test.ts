@@ -68,6 +68,15 @@ describe("disturbioPrimario", () => {
       .toBe("alcalose_metabolica");
   });
 
+  // "sem_disturbio" e "indeterminado" precisam ficar distintos: um diz que
+  // não há nada errado, o outro diz que os números não batem entre si. Um
+  // painel pintando o segundo de verde repetiria o defeito do FiO₂ zero.
+  it("pH fora da faixa com PaCO₂ e HCO₃⁻ normais é indeterminado, não sem distúrbio", () => {
+    const resultado = disturbioPrimario(gaso({ ph: 7.3, paco2: 40, hco3: 24 }));
+    expect(resultado).toBe("indeterminado");
+    expect(resultado).not.toBe("sem_disturbio");
+  });
+
   it("devolve null sem algum dos três parâmetros", () => {
     expect(disturbioPrimario(gaso({ ph: null }))).toBeNull();
     expect(disturbioPrimario(gaso({ paco2: null }))).toBeNull();

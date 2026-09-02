@@ -22,7 +22,8 @@ export type DisturbioPrimario =
   | "alcalose_metabolica"
   | "acidose_mista"
   | "alcalose_mista"
-  | "sem_disturbio";
+  | "sem_disturbio"
+  | "indeterminado";
 
 // Number.isFinite e não isNaN: divisão por zero produz Infinity, que passa por
 // isNaN. Mesma guarda de clinical.ts.
@@ -82,8 +83,11 @@ export function disturbioPrimario(e: EntradaGasometria): DisturbioPrimario | nul
   }
 
   // pH fora da faixa com PaCO₂ e HCO₃⁻ dentro dela: não há como nomear o
-  // distúrbio a partir destes três valores.
-  return "sem_disturbio";
+  // distúrbio a partir destes três valores. Os gases são internamente
+  // inconsistentes — o pH diz uma coisa e os dois parâmetros não dizem nada —
+  // e isso NÃO é o mesmo que "sem distúrbio": aqui há desacordo entre os
+  // números, não ausência de problema. Deliberadamente um valor distinto.
+  return "indeterminado";
 }
 
 export type Temporalidade = "aguda" | "cronica" | "indeterminada";
