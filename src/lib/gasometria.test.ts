@@ -167,6 +167,24 @@ describe("compensacao", () => {
   it("distúrbio respiratório não usa Winters", () => {
     expect(compensacao(gaso({ ph: 7.25, paco2: 60, hco3: 26 }))).toBeNull();
   });
+
+  // Pinam a MARGEM COMO FRONTEIRA, não só como valor. O teste acima já prova
+  // que `margem` é 2; estes dois provam que a comparação em `adequada` usa
+  // esse mesmo 2, e que o "<=" é inclusivo no limite. Sem eles, `margem` e o
+  // comparador poderiam se desacoplar (por exemplo virar "<") e a suíte
+  // continuaria verde.
+  // HCO₃⁻ 12 → esperada = 1,5×12+8 = 26.
+  it("diferença de exatamente 2 (a margem) ainda é adequada", () => {
+    const c = compensacao(gaso({ ph: 7.25, paco2: 28, hco3: 12 }));
+    expect(c!.esperada).toBeCloseTo(26, 5);
+    expect(c!.adequada).toBe(true);
+  });
+
+  it("diferença de 3, um a mais que a margem, é inadequada", () => {
+    const c = compensacao(gaso({ ph: 7.25, paco2: 29, hco3: 12 }));
+    expect(c!.esperada).toBeCloseTo(26, 5);
+    expect(c!.adequada).toBe(false);
+  });
 });
 
 describe("anionGap", () => {
@@ -241,6 +259,25 @@ describe("interpretar", () => {
   it("hipercapnia crônica traz o alvo de saturação do DPOC", () => {
     const r = interpretar(gaso({ ph: 7.38, paco2: 60, hco3: 34 }))!;
     const c = r.condutas.find((x) => /88/.test(x.texto));
+    expect(c).toBeDefined();
+    expect(c!.alcada).toBe("fisio");
+  });
+
+  // `alcada` decide se a tela apresenta a sugestão como algo que a fisioterapia
+  // pode simplesmente fazer, ou como decisão da equipe médica. Só o texto não
+  // basta: uma futura edição pode trocar o rótulo sem que o texto mude, e a
+  // direção perigosa é rotular decisão médica como se fosse alçada da fisio.
+  // Por isso o campo é comparado, não só a existência da conduta.
+  it("reavaliar o volume-minuto é alçada da fisio", () => {
+    const r = interpretar(gaso({ ph: 7.25, paco2: 60, hco3: 26 }))!;
+    const c = r.condutas.find((x) => /volume-minuto/i.test(x.texto));
+    expect(c).toBeDefined();
+    expect(c!.alcada).toBe("fisio");
+  });
+
+  it("verificar hiperventilação na alcalose respiratória é alçada da fisio", () => {
+    const r = interpretar(gaso({ ph: 7.52, paco2: 28, hco3: 22 }))!;
+    const c = r.condutas.find((x) => /hiperventilação/i.test(x.texto));
     expect(c).toBeDefined();
     expect(c!.alcada).toBe("fisio");
   });
