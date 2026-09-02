@@ -70,9 +70,10 @@ export const MEASUREMENT_LIMITS: Record<string, MeasurementLimit> = {
   paco2: { min: ACIMA_DE_ZERO },
   spo2: { min: 0, max: 100 },
   hco3: { min: ACIMA_DE_ZERO },
-  // BE é rotineiramente NEGATIVO e zero é o valor normal. Não existe `min: 0`
-  // aqui: ele rejeitaria toda gasometria de paciente acidótico. Os limites são
-  // só o fisicamente impossível.
+  // Cerca de implausibilidade, não faixa clínica: -50 e 50 só barram o que não
+  // pode existir. Não há piso positivo de propósito — o BE é rotineiramente
+  // NEGATIVO e zero é o seu valor NORMAL, no meio da escala e não numa ponta
+  // dela, então `min: 0` rejeitaria toda gasometria de paciente acidótico.
   be: { min: -50, max: 50 },
   na: { min: ACIMA_DE_ZERO },
   cl: { min: ACIMA_DE_ZERO },
