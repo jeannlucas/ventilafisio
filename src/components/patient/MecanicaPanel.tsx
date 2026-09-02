@@ -141,7 +141,12 @@ export function MecanicaPanel({ ev }: { ev: DailyEvolution }) {
     <Panel
       title="Mecânica: drive e esforço"
       sub="P0.1 e oclusão expiratória"
-      accent={d?.cor ?? e?.cor}
+      // A borda só carrega cor quando há um único achado para carregar. Com
+      // drive e esforço presentes ao mesmo tempo, colorir a favor de um dos
+      // dois seria decidir, aqui, uma precedência clínica entre eles que o
+      // módulo nunca forneceu: não colorir é a resposta honesta a uma
+      // combinação sobre a qual ninguém decidiu.
+      accent={d && e ? undefined : (d?.cor ?? e?.cor)}
     >
       <div style={{ display: "grid", gap: 12 }}>
         {d && (

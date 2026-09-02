@@ -27,6 +27,10 @@ describe("MecanicaPanel", () => {
     expect(screen.getByTestId("mec-incompleto")).toBeInTheDocument();
     expect(screen.queryByTestId("mec-drive")).not.toBeInTheDocument();
     expect(screen.queryByTestId("mec-esforco")).not.toBeInTheDocument();
+    // Fonte sem afirmação acima dela é ruído: o estado vazio não pode citar
+    // fonte nenhuma, e este projeto já teve rodapé descolado do que a tela
+    // mostrava.
+    expect(screen.queryByTestId("mec-fonte")).not.toBeInTheDocument();
   });
 
   // P0.1 ZERO É MEDIDA, e das graves. Se o painel o tratar como campo vazio,
@@ -51,13 +55,23 @@ describe("MecanicaPanel", () => {
   it("mostra o Pmus estimado e a faixa", () => {
     montar(ev({ pocc: -20 }));
     const bloco = screen.getByTestId("mec-esforco");
-    expect(bloco).toHaveTextContent("15");
+    expect(bloco).toHaveTextContent("15.0");
     expect(bloco).toHaveTextContent(/elevado/i);
+  });
+
+  // O 15 é ênfase de cópia, não uma quarta fronteira: as fronteiras são 4, 8
+  // e 12. Essa frase mora de propósito em `mec-esforco-ressalva`, separada do
+  // valor em `mec-esforco`, para que nenhum teste do valor a ateste de graça.
+  it("na faixa elevada, a ressalva cita 15 e P-SILI", () => {
+    montar(ev({ pocc: -20 }));
+    const ressalva = screen.getByTestId("mec-esforco-ressalva");
+    expect(ressalva).toHaveTextContent("15");
+    expect(ressalva).toHaveTextContent(/P-SILI/);
   });
 
   it("mostra a ΔP_L,dyn quando há pico e PEEP", () => {
     montar(ev({ pocc: -12, ppico: 30, peep: 10 }));
-    expect(screen.getByTestId("mec-dpl")).toHaveTextContent("28");
+    expect(screen.getByTestId("mec-dpl")).toHaveTextContent("28.0");
   });
 
   // DECISÃO DE NÃO EXIBIR: o mentor não foi perguntado sobre limiares da
@@ -88,5 +102,17 @@ describe("MecanicaPanel", () => {
     const fonte = screen.getByTestId("mec-fonte");
     expect(fonte).toHaveTextContent(/Telias, 2020/);
     expect(fonte).not.toHaveTextContent(/Bertoni, 2019/);
+  });
+
+  // Drive adequado (verde) e esforço elevado (vermelho) discordam. O módulo
+  // nunca decidiu qual dos dois manda na borda do painel, então a borda não
+  // pode sair colorida a favor do drive: o `<section>` do Panel volta à cor
+  // padrão (T.line), em vez de assumir a rgba do verde do drive.
+  it("com drive e esforço discordantes, a borda não carrega a cor do drive", () => {
+    const { container } = montar(ev({ p01: 2, pocc: -20 }));
+    expect(screen.getByTestId("mec-drive")).toHaveTextContent(/adequado/i);
+    expect(screen.getByTestId("mec-esforco")).toHaveTextContent(/elevado/i);
+    const painel = container.querySelector("section") as HTMLElement;
+    expect(painel.style.borderColor).toBe("rgb(31, 42, 56)");
   });
 });
