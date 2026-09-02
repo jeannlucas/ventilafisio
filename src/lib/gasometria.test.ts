@@ -139,6 +139,14 @@ describe("hipercapniaCronica", () => {
   it("sem PaCO₂ elevada é falso mesmo com bicarbonato alto", () => {
     expect(hipercapniaCronica(gaso({ ph: 7.45, paco2: 40, hco3: 32 }))).toBe(false);
   });
+
+  // Estreitamento interino de 02/09/2026: paciente alcalêmico não é retentor
+  // crônico. Os dois casos validados pelo mentor têm pH ≤ 7,36 e continuam
+  // verdadeiros — os dois testes acima são exatamente eles, e não mudaram.
+  it("pH alcalêmico não é hipercapnia crônica, mesmo com PaCO₂ e HCO₃⁻ altos", () => {
+    // Alcalose metabólica corriqueira de diurético ou sonda nasogástrica.
+    expect(hipercapniaCronica(gaso({ ph: 7.48, paco2: 48, hco3: 35 }))).toBe(false);
+  });
 });
 
 describe("compensacao", () => {

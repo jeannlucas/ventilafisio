@@ -11,6 +11,12 @@ export interface EntradaGasometria {
   ph: number | null;
   paco2: number | null;
   hco3: number | null;
+  /**
+   * Capturado e exibido em outros pontos do app, mas NÃO alimenta nenhum
+   * cálculo deste módulo: nenhuma função aqui lê `be`. Está na interface para
+   * que a entrada da gasometria continue completa, não porque participe da
+   * interpretação.
+   */
   be: number | null;
   na: number | null;
   cl: number | null;
@@ -162,9 +168,26 @@ export function temporalidade(e: EntradaGasometria): Temporalidade | null {
  * isso a tela diz "compatível com", nunca "é".
  *
  * O E externo continua sendo E: sem PaCO₂ elevada não há hipercapnia nenhuma.
+ *
+ * ESTREITAMENTO INTERINO (02/09/2026), à espera do mentor: o E externo passou a
+ * exigir também pH ≤ FAIXAS.ph.max, ou seja, paciente NÃO alcalêmico. Sem essa
+ * cláusula, pH 7,48 / PaCO₂ 48 / HCO₃⁻ 35 — alcalose metabólica corriqueira de
+ * diurético ou de sonda nasogástrica — passava pelo braço do pH e a tela
+ * anunciava hipercapnia de longa data, emitindo o alvo de SpO₂ de 88 a 92% num
+ * paciente que não retém CO₂. O critério da BTS é escrito para quem está sendo
+ * avaliado por insuficiência respiratória HIPERCÁPNICA, e ali "pH ≥ 7,35"
+ * significa "não acidótico, logo provavelmente compensado" — nunca quis dizer
+ * francamente alcalêmico.
+ *
+ * O que o mentor validou continua valendo: os dois casos que ele analisou
+ * (pH 7,36 / PaCO₂ 55 / HCO₃⁻ 26 e pH 7,30 / PaCO₂ 55 / HCO₃⁻ 30) seguem
+ * devolvendo `true`, porque os dois têm pH ≤ 7,36. Um pH alcalêmico estava fora
+ * do que lhe foi perguntado. O OU interno é ruling dele e NÃO foi tocado.
  */
 export function hipercapniaCronica(e: EntradaGasometria): boolean {
   if (!num(e.paco2) || e.paco2 <= FAIXAS.paco2.max) return false;
+  // pH ausente não bloqueia: quem carrega o critério então é o bicarbonato.
+  if (num(e.ph) && e.ph > FAIXAS.ph.max) return false;
   const phCompativel = num(e.ph) && e.ph >= 7.35;
   const hco3Compativel = num(e.hco3) && e.hco3 > 28;
   return phCompativel || hco3Compativel;
