@@ -13,6 +13,8 @@ const db = {
   asynchronies: [] as Record<string, unknown>[],
   treSessions: [] as Record<string, unknown>[],
   treSessionsError: null as { message: string } | null,
+  recruitmentManeuvers: [] as Record<string, unknown>[],
+  recruitmentManeuversError: null as { message: string } | null,
   updateError: null as { message: string } | null,
   insertError: null as { message: string } | null,
   deleteError: null as { message: string } | null,
@@ -29,6 +31,10 @@ function rowsOf(table: string) {
     return db.treSessionsError
       ? { data: null, error: db.treSessionsError }
       : { data: db.treSessions, error: null };
+  if (table === "recruitment_maneuvers")
+    return db.recruitmentManeuversError
+      ? { data: null, error: db.recruitmentManeuversError }
+      : { data: db.recruitmentManeuvers, error: null };
   return { data: [], error: null };
 }
 
@@ -128,6 +134,8 @@ beforeEach(() => {
   db.asynchronies = [];
   db.treSessions = [];
   db.treSessionsError = null;
+  db.recruitmentManeuvers = [];
+  db.recruitmentManeuversError = null;
   db.updateError = null;
   db.insertError = null;
   db.deleteError = null;
@@ -1036,5 +1044,62 @@ describe("painel de gasometria na aba Evolução", () => {
     renderDetail();
     const painel = (await screen.findByText(/Gasometria interpretada/i)).closest("section")!;
     expect(within(painel).getByTestId("gaso-disturbio")).toHaveTextContent(/acidose respiratória/i);
+  });
+});
+
+// ============================================================
+// Fase 7, Task 8: MecanicaPanel (Task 6) e RecrutabilidadePanel (Task 7)
+// existiam isolados, mas nada garantia que estivessem montados na página do
+// paciente. Sem estes testes, apagar `<MecanicaPanel/>` da aba Evolução ou
+// `<RecrutabilidadePanel/>` da aba Desmame não quebraria nada — foi
+// exatamente o defeito que a Fase 2 embarcou e teve que corrigir depois.
+// ============================================================
+describe("painéis de mecânica e recrutabilidade na página", () => {
+  const EVOLUCAO_BASE = {
+    id: "e-1",
+    patient_id: "p-1",
+    recorded_at: "2026-01-02T00:00:00Z",
+    fr: 16,
+    vc: 400,
+    peep: 8,
+    fio2: 40,
+    pao2: 120,
+    pplat: 24,
+    ppico: 30,
+    paw: 18,
+    glasgow: 10,
+    rass: -1,
+    ims: 0,
+    vasopressor: true,
+    peak_cough_flow: 60,
+    tre_result: "pass",
+    pimax: 50,
+  };
+
+  it("mostra o painel de mecânica na aba Evolução", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE, p01: 5, pocc: -20 }];
+    renderDetail();
+    const painel = (await screen.findByText(/Mecânica/i)).closest("section")!;
+    expect(within(painel).getByTestId("mec-drive")).toHaveTextContent(/elevado/i);
+  });
+
+  it("mostra o painel de recrutabilidade na aba Desmame", async () => {
+    db.patient = { ...PACIENTE_BASE };
+    db.evolutions = [{ ...EVOLUCAO_BASE }];
+    db.recruitmentManeuvers = [];
+    renderDetail();
+    await userEvent.click(await screen.findByRole("tab", { name: /desmame/i }));
+
+    // `RecrutabilidadePanel` devolve vários <Panel> irmãos (um por estado da
+    // manobra) mais um rodapé de fonte fora de qualquer um deles — não um
+    // único <section> que os envolva. `.closest("section")` a partir do
+    // título, como o TrePanel faz, pegaria só o primeiro Panel e nunca
+    // alcançaria `rec-fonte`, que fica de fora. `rec-fonte` só existe dentro
+    // deste componente em toda a árvore (conferido em RecrutabilidadePanel.tsx),
+    // então achá-lo na tela depois de navegar para Desmame já prova que o
+    // painel está montado ali — não é asserção que outro elemento satisfaça.
+    expect(await screen.findByText(/Manobra de recrutabilidade/i)).toBeInTheDocument();
+    expect(screen.getByTestId("rec-fonte")).toBeInTheDocument();
   });
 });

@@ -16,9 +16,11 @@ import { TrendCharts } from "../components/patient/TrendCharts";
 import { MotorPanel } from "../components/patient/MotorPanel";
 import { GasometriaPanel } from "../components/patient/GasometriaPanel";
 import { TrePanel } from "../components/patient/TrePanel";
+import { MecanicaPanel } from "../components/patient/MecanicaPanel";
+import { RecrutabilidadePanel } from "../components/patient/RecrutabilidadePanel";
 import { SourceFooter } from "../components/SourceFooter";
 import type { Mrc } from "../lib/scores";
-import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding, TreSession } from "../types";
+import { Patient, Ventilator, DailyEvolution, Asynchrony, CareAction, ImagingData, IvMeds, IvMedKey, Feeding, TreSession, RecruitmentManeuver } from "../types";
 import { resultadoTreParaTriagem, pendenciasParaIniciar } from "../lib/tre";
 import { IMAGING_FINDINGS, IV_MED_CATEGORIES, FEEDING_TUBES, DIET_TYPES } from "../data/clinical-board";
 import * as C from "../lib/clinical";
@@ -36,6 +38,7 @@ export default function PatientDetail() {
   const [careActions, setCareActions] = useState<CareAction[]>([]);
   // null = a busca por sessões de TRE falhou. Ver o comentário em `load()`.
   const [treSessions, setTreSessions] = useState<TreSession[] | null>([]);
+  const [recruitmentManeuvers, setRecruitmentManeuvers] = useState<RecruitmentManeuver[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -51,13 +54,17 @@ export default function PatientDetail() {
     if (!id) return;
     setLoading(true);
     setLoadError(null);
-    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }, { data: ca }, { data: tre, error: treError }] = await Promise.all([
+    const [{ data: p, error: patientError }, { data: v }, { data: ev }, { data: asy }, { data: ca }, { data: tre, error: treError }, { data: rec, error: recError }] = await Promise.all([
       supabase.from("patients").select("*").eq("id", id).single(),
       supabase.from("ventilators").select("*").order("brand"),
       supabase.from("daily_evolutions").select("*").eq("patient_id", id).order("recorded_at", { ascending: true }),
       supabase.from("asynchronies").select("*").eq("patient_id", id).order("recorded_at", { ascending: false }),
       supabase.from("care_actions").select("*").eq("patient_id", id).order("at", { ascending: false }),
       supabase.from("tre_sessions").select("*").eq("patient_id", id).order("iniciado_em", { ascending: true }),
+      // Último elemento de propósito: acrescentar aqui nunca desloca o
+      // destructuring de nenhuma busca anterior. A Fase 5 teve exatamente
+      // esse defeito no plano, pego na revisão.
+      supabase.from("recruitment_maneuvers").select("*").eq("patient_id", id).order("realizada_em", { ascending: false }),
     ]);
     // Sem este ramo, paciente inacessível deixava patient em null e a tela
     // ficava em "Carregando…" para sempre.
@@ -83,6 +90,10 @@ export default function PatientDetail() {
     // ser apagado por um `tre_result: "pass"` de antes da Fase 5 — o
     // bloqueador absoluto sumiria da tela por causa de um erro de rede.
     setTreSessions(treError ? null : ((tre as TreSession[]) ?? []));
+    // Falha na busca vira lista vazia, não crash: o painel mostra o estado de
+    // "sem manobra" em vez de quebrar. Ausência de dado não é resultado, mas
+    // aqui a lista vazia é a leitura honesta de "nada registrado ainda".
+    setRecruitmentManeuvers(recError ? [] : ((rec as RecruitmentManeuver[]) ?? []));
     // Nomes dos autores das evoluções (RPC escopado por acesso).
     const { data: au } = await supabase.rpc("evolution_authors", { p: id });
     const map: Record<string, string> = {};
@@ -170,6 +181,7 @@ export default function PatientDetail() {
         <div style={{ display: "grid", gap: 20 }}>
           {last ? <Dashboard patient={patient} ev={last} /> : hint("Registre a primeira evolução para ver os 4 indicadores.")}
           {last && <GasometriaPanel ev={last} />}
+          {last && <MecanicaPanel ev={last} />}
           <MotorPanel evolutions={evolutions} />
           <Grid min={340}>
             <EvolutionForm patient={patient} ownerId={session!.user.id} previous={last} onSaved={load} />
@@ -207,6 +219,12 @@ export default function PatientDetail() {
                 modoAtual={patient.current_mode}
                 sessoes={treSessions ?? []}
                 pendencias={pendenciasParaIniciar(triagem)}
+                onChange={load}
+              />
+              <RecrutabilidadePanel
+                patientId={patient.id}
+                ownerId={session!.user.id}
+                manobras={recruitmentManeuvers}
                 onChange={load}
               />
               <ExtubationCard triagem={triagem} />
