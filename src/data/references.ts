@@ -208,6 +208,76 @@ export const REFERENCES: Reference[] = [
     verificada: true,
   },
   {
+    id: "berend_2014",
+    citacaoCurta: "Berend, 2014",
+    autores: "Berend K, de Vries APJ, Gans ROB",
+    titulo: "Physiological approach to assessment of acid-base disturbances",
+    veiculo: "N Engl J Med 2014;371(15):1434-1445",
+    ano: 2014,
+    verificada: true,
+    nota:
+      "Revisão de referência. A Tabela 1 traz as regras de compensação por 10 mmHg de PaCO₂ em bicarbonato. Registra que na acidose respiratória crônica o pH pode estar normal ou acima de 7,40.",
+  },
+  {
+    id: "albert_1967",
+    citacaoCurta: "Albert, 1967",
+    autores: "Albert MS, Dell RB, Winters RW",
+    titulo:
+      "Quantitative displacement of acid-base equilibrium in metabolic acidosis",
+    veiculo: "Ann Intern Med 1967;66(2):312-322",
+    ano: 1967,
+    verificada: true,
+    nota:
+      "Fonte primária da fórmula de Winters, PaCO₂ esperada = 1,5 × HCO₃⁻ + 8 ± 2. Cobre APENAS acidose metabólica: não existe Winters para alcalose.",
+  },
+  {
+    id: "martinu_2003",
+    citacaoCurta: "Martinu, 2003",
+    autores: "Martinu T, Menzies D, Dial S",
+    titulo:
+      "Re-evaluation of acid-base prediction rules in patients with chronic respiratory acidosis",
+    veiculo: "Can Respir J 2003;10(6):311-315",
+    ano: 2003,
+    verificada: true,
+    nota:
+      "Mediu a compensação crônica em DPOC estável: HCO₃⁻ +5,1 por 10 mmHg de PaCO₂, acima da faixa de 4 a 5 da revisão do NEJM.",
+  },
+  {
+    id: "figge_1998",
+    citacaoCurta: "Figge, 1998",
+    autores: "Figge J, Jabor A, Kazda A, Fencl V",
+    titulo: "Anion gap and hypoalbuminemia",
+    veiculo: "Crit Care Med 1998;26(11):1807-1810",
+    ano: 1998,
+    verificada: true,
+    nota:
+      "Correção do ânion gap pela albumina, medida em 152 pacientes criticamente enfermos. Sem ela, hipoalbuminemia esconde acidose por ânion gap elevado.",
+  },
+  {
+    id: "odriscoll_2017",
+    citacaoCurta: "BTS, 2017",
+    autores: "O'Driscoll BR, Howard LS, Earis J, Mak V",
+    titulo:
+      "British Thoracic Society guideline for oxygen use in adults in healthcare and emergency settings",
+    veiculo: "BMJ Open Respir Res 2017;4(1):e000170",
+    ano: 2017,
+    verificada: true,
+    nota:
+      "Alvo de SpO₂ de 88 a 92% em DPOC e demais fatores de risco para insuficiência respiratória hipercápnica, com GRAU A para DPOC. Traz também o critério de hipercapnia de longa data por pH e bicarbonato.",
+  },
+  {
+    id: "austin_2010",
+    citacaoCurta: "Austin, 2010",
+    autores: "Austin MA, Wills KE, Blizzard L, Walters EH, Wood-Baker R",
+    titulo:
+      "Effect of high flow oxygen on mortality in chronic obstructive pulmonary disease patients in prehospital setting: randomised controlled trial",
+    veiculo: "BMJ 2010;341:c5462",
+    ano: 2010,
+    verificada: true,
+    nota:
+      "Ensaio randomizado, 405 pacientes. Oxigênio titulado contra liberal na exacerbação de DPOC: mortalidade menor no grupo titulado, e o efeito é maior no subgrupo com DPOC confirmada. É o que sustenta que saturação acima da faixa não é melhor.",
+  },
+  {
     id: "parecer_mrc_faixa",
     citacaoCurta: "Parecer clínico, 2026",
     profissional: "Mentor clínico do projeto",
@@ -230,5 +300,37 @@ export const REFERENCES: Reference[] = [
     data: "01/09/2026",
     nota:
       "A validade de 24 horas do resultado de um TRE é julgamento clínico, coerente com a cadência diária recomendada por AARC 2024 e ATS/CHEST 2017. NENHUMA das duas diretrizes afirma essa janela literalmente: elas recomendam avaliar e testar diariamente, e é dessa cadência que a janela foi derivada.",
+  },
+  {
+    id: "parecer_compensacao_cronica",
+    citacaoCurta: "Parecer clínico (compensação crônica), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "01/09/2026",
+    nota:
+      "O coeficiente de 5,0 mmol/L de HCO₃⁻ por 10 mmHg de PaCO₂ na acidose respiratória crônica é escolha clínica. Berend 2014 dá a faixa de 4 a 5 e Martinu 2003 mediu 5,1 em DPOC estável; nenhuma das duas diz 5,0.",
+  },
+  {
+    id: "parecer_ph_por_10",
+    citacaoCurta: "Parecer clínico (pH por 10 mmHg), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "01/09/2026",
+    nota:
+      "Os coeficientes de 0,08 no quadro agudo e 0,03 no crônico circulam como convenção de livro-texto. A pesquisa desta fase não achou estudo primário, e a Tabela 1 de Berend 2014 não traz pH. Por isso são leitura auxiliar na tela, e quem decide aguda ou crônica é o bicarbonato.",
+  },
+  {
+    id: "parecer_cronicidade_ou",
+    citacaoCurta: "Parecer clínico (critério de cronicidade), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "01/09/2026",
+    nota:
+      "A BTS escreve pH ≥ 7,35 e/ou HCO₃⁻ > 28. Apresentados dois casos concretos, o mentor decidiu que qualquer um dos dois basta. É o critério mais sensível dos dois, e por isso a tela diz compatível com, nunca é.",
+  },
+  {
+    id: "parecer_bicarbonato_gatilho",
+    citacaoCurta: "Parecer clínico (bicarbonato), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "01/09/2026",
+    nota:
+      "O aplicativo sinaliza bicarbonato a partir de pH < 7,20. Sinaliza o medicamento e nunca a dose: quem prescreve é a equipe médica.",
   },
 ];

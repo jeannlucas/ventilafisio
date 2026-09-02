@@ -19,6 +19,9 @@ const LABELS: Record<SourceKey, string> = {
   rass: "RASS",
   ims: "IMS",
   treFalha: "Critérios de falha do teste de respiração espontânea",
+  acidoBase: "Distúrbios ácido-base e compensação",
+  anionGap: "Ânion gap e correção pela albumina",
+  dpocOxigenio: "Oxigenoterapia e hipercapnia crônica no DPOC",
 };
 
 export default function Sources() {

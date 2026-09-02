@@ -116,3 +116,41 @@ describe("procedência", () => {
     expect(THRESHOLD_SOURCES.mrc).toContain("parecer_mrc_faixa");
   });
 });
+
+describe("fontes da gasometria (Fase 6)", () => {
+  it("as três chaves novas resolvem para fontes existentes", () => {
+    for (const k of ["acidoBase", "anionGap", "dpocOxigenio"] as const) {
+      expect(sourcesFor(k).length).toBeGreaterThan(0);
+    }
+  });
+
+  // O 5,0 da compensação crônica NÃO está em publicação nenhuma: o NEJM dá a
+  // faixa 4 a 5 e Martinu mediu 5,1. Atribuí-lo a uma delas seria pôr na tela
+  // uma citação que a fonte não sustenta.
+  it("o parecer da compensação crônica é Parecer, não Publicacao", () => {
+    const r = REFERENCES.find((x) => x.id === "parecer_compensacao_cronica");
+    expect(r).toBeDefined();
+    expect(ehParecer(r!)).toBe(true);
+  });
+
+  it("a regra do pH por 10 mmHg é Parecer: não tem estudo primário", () => {
+    const r = REFERENCES.find((x) => x.id === "parecer_ph_por_10");
+    expect(r).toBeDefined();
+    expect(ehParecer(r!)).toBe(true);
+  });
+
+  it("acidoBase cita o parecer do 5,0 junto das duas publicações", () => {
+    const ids = sourcesFor("acidoBase").map((r) => r.id);
+    expect(ids).toContain("berend_2014");
+    expect(ids).toContain("martinu_2003");
+    expect(ids).toContain("parecer_compensacao_cronica");
+  });
+
+  it("anionGap cita a correção pela albumina", () => {
+    expect(sourcesFor("anionGap").map((r) => r.id)).toContain("figge_1998");
+  });
+
+  it("dpocOxigenio cita o ensaio que mediu mortalidade", () => {
+    expect(sourcesFor("dpocOxigenio").map((r) => r.id)).toContain("austin_2010");
+  });
+});
