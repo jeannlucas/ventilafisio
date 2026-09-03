@@ -368,6 +368,10 @@ alter table public.daily_evolutions add column if not exists albumina numeric;
 alter table public.daily_evolutions add column if not exists p01 numeric;
 alter table public.daily_evolutions add column if not exists pocc numeric;
 
+-- Auto-PEEP da Fase 8. Zero é medida (ausência de aprisionamento aéreo), não
+-- campo vazio. Sustenta o teto de PEEP no DPOC, que é 80 a 85% deste valor.
+alter table public.daily_evolutions add column if not exists auto_peep numeric;
+
 alter table public.daily_evolutions enable row level security;
 
 drop policy if exists "evolutions_select_own" on public.daily_evolutions;

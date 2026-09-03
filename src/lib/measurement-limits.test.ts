@@ -234,3 +234,18 @@ describe("mecânica da Fase 7", () => {
     expect(invalidMeasurements({ pocc: "-90" }).length).toBe(1);
   });
 });
+
+describe("auto-PEEP da Fase 8", () => {
+  // Zero é MEDIDA: ausência de auto-PEEP, achado real e favorável.
+  it("aceita auto-PEEP zero", () => {
+    expect(invalidMeasurements({ auto_peep: "0" })).toEqual([]);
+  });
+
+  it("aceita auto-PEEP positivo", () => {
+    expect(invalidMeasurements({ auto_peep: "8" })).toEqual([]);
+  });
+
+  it("barra auto-PEEP negativo", () => {
+    expect(invalidMeasurements({ auto_peep: "-1" }).length).toBe(1);
+  });
+});

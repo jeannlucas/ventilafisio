@@ -41,6 +41,7 @@ const EVOLUCAO_ESTAVEL: DailyEvolution = {
   fr: 16,
   vc: 300,
   peep: 10,
+  auto_peep: null,
   fio2: 30,
   ppico: 26,
   pplat: 24,

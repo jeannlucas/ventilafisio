@@ -481,7 +481,9 @@ function Badge({ text }: { text: string }) {
 // ---------- Formulário de evolução diária ----------
 const EV_FIELDS: { k: keyof DailyEvolution; label: string; unit?: string }[] = [
   { k: "fr", label: "FR", unit: "/min" }, { k: "vc", label: "VC", unit: "mL" },
-  { k: "peep", label: "PEEP", unit: "cmH₂O" }, { k: "fio2", label: "FiO₂", unit: "%" },
+  { k: "peep", label: "PEEP", unit: "cmH₂O" },
+  { k: "auto_peep", label: "Auto-PEEP", unit: "cmH₂O" },
+  { k: "fio2", label: "FiO₂", unit: "%" },
   { k: "ppico", label: "P. pico", unit: "cmH₂O" }, { k: "pplat", label: "P. platô", unit: "cmH₂O" },
   { k: "flow", label: "Fluxo", unit: "L/min" },
   { k: "p01", label: "P0.1", unit: "cmH₂O" },
@@ -510,7 +512,7 @@ const FIELD_BY_KEY = Object.fromEntries(
 // `daily_evolutions.tre_result` continua sendo LIDO como legado (ver
 // resultadoTreParaTriagem), mas nunca mais escrito.
 const EV_SECTIONS: { title: string; color: string; keys: string[] }[] = [
-  { title: "Parâmetros do ventilador", color: T.accent, keys: ["fr", "vc", "peep", "fio2", "ppico", "pplat", "flow", "p01", "pocc"] },
+  { title: "Parâmetros do ventilador", color: T.accent, keys: ["fr", "vc", "peep", "auto_peep", "fio2", "ppico", "pplat", "flow", "p01", "pocc"] },
   { title: "Gasometria", color: T.ok, keys: ["ph", "pao2", "paco2", "spo2", "hco3", "be", "na", "cl", "albumina"] },
   { title: "Desmame", color: T.purple, keys: ["pimax", "peak_cough_flow", "glasgow"] },
   { title: "Hemodinâmica", color: T.warn, keys: ["hr", "sbp", "dbp", "lactate"] },

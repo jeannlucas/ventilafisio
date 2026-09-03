@@ -347,7 +347,7 @@ describe("validação da evolução", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: /evolução/i }));
     await userEvent.type(screen.getByLabelText(/P\. platô/), "10");
-    await userEvent.type(screen.getByLabelText(/PEEP/), "18");
+    await userEvent.type(screen.getByLabelText(/^PEEP/), "18");
     await userEvent.click(screen.getByRole("button", { name: /salvar evolução/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/platô/i);
@@ -360,7 +360,7 @@ describe("validação da evolução", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: /evolução/i }));
     await userEvent.type(screen.getByLabelText(/FiO₂/), "40");
-    await userEvent.type(screen.getByLabelText(/PEEP/), "8");
+    await userEvent.type(screen.getByLabelText(/^PEEP/), "8");
     await userEvent.click(screen.getByRole("button", { name: /salvar evolução/i }));
 
     await waitFor(() => expect(db.lastInsert).not.toBeNull());

@@ -50,6 +50,7 @@ const LABELS: Record<string, string> = {
   age: "Idade",
   p01: "P0.1",
   pocc: "ΔPocc",
+  auto_peep: "Auto-PEEP",
 };
 
 // Menor incremento representável acima de zero para "tem que ser positivo".
@@ -105,6 +106,10 @@ export const MEASUREMENT_LIMITS: Record<string, MeasurementLimit> = {
   // rejeitaria toda medida real, como `min: 0` rejeitaria todo BE de paciente
   // acidótico. Cerca de plausibilidade, não faixa clínica.
   pocc: { min: -60, max: 0 },
+
+  // Auto-PEEP: ZERO É MEDIDA, e favorável — significa ausência de
+  // aprisionamento aéreo. Nunca ACIMA_DE_ZERO aqui.
+  auto_peep: { min: 0 },
 };
 
 export function limitsFor(field: string): MeasurementLimit | undefined {

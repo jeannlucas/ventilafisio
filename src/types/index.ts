@@ -88,6 +88,7 @@ export interface DailyEvolution {
   fr: number | null;
   vc: number | null;
   peep: number | null;
+  auto_peep: number | null;
   fio2: number | null;
   ppico: number | null;
   pplat: number | null;
