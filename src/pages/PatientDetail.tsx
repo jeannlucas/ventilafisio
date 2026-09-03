@@ -449,7 +449,7 @@ function AdmissionCard({ patient }: { patient: Patient }) {
         {/* Mesma formatação do Dashboard, e da mesma função: `peep` é
             `number | null`, e interpolar direto escreveria "null" na tela
             quando o motor recusa dar número. */}
-        <SugBox label="PEEP" big={peepTexto.big} sub={peepTexto.sub} />
+        <SugBox label="PEEP" big={peepTexto.big} sub={peepTexto.sub} testid="admissao-sug-peep" />
         <SugBox label="FiO₂" big={`${peepFio2.valor.fio2}%`} sub="titular pela SpO₂/PaO₂" />
         <SugBox label="FREQUÊNCIA" big={`${ventilacao.valor.fr} /min`} sub="derivada do VC alvo" />
         <SugBox label="VOLUME-MINUTO" big={`${fmt(ventilacao.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />

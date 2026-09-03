@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Dashboard } from "./Dashboard";
+import { Dashboard, textoPeep } from "./Dashboard";
 import { PatientHeader } from "./PatientHeader";
 import type { Patient, DailyEvolution } from "../../types";
+import type { Alvo, AlvoPeepFio2 } from "../../lib/alvos";
 
 // ---------- Fixtures ----------
 // Paciente e evolução inventados (repositório público), sem nenhum dado real.
@@ -246,6 +247,50 @@ describe("Dashboard", () => {
   it("não cita a fonte do aviso do obeso em quem não é obeso", () => {
     renderDashboard({ weight_kg: 70, height_cm: 170 }, {});
     expect(screen.queryByText(/PROBESE, 2019/)).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// `textoPeep` é a formatação compartilhada pelas DUAS telas que exibem este
+// alvo: o Dashboard e o card de admissão do PatientDetail. O caso sem número
+// só é alcançável pelo Dashboard (o card de admissão chama o motor sem P/F e
+// sem SpO₂, e o preset de admissão sai antes do portão da patologia), então é
+// aqui, na função, que ele fica coberto para os dois consumidores.
+// ============================================================
+describe("textoPeep", () => {
+  const alvoPeep = (
+    valor: AlvoPeepFio2,
+    base: AlvoPeepFio2 = valor,
+    modulacoes: Alvo<AlvoPeepFio2>["modulacoes"] = []
+  ): Alvo<AlvoPeepFio2> => ({ valor, base, modulacoes });
+
+  it("mostra o número quando o motor deu número", () => {
+    const t = textoPeep(alvoPeep({ fio2: 50, peep: 8, faixaPeep: null, presetAdmissao: false }));
+    expect(t.big).toContain("8");
+  });
+
+  it("mostra a faixa quando o motor deu faixa", () => {
+    const t = textoPeep(
+      alvoPeep({ fio2: 60, peep: null, faixaPeep: { min: 8, max: 8.5 }, presetAdmissao: false })
+    );
+    expect(t.big).toContain("8.0");
+    expect(t.big).toContain("8.5");
+  });
+
+  // O que este caso impede: cair no `base`, que é justamente o número da
+  // tabela do ARDSnet que o motor RECUSOU dar. `sub` entra na asserção
+  // porque as duas telas o imprimem dentro da mesma caixa do valor: um
+  // número ali seria lido como a PEEP sugerida.
+  it("não mostra dígito nenhum quando o motor não tem número a dar", () => {
+    const t = textoPeep(
+      alvoPeep(
+        { fio2: 60, peep: null, faixaPeep: null, presetAdmissao: false },
+        { fio2: 60, peep: 10, faixaPeep: null, presetAdmissao: false },
+        [{ motivo: "DPOC: auto-PEEP não medido.", sourceKey: "obstrutivo" }]
+      )
+    );
+    expect(t.big).not.toMatch(/\d/);
+    expect(t.sub).not.toMatch(/\d/);
   });
 });
 

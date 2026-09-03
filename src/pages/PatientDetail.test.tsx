@@ -623,6 +623,28 @@ describe("sugestão de admissão", () => {
     const painel = screen.getByText(/Sugestão de admissão/).closest("section")!;
     expect(within(painel).getByText(/AMIB\/SBPT, 2024/)).toBeInTheDocument();
   });
+
+  // A caixa de PEEP da admissão passou a formatar por `textoPeep`, porque
+  // `peep` é `number | null` e a interpolação anterior escreveria a palavra
+  // "null" na tela de beira de leito. O caso do traço NÃO é alcançável por
+  // aqui, e isso é comportamento do motor, não da tela: `sugestaoAdmissao`
+  // chama `sugerirPeepFio2` sem P/F e sem SpO₂, e o preset de admissão sai
+  // ANTES do portão da patologia — o DPOC nunca chega a zerar a PEEP na
+  // admissão. Por isso este teste fixa o que existe (o número do preset, sem
+  // linha de modulação) e o caso sem número é coberto onde ele é alcançável,
+  // em `textoPeep` (Dashboard.test.tsx), que é a MESMA função que este card
+  // usa. Quem tornar o portão da patologia alcançável na admissão derruba
+  // este teste — e é esse o aviso para acrescentar aqui a asserção do traço.
+  it("formata a PEEP de admissão pelo motor, sem escrever 'null' na tela", async () => {
+    db.patient = { ...PACIENTE_BASE, comorbidities: ["dpoc"] };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    const caixa = screen.getByTestId("admissao-sug-peep");
+    expect(caixa).toHaveTextContent("5");
+    expect(caixa).not.toHaveTextContent(/null/i);
+    expect(screen.queryByTestId("admissao-peep-modulacao")).not.toBeInTheDocument();
+  });
 });
 
 // ============================================================
