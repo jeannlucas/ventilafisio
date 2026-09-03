@@ -22,7 +22,14 @@ export type SourceKey =
   | "obstrutivo" | "obesidadeVentilacao" | "lesaoCerebral"
   // A faixa do obeso tem chave PRÓPRIA: o parecer que a sustenta não sustenta
   // a faixa 4-6 do não obeso, e `vcKg` é citado no rodapé de todo paciente.
-  | "vcKgObeso";
+  | "vcKgObeso"
+  // Pareceres de 03/09/2026, cada um com chave própria pelo mesmo motivo do
+  // `vcKgObeso`: citação tem que sustentar o que está escrito embaixo dela.
+  // `parecer_fr_obstrutivo` sob `obstrutivo` apareceria no rodapé do ramo da
+  // PEEP, que ele não sustenta; `parecer_paco2_tce` sob `lesaoCerebral`
+  // apareceria para todo TCE, inclusive o que não tem obstrutivo nenhum.
+  | "frObstrutivo" | "autoPeepAplicacao" | "asmaDpoc" | "paco2Obstrutivo"
+  | "dplFaixas";
 
 export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   pf: ["ardsnet_2000", "amib_sbpt_2024"],
@@ -68,6 +75,13 @@ export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   obstrutivo: ["demoule_2020", "ranieri_1993"],
   obesidadeVentilacao: ["probese_2019", "dejong_2020"],
   lesaoCerebral: ["robba_2020"],
+  frObstrutivo: ["parecer_fr_obstrutivo"],
+  autoPeepAplicacao: ["parecer_auto_peep_baixo"],
+  asmaDpoc: ["parecer_asma_dpoc"],
+  paco2Obstrutivo: ["parecer_paco2_tce"],
+  // Só o parecer: a conversão que produz o número já é citada por `esforco`,
+  // e o que esta chave sustenta são as FAIXAS, que Bertoni não valida.
+  dplFaixas: ["parecer_dpl_faixas"],
 };
 
 const BY_ID = new Map(REFERENCES.map((r) => [r.id, r]));

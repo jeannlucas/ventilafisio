@@ -29,6 +29,11 @@ const LABELS: Record<SourceKey, string> = {
   obstrutivo: "Ventilação em DPOC e asma",
   obesidadeVentilacao: "Ventilação no paciente obeso",
   lesaoCerebral: "Alvo de PaCO₂ em lesão cerebral aguda",
+  frObstrutivo: "Decisão da frequência respiratória no obstrutivo",
+  autoPeepAplicacao: "Aplicação da regra da PEEP externa sobre o auto-PEEP",
+  asmaDpoc: "Asma e DPOC marcadas no mesmo paciente",
+  paco2Obstrutivo: "PaCO₂ em lesão cerebral aguda com patologia obstrutiva",
+  dplFaixas: "Faixas de leitura da ΔP_L,dyn estimada",
 };
 
 export default function Sources() {

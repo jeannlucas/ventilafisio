@@ -459,4 +459,44 @@ export const REFERENCES: Reference[] = [
     nota:
       "A faixa de 6 a 8 ml/kg de peso predito no obeso é escolha clínica, reafirmada depois de ver que De Jong 2020 recomenda 6 nos dois grupos e alerta que o peso predito estimado tende a ser superestimado nesse paciente.",
   },
+  {
+    id: "parecer_fr_obstrutivo",
+    citacaoCurta: "Parecer clínico (frequência no obstrutivo), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "03/09/2026",
+    nota:
+      "\"Frequência sempre decidida na beira do leito.\" Confirma que o aplicativo não deve impor limite inferior de frequência ao paciente obstrutivo: nenhuma fonte publica esse número, e a regulagem é do terapeuta diante do paciente.",
+  },
+  {
+    id: "parecer_auto_peep_baixo",
+    citacaoCurta: "Parecer clínico (aplicação da regra do auto-PEEP), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "03/09/2026",
+    nota:
+      "\"Não existe um valor mágico de auto-PEEP a partir do qual a regra passa a ser obrigatória. O objetivo da PEEP externa é principalmente reduzir o limiar de disparo imposto pela hiperinsuflação dinâmica, e não simplesmente corrigir a auto-PEEP.\" Ele situa a utilidade prática da regra a partir de 3 a 4 cmH₂O e destaca que auto-PEEP baixa não exclui hiperinsuflação: a medida depende de pausa expiratória com paciente passivo, e o sinal a olhar é se o fluxo expiratório retorna a zero antes do próximo ciclo.",
+  },
+  {
+    id: "parecer_asma_dpoc",
+    citacaoCurta: "Parecer clínico (asma e DPOC no mesmo paciente), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "03/09/2026",
+    nota:
+      "\"Não tenho uma resposta satisfatória para essa pergunta agora, mas acho que vc pode considerar da melhor maneira possível, sendo minucioso nos dois casos.\" Sustenta a decisão de exibir os dois limites lado a lado, sem eleger um deles: ninguém decidiu qual prevalece no paciente com as duas patologias marcadas.",
+  },
+  {
+    id: "parecer_paco2_tce",
+    citacaoCurta: "Parecer clínico (PaCO₂ em lesão cerebral com obstrutivo), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "03/09/2026",
+    nota:
+      "\"Puxa o cuidado muito minucioso que é necessário em TCE, tendo em vista que não pode haver retenção de CO2.\" Resolve o conflito entre a lesão cerebral aguda e a patologia obstrutiva no mesmo paciente: a lesão cerebral prevalece e a hipercapnia permissiva deixa de ser opção.",
+  },
+  {
+    id: "parecer_dpl_faixas",
+    citacaoCurta: "Parecer clínico (faixas da ΔP_L,dyn), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "03/09/2026",
+    nota:
+      "\"Por favor classifica com os cortes já vistos como 15 e 20.\" As fronteiras de 15 e 20 cmH₂O para a ΔP_L,dyn estimada são escolha clínica dele. Bertoni 2019 sustenta a conversão que produz o número, não estas faixas.",
+  },
 ];
