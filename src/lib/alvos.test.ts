@@ -447,14 +447,28 @@ describe("sugerirPeepFio2 por patologia", () => {
 
   // O texto que pede o auto-PEEP é do DPOC, e só dele: nenhum caminho da asma
   // pode alcançá-lo, com ou sem auto-PEEP, com ou sem oxigenação.
-  it("nenhum caminho da asma pede o auto-PEEP", () => {
-    for (const autoPeep of [null, 0, 10]) {
-      for (const pf of [null, 150]) {
-        const a = sugerirPeepFio2(pf, null, perfilCom(["asma"]), autoPeep);
-        for (const m of a.modulacoes) expect(m.motivo).not.toMatch(/registre o auto-PEEP/i);
+  // A varredura cobre a asma pura E a dupla, porque o defeito era de ORDEM de
+  // ramo: o pedido de auto-PEEP nascia acima do teto da asma e alcançava os
+  // dois. A folha sem gasometria e sem auto-PEEP é a que ninguém fixava, e é
+  // justamente a que o `AdmissionCard` sempre produz.
+  it.each([
+    ["asma", ["asma"] as PatologiaKey[]],
+    ["asma e DPOC", ["dpoc", "asma"] as PatologiaKey[]],
+  ])(
+    "nenhum caminho com %s pede o auto-PEEP",
+    (_rotulo, patologias) => {
+      for (const autoPeep of [null, 0, 10]) {
+        for (const pf of [null, 150]) {
+          const a = sugerirPeepFio2(pf, null, perfilCom(patologias), autoPeep);
+          expect(a.valor.peep).toBe(5);
+          for (const m of a.modulacoes) {
+            expect(m.motivo).not.toMatch(/registre o auto-PEEP/i);
+            expect(m.motivo).toMatch(/asma/i);
+          }
+        }
       }
     }
-  });
+  );
 
   it("sem patologia obstrutiva o preset continua sem modulação nenhuma", () => {
     expect(sugerirPeepFio2(null, null, perfilCom([]), null).modulacoes).toEqual([]);

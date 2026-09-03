@@ -7,7 +7,7 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 02/09/2026: a suíte roda e passa. `pnpm test` devolve **527 testes
+Estado em 03/09/2026: a suíte roda e passa. `pnpm test` devolve **617 testes
 em 28 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
@@ -476,6 +476,187 @@ afirmando o que a versão anterior achava.
   uma lista derivada. Os três sítios que hoje imprimem razão estão cobertos; um
   quarto reintroduziria o defeito.
 
+## Alvo por patologia: o que a doença de base muda, e o que ela não muda
+
+A Fase 8 fez as sugestões de ventilação enxergarem a patologia do paciente.
+`src/lib/alvos.ts` faz todo o raciocínio; os painéis desenham o que ele devolveu
+e **não têm número clínico nenhum dentro**.
+
+`PatologiaKey` é união fechada de três — `dpoc`, `asma`, `lesao_cerebral_aguda` —
+e `derivarPerfil` filtra `patient.comorbidities` por ela antes de qualquer
+consumidor. A caixa genérica **"Doença neurológica" (`neuro`) não é a mesma coisa
+que `lesao_cerebral_aguda`**, e a distinção é estrutural: `neuro` sequer chega em
+`perfil.patologias`. Sem isso o alvo de PaCO₂ do TCE cairia sobre a doença
+neuromuscular crônica, onde ele empurra para o lado errado.
+
+Obesidade **não** está na união: ela modula o volume corrente por `perfil.obeso`,
+que vem do IMC, não de caixa marcada.
+
+### Asma e DPOC vão em direções opostas, e o app nunca as funde
+
+É o eixo da fase inteira, e o defeito que ela mais tentou reintroduzir:
+
+- **Asma: teto fixo de 5 cmH₂O**, com ou sem auto-PEEP. A tabela do ARDSnet não
+  se aplica.
+- **DPOC: 80 a 85% do auto-PEEP MEDIDO.** Sem auto-PEEP medido o aplicativo
+  **não dá número nenhum** — devolver o valor da tabela seria afirmar que ela
+  vale ali.
+
+A faixa existe porque Ranieri 1993 situa o limite em 85% e Demoule 2020 em 80%.
+O app mostra os dois em vez de escolher um.
+
+Duas armadilhas registradas porque já aconteceram nesta fase:
+
+1. O ramo do "ponto de partida" nasceu **acima** do ramo da asma e mandava o
+   asmático registrar o auto-PEEP, medida que o app nunca usa nele. E o
+   `AdmissionCard` sempre passa os três valores nulos, então **todo** asmático
+   via a linha. Ordem de ramo é decisão clínica aqui, não estilo.
+2. O teto da asma é `Math.min(base.peep!, PEEP_MAX_ASMA)`, e **nenhum fixture o
+   distingue de um `5` cru**, porque o piso do `ARDSNET_LOW` é 5. Fica assim de
+   propósito: `Math.min` é o operador de um TETO, e um `5` cru **elevaria** para
+   5 um valor de tabela já menor, agravando o aprisionamento. A intestabilidade
+   é propriedade da tabela, não do código.
+
+### Auto-PEEP ZERO recusa número, e não é a mesma recusa
+
+Zero é medida real e **favorável**: significa que não há aprisionamento aéreo a
+limitar, ou seja, a premissa da regra dos 80 a 85% não existe naquele paciente.
+Nenhuma das duas fontes diz "auto-PEEP zero, logo PEEP zero". O app chegou a
+mostrar **"PEEP 0,0 a 0,0 cmH₂O"** para paciente com P/F 150: prescrição de ZEEP
+nascida de multiplicar um achado bom por 0,8.
+
+Hoje o zero recusa número, **com motivo próprio, diferente do motivo do "não
+medido"**. Os dois recusam, por razões diferentes, e há teste que fica vermelho
+se alguém fundir os dois textos. Isso é o oposto de confundir zero com ausência:
+é levar o zero a sério.
+
+O corte é em **zero exato**, e só nele, porque zero é a ausência do fenômeno e
+não um limiar. Auto-PEEP pequeno mas não nulo (1, 2) continua produzindo faixa,
+e é pergunta aberta ao mentor — inclusive porque `auto_peep = 1` hoje aparece
+como "0,8 a 0,8 cmH₂O", que tem a mesma cara do defeito acima.
+
+### Sem gasometria e sem oximetria, a base é o preset, não a tabela
+
+`sugerirPeepFio2` constrói a base a partir da oxigenação: com P/F ou SpO₂, a
+linha do ARDSnet; sem nenhum dos dois, o preset (FiO₂ 100, PEEP 5,
+`presetAdmissao: true`). **Só depois** roda o portão da patologia, sobre a base
+que construiu.
+
+Essa separação é o conserto de dois defeitos que se sucederam:
+
+1. O portão do preset ficava **antes** do portão da patologia, então num dia sem
+   gasometria o Dashboard imprimia "PEEP 5 · tabela ARDSnet" para o DPOC — a
+   tabela que a fase declara não se aplicar — e **descartava em silêncio** o
+   auto-PEEP que o fisioterapeuta tinha acabado de digitar.
+2. O primeiro conserto roteou esse paciente para o ramo da tabela, e ele passou a
+   receber **FiO₂ 40% sem nenhum dado de oxigenação**. Ausência de dado virando
+   número afirmativo, e no sentido perigoso: 40% é baixo onde o padrão seguro sem
+   informação é 100%.
+
+A lição vale para além desta função: ao consertar um caminho de ausência de dado,
+varra os **outros campos que a mesma função devolve**. O defeito não sumiu, mudou
+de campo.
+
+O rótulo "tabela ARDSnet" só aparece quando o número veio mesmo da tabela.
+
+### O app não rebaixa a frequência respiratória
+
+A fase chegou a baixar o piso de frequência de 12 para 10 em obstrutivo, e a tela
+dizia *"piso de frequência baixado para dar tempo de expirar"*. Duas coisas
+estavam erradas ao mesmo tempo:
+
+- **O piso nunca entrava em vigor.** `bruto = predBW × 100 / vcTargetMl`, e o
+  alvo de volume é sempre `predBW × 6` (ou `× 7` no obeso), então **o peso se
+  cancela** e a frequência é 17 ou 14 para qualquer paciente. Nem 12 nem 10
+  jamais limitaram nada. A tela afirmava um rebaixamento que não acontecia.
+- **O 10 não tinha fonte.** Nem publicação, nem parecer: o dossiê o registra como
+  pergunta aberta. Era número clínico inventado, citado sob Demoule e Ranieri.
+
+O piso obstrutivo saiu. A modulação ficou, com o que Demoule de fato publica — a
+relação I:E alvo de 1:4 a 1:6 — dizendo explicitamente que **o aplicativo não
+altera a frequência e não calcula a relação**, porque não conhece o tempo
+inspiratório configurado no ventilador. Qual é o piso em obstrutivo, se é que
+existe, é pergunta ao mentor.
+
+Isto passou por uma review de tarefa sem ser pego porque a fixture era
+`sugerirVentilacao(70, 700)` — 10 ml/kg, alvo que `sugerirVc` **nunca produz**.
+Fixture de ramo inalcançável prova o comportamento de um código que ninguém roda.
+
+### O app não diz se o obeso deve ser recrutado, e não dá piso de PEEP
+
+O ensaio que testou recrutamento com PEEP alta no obeso é **intraoperatório e
+negativo**, e não sustenta piso de PEEP nenhum. Por isso o aviso do obeso **não
+tem número**, e há teste que exige que ele não tenha dígito.
+
+Mas o teste que dizia guardar a recusa **escopava a asserção no elemento do
+aviso**, que é texto constante: injetar um `Math.max(peep, 10)` para o obeso
+deixava a suíte **inteira verde**. O nome do teste prometia o dobro do que a
+asserção verificava. Hoje a recusa é afirmada onde ela mora, em `alvos.ts`:
+`modulacoes` vazia e `valor.peep === base.peep`.
+
+O volume corrente do obeso é a única modulação da fase que **move um número**:
+a faixa desloca de 4–6 para 6–8 ml/kg de peso predito, e o alvo vai a 7. É
+`parecer_vc_obeso`, do mentor — De Jong 2020 recomenda 6 nos dois grupos.
+
+### A citação tem que sustentar o que está escrito EMBAIXO dela
+
+O parecer do VC no obeso entrou primeiro em `THRESHOLD_SOURCES.vcKg`, que aparece
+em rodapés escritos à mão: **todo** paciente passou a ver "Parecer clínico (VC no
+obeso)" sob um card que mostrava a faixa 4–6 do não obeso. Sobre-citação.
+
+A chave `vcKgObeso` separou os dois. Mas o conserto, sozinho, trocou a
+sobre-citação pela **sub-citação**: o obeso ficou vendo 6–8 classificado "Ideal"
+sobre um rodapé que citava só fontes que não sustentam 6–8. Os dois rodapés
+escritos à mão passaram a derivar de `sVc.modulacoes`, como o resto da fase.
+
+**Rodapé escrito à mão é o defeito, nas duas direções.** Este projeto já embarcou
+três vezes um painel cujo rodapé não cobria o que ele exibia, e nesta fase
+embarcou o inverso duas vezes em dois commits seguidos.
+
+### O alvo de PaCO₂ é alvo próprio, não modulação de um alvo existente
+
+`alvoPaco2` devolve 35 a 45 mmHg **só** para `lesao_cerebral_aguda`, e devolve
+`null` para todo o resto — não um alvo neutro. É o único produtor de `alvos.ts`
+com `base === valor` **e** `modulacoes` não vazia, e é proposital: não existe
+alvo contrafactual, porque sem a patologia o app não dá alvo de PaCO₂ nenhum.
+
+Por isso ele é renderizado com `LinhaModulacaoSimples`, nunca com
+`LinhaModulacao`: esta imprime "Padrão sem essa modulação: X" e inventaria um
+alvo padrão que os outros pacientes não têm.
+
+A ressalva do Robba 2020 — recomendação **forte** sobre evidência de qualidade
+**baixa**, válida para o paciente **sem hipertensão intracraniana clinicamente
+significativa**, que o app não tem como saber — vai em elemento **irmão**, nunca
+dentro do que carrega os números. Este projeto já embarcou um teste que passava
+porque os dígitos de uma ressalva estavam no mesmo elemento do valor asserido.
+
+### O que ficou pendente
+
+- **Qual é o piso de frequência em obstrutivo, se existe?** O 10 saiu por não ter
+  fonte. Demoule diz "frequência baixa" e não publica número.
+- **Auto-PEEP pequeno mas não nulo.** O corte é em zero exato; 1 produz faixa, e
+  ela aparece como "0,8 a 0,8".
+- **DPOC e lesão cerebral aguda juntos puxam a PaCO₂ em direções opostas** —
+  hipercapnia permissiva contra normocapnia de 35 a 45. O app mostra os dois
+  alvos lado a lado sem reconciliar.
+- **Asma e DPOC marcados juntos: o teto da asma é aplicado, e o texto NÃO afirma
+  que é o mais conservador**, porque não é em toda a faixa: com auto-PEEP baixo o
+  limite do DPOC cai abaixo de 5. Tomar o menor dos dois seria aritmética de dois
+  tetos já publicados, mas resolveria sozinha uma pergunta que ninguém respondeu.
+- **O preset de admissão é cego à patologia por construção**, e o portão do
+  preset só cede quando há auto-PEEP medido.
+- **O alvo de PaCO₂, o aviso do obeso e a linha de I:E não existem no
+  `AdmissionCard`**, que é a única tela antes da primeira evolução — o momento em
+  que os três mais importam. `AVISO_OBESO` mora em `Dashboard.tsx` e não em
+  `lib/`, o que é justamente o que impede o reuso.
+- **A chave `obstrutivo` cita Demoule 2020 E Ranieri 1993**, então o ramo só-asma
+  exibe no rodapé um artigo de auto-PEEP em DPOC que não sustenta o teto de 5. É
+  sobre-citação, não afirmação falsa, e separar em duas chaves mexe em
+  `references`, no `LABELS` do `Sources.tsx` e no teste de referência órfã.
+- **`auto_peep`, como `peep`, `pplat` e `vc`, não tem teto de escala.** A
+  diferença é que auto-PEEP 150 não fica parado num campo: vira faixa formatada
+  como alvo. Teto de escala é número clínico e precisa de fonte.
+
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
    mudança em cálculo, faixa de referência ou recomendação tem consequência
@@ -545,3 +726,19 @@ afirmando o que a versão anterior achava.
 15. **A tabela `recruitment_maneuvers` e as colunas `p01` e `pocc` são
     aplicadas à mão**, como as anteriores. Sem elas o formulário falha nos dois
     campos e o painel da manobra monta mas não grava.
+16. **A coluna `auto_peep` é aplicada à mão**, como as anteriores. Sem ela o
+    formulário de evolução grava os demais campos e falha nesse; e sem
+    auto-PEEP medido o app simplesmente não dá alvo de PEEP para o paciente
+    com DPOC, que é o comportamento correto e não um defeito.
+17. **Asma e DPOC vão em direções OPOSTAS, e a ordem dos ramos é decisão
+    clínica.** O teto da asma é fixo em 5 com ou sem auto-PEEP; o do DPOC exige
+    auto-PEEP medido. Um ramo genérico de "obstrutivo" acima do ramo da asma
+    manda o asmático medir o que o app nunca vai usar nele, e o
+    `AdmissionCard` chama sempre com os três valores nulos, então TODO
+    asmático veria. Já aconteceu nesta fase.
+18. **Auto-PEEP ZERO é medida real e favorável, e recusa número por motivo
+    PRÓPRIO.** Zero significa que não há aprisionamento a limitar, ou seja, a
+    regra dos 80 a 85% perdeu o referente. Não é a mesma recusa do "não
+    medido", e há teste que fica vermelho se alguém fundir os dois textos.
+    Multiplicar o zero por 0,8 devolvia "PEEP 0,0 a 0,0 cmH₂O" para paciente
+    com P/F 150.
