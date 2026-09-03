@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sugerirVc, sugerirPeepFio2, sugerirVentilacao, sugestaoAdmissao } from "./alvos";
+import { sugerirVc, sugerirPeepFio2, sugerirVentilacao, alvoPaco2, sugestaoAdmissao } from "./alvos";
 import { derivarPerfil } from "./perfil";
 import type { PerfilClinico, PatologiaKey } from "./perfil";
 import type { Patient } from "../types";
@@ -117,22 +117,74 @@ describe("sugerirPeepFio2", () => {
 
 describe("sugerirVentilacao", () => {
   it("deriva a frequência do volume-minuto de 100 ml por kg de peso predito", () => {
-    const a = sugerirVentilacao(70, 420)!;
+    const a = sugerirVentilacao(70, 420, perfilCom([]))!;
     expect(a.valor.veL).toBeCloseTo(7, 6);
     expect(a.valor.fr).toBe(17);
   });
 
   it("limita a frequência ao piso de 12", () => {
-    expect(sugerirVentilacao(70, 1000)!.valor.fr).toBe(12);
+    expect(sugerirVentilacao(70, 1000, perfilCom([]))!.valor.fr).toBe(12);
   });
 
   it("limita a frequência ao teto de 35", () => {
-    expect(sugerirVentilacao(70, 100)!.valor.fr).toBe(35);
+    expect(sugerirVentilacao(70, 100, perfilCom([]))!.valor.fr).toBe(35);
   });
 
   it("devolve null sem peso predito ou sem volume alvo", () => {
-    expect(sugerirVentilacao(null, 420)).toBeNull();
-    expect(sugerirVentilacao(70, null)).toBeNull();
+    expect(sugerirVentilacao(null, 420, perfilCom([]))).toBeNull();
+    expect(sugerirVentilacao(70, null, perfilCom([]))).toBeNull();
+  });
+});
+
+describe("sugerirVentilacao por patologia", () => {
+  // O piso de 12 é obstáculo em obstrutivo: Demoule orienta frequência baixa
+  // para dar tempo de expirar.
+  it("sem patologia, o piso de frequência é 12", () => {
+    const a = sugerirVentilacao(70, 700, perfilCom([]))!;
+    expect(a.valor.fr).toBe(12);
+    expect(a.modulacoes).toEqual([]);
+  });
+
+  it("DPOC baixa o piso de frequência para 10", () => {
+    const a = sugerirVentilacao(70, 700, perfilCom(["dpoc"]))!;
+    expect(a.valor.fr).toBe(10);
+    expect(a.base.fr).toBe(12);
+    expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+  });
+
+  it("asma também baixa o piso", () => {
+    expect(sugerirVentilacao(70, 700, perfilCom(["asma"]))!.valor.fr).toBe(10);
+  });
+
+  // Lesão cerebral aguda não mexe na frequência: o alvo dela é de PaCO₂, e
+  // vem por outra função.
+  it("lesão cerebral aguda não modula a frequência", () => {
+    expect(sugerirVentilacao(70, 700, perfilCom(["lesao_cerebral_aguda"]))!.modulacoes).toEqual([]);
+  });
+
+  it("continua devolvendo null sem peso predito ou volume alvo", () => {
+    expect(sugerirVentilacao(null, 700, perfilCom([]))).toBeNull();
+    expect(sugerirVentilacao(70, null, perfilCom([]))).toBeNull();
+  });
+});
+
+describe("alvoPaco2", () => {
+  it("sem lesão cerebral aguda, não há alvo", () => {
+    expect(alvoPaco2(perfilCom([]))).toBeNull();
+    expect(alvoPaco2(perfilCom(["dpoc"]))).toBeNull();
+  });
+
+  it("com lesão cerebral aguda, devolve 35 a 45", () => {
+    const a = alvoPaco2(perfilCom(["lesao_cerebral_aguda"]))!;
+    expect(a.valor).toEqual({ min: 35, max: 45 });
+    expect(a.modulacoes[0].sourceKey).toBe("lesaoCerebral");
+  });
+
+  // A recomendação vale para o paciente SEM hipertensão intracraniana
+  // significativa, e o aplicativo não conhece a pressão intracraniana.
+  it("a modulação declara a condição da hipertensão intracraniana", () => {
+    const a = alvoPaco2(perfilCom(["lesao_cerebral_aguda"]))!;
+    expect(a.modulacoes[0].motivo).toMatch(/intracraniana/i);
   });
 });
 

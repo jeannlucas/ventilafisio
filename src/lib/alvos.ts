@@ -205,16 +205,79 @@ export interface AlvoVentilacao {
   fr: number;
 }
 
-// Sem modulação nesta fase. Continua devolvendo null quando falta peso
-// predito ou volume alvo: não há alvo sem base para calculá-lo.
+/** Piso de frequência. Cai em obstrutivo, para dar tempo de expirar. */
+const FR_MIN_PADRAO = 12;
+const FR_MIN_OBSTRUTIVO = 10;
+
+/**
+ * Frequência e volume-minuto.
+ *
+ * O piso de frequência cai de 12 para 10 em DPOC ou asma: Demoule 2020 orienta
+ * frequência baixa e relação I:E de 1:4 a 1:6 justamente para dar tempo de
+ * expirar, e o piso padrão vira obstáculo nesse paciente.
+ *
+ * A relação I:E não é calculada aqui: o aplicativo não conhece o tempo
+ * inspiratório configurado no ventilador.
+ */
 export function sugerirVentilacao(
   predBW: number | null,
-  vcTargetMl: number | null
+  vcTargetMl: number | null,
+  perfil: PerfilClinico
 ): Alvo<AlvoVentilacao> | null {
   if (!num(predBW) || !num(vcTargetMl)) return null;
-  const veL = (predBW * 100) / 1000; // L/min
-  const fr = Math.round(veL / (vcTargetMl / 1000));
-  return semModulacao({ veL, fr: Math.max(12, Math.min(35, fr)) });
+  const veL = (predBW * 100) / 1000;
+  const bruto = Math.round(veL / (vcTargetMl / 1000));
+  const base: AlvoVentilacao = {
+    veL,
+    fr: Math.max(FR_MIN_PADRAO, Math.min(35, bruto)),
+  };
+  const obstrutivo =
+    perfil.patologias.includes("dpoc") || perfil.patologias.includes("asma");
+  if (!obstrutivo) return semModulacao(base);
+  return {
+    valor: { veL, fr: Math.max(FR_MIN_OBSTRUTIVO, Math.min(35, bruto)) },
+    base,
+    modulacoes: [
+      {
+        motivo:
+          "Obstrutivo: piso de frequência baixado para dar tempo de expirar. A relação I:E alvo é de 1:4 a 1:6, e o aplicativo não a calcula porque não conhece o tempo inspiratório configurado.",
+        sourceKey: "obstrutivo",
+      },
+    ],
+  };
+}
+
+export interface AlvoPaco2 {
+  min: number;
+  max: number;
+}
+
+/**
+ * Alvo de PaCO₂ em lesão cerebral aguda, de Robba 2020 (consenso da ESICM):
+ * recomendação FORTE com evidência de qualidade BAIXA.
+ *
+ * É alvo próprio e não modulação: o aplicativo não sugere PaCO₂ em nenhum
+ * outro caso, e portanto não há base contra a qual comparar.
+ *
+ * Devolve null sem lesão cerebral aguda. A caixinha genérica de "Doença
+ * neurológica" NÃO dispara este alvo: ela pega desde TCE agudo até
+ * neuromuscular crônico, e num neuromuscular com DPOC o alvo empurraria na
+ * direção errada.
+ */
+export function alvoPaco2(perfil: PerfilClinico): Alvo<AlvoPaco2> | null {
+  if (!perfil.patologias.includes("lesao_cerebral_aguda")) return null;
+  const valor: AlvoPaco2 = { min: 35, max: 45 };
+  return {
+    valor,
+    base: valor,
+    modulacoes: [
+      {
+        motivo:
+          "Lesão cerebral aguda: alvo de PaCO₂ de 35 a 45 mmHg. Recomendação forte com evidência de qualidade baixa, e válida para o paciente sem hipertensão intracraniana clinicamente significativa, que o aplicativo não tem como saber.",
+        sourceKey: "lesaoCerebral",
+      },
+    ],
+  };
 }
 
 // ============================================================
@@ -241,7 +304,7 @@ export function sugestaoAdmissao(
   const vc = sugerirVc(perfil);
   // Na admissão não há evolução registrada, logo não há auto-PEEP medido.
   const peepFio2 = sugerirPeepFio2(pf ?? null, spo2 ?? null, perfil, null);
-  const ventilacao = sugerirVentilacao(perfil.pbw, vc.valor.target);
+  const ventilacao = sugerirVentilacao(perfil.pbw, vc.valor.target, perfil);
   return {
     pbw: perfil.pbw,
     pbwEstimado: perfil.pbwEstimado,

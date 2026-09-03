@@ -24,7 +24,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
   // de pbwOrEstimate, que sempre devolve um número finito — então
   // sugerirVentilacao nunca cai no ramo null nesta chamada. Assertion
   // documentada, não suposição: sem ela sobrava um `sVc ?` morto.
-  const sVent = sugerirVentilacao(pbwVal, sVc.valor.target)!;
+  const sVent = sugerirVentilacao(pbwVal, sVc.valor.target, perfil)!;
 
   // Conteúdo de apoio à decisão exibido quando o indicador sai da faixa (item 2).
   // A validar pela equipe; não altera nenhuma fórmula nem os limites de classify.
