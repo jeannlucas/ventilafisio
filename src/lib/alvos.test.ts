@@ -378,18 +378,43 @@ describe("sugerirPeepFio2 por patologia", () => {
   // o auto-PEEP registrados. O portão do preset vinha ANTES do da patologia,
   // então o auto-PEEP recém-digitado era descartado em silêncio e a caixa
   // mostrava "5 cmH₂O · tabela ARDSnet" — a tabela que não se aplica ao DPOC.
-  it("obstrutivo sem gasometria mas com auto-PEEP recebe a faixa, não o preset", () => {
+  it("obstrutivo sem gasometria mas com auto-PEEP recebe a faixa de PEEP", () => {
     const a = sugerirPeepFio2(null, null, perfilCom(["dpoc"]), 10);
-    expect(a.valor.presetAdmissao).toBe(false);
     expect(a.valor.faixaPeep).toEqual({ min: 8, max: 8.5 });
     expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
   });
 
-  it("asma sem gasometria mas com auto-PEEP recebe o teto da asma, não o preset", () => {
+  // A OUTRA METADE, e é o que separa as duas perguntas: o auto-PEEP medido abre
+  // a regra da PEEP e não diz nada sobre oxigenação. Sem P/F e sem SpO₂ a FiO₂
+  // continua sendo a do preset (100%), com `presetAdmissao` verdadeiro para a
+  // tela poder dizer de onde ela veio.
+  //
+  // Sem esta asserção o paciente caía na tabela por causa do auto-PEEP e o
+  // `if (!num(pf)) fio2 = 40` devolvia FiO₂ 40% — número afirmativo nascido de
+  // dado nenhum, com `presetAdmissao` falso, e ainda por cima BAIXO, onde o
+  // padrão seguro sem informação é 100%. É a armadilha nº 5 do projeto: a
+  // ausência de dado virando resultado.
+  it("obstrutivo sem oxigenação não ganha FiO₂ da tabela por causa do auto-PEEP", () => {
+    const a = sugerirPeepFio2(null, null, perfilCom(["dpoc"]), 10);
+    expect(a.valor.fio2).toBe(100);
+    expect(a.valor.presetAdmissao).toBe(true);
+    expect(a.valor.faixaPeep).toEqual({ min: 8, max: 8.5 });
+  });
+
+  it("asma sem gasometria mas com auto-PEEP recebe o teto da asma sobre a base do preset", () => {
     const a = sugerirPeepFio2(null, null, perfilCom(["asma"]), 10);
-    expect(a.valor.presetAdmissao).toBe(false);
     expect(a.valor.peep).toBe(5);
+    expect(a.valor.fio2).toBe(100);
+    expect(a.valor.presetAdmissao).toBe(true);
     expect(a.modulacoes[0].motivo).toMatch(/asma/i);
+  });
+
+  // Com oxigenação medida, nada disso muda: a base volta a ser a tabela.
+  it("com oxigenação medida o obstrutivo continua saindo da tabela", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), 10);
+    expect(a.valor.fio2).toBe(60);
+    expect(a.valor.presetAdmissao).toBe(false);
+    expect(a.valor.faixaPeep).toEqual({ min: 8, max: 8.5 });
   });
 
   // Sem auto-PEEP o preset continua devolvendo 5 — não se tira do terapeuta o

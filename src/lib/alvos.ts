@@ -129,11 +129,14 @@ const FRACAO_AUTO_PEEP = { min: 0.8, max: 0.85 } as const;
  * aplicativo não tem número a dar, e `peep` é null: devolver o da tabela seria
  * afirmar que ela vale ali.
  *
- * O preset de admissão (sem gasometria e sem oximetria) NÃO passa na frente do
- * obstrutivo com auto-PEEP medido. A regra do DPOC precisa do auto-PEEP, não da
- * oxigenação: devolver o preset ali descartaria em silêncio a medida que o
- * terapeuta acabou de registrar, e ainda rotularia o número de "tabela
- * ARDSnet", que é justamente a tabela que não se aplica a esse paciente.
+ * As duas metades são independentes, e a função as separa: a OXIGENAÇÃO decide a
+ * base (tabela do ARDSnet, ou o preset de admissão quando não há gasometria nem
+ * oximetria) e a PATOLOGIA decide o que se faz com essa base. O preset não passa
+ * na frente do obstrutivo com auto-PEEP medido, porque a regra do DPOC precisa
+ * do auto-PEEP e não da oxigenação — devolver o preset ali descartaria em
+ * silêncio a medida que o terapeuta acabou de registrar. E o auto-PEEP medido
+ * não abre a tabela, porque ele não diz nada sobre oxigenação: sem P/F e sem
+ * SpO₂ a FiO₂ continua sendo a do preset, com `presetAdmissao` verdadeiro.
  */
 export function sugerirPeepFio2(
   pf: number | null,
@@ -145,17 +148,41 @@ export function sugerirPeepFio2(
   const temDpoc = perfil.patologias.includes("dpoc");
   const obstrutivo = temAsma || temDpoc;
 
-  if (!num(pf) && !num(spo2) && !(obstrutivo && num(autoPeep))) {
-    const preset: AlvoPeepFio2 = {
-      fio2: 100, peep: 5, faixaPeep: null, presetAdmissao: true,
-    };
-    if (!obstrutivo) return semModulacao(preset);
-    // Obstrutivo sem auto-PEEP: o número continua, porque é o ponto de partida
-    // para montar o ventilador, mas deixa de sair calado. Sem esta linha o
-    // paciente obstrutivo via "5 cmH₂O · tabela ARDSnet" e nada mais.
+  // A OXIGENAÇÃO decide a base; a PATOLOGIA decide o que se faz com ela. Sem
+  // gasometria e sem oximetria o aplicativo não sabe nada sobre a oxigenação
+  // deste paciente, e a base é o preset de admissão — inclusive no obstrutivo
+  // com auto-PEEP medido. Um auto-PEEP medido não diz nada sobre oxigenação:
+  // cair na tabela por causa dele levava o `!num(pf)` a devolver FiO₂ 40% para
+  // quem o aplicativo não mediu, com `presetAdmissao` falso, ou seja, sem nada
+  // na tela dizendo que o número nasceu de dado nenhum. E 40% é sugestão BAIXA
+  // onde o padrão seguro sem informação é o 100% do preset.
+  const semOxigenacao = !num(pf) && !num(spo2);
+  let base: AlvoPeepFio2;
+  if (semOxigenacao) {
+    base = { fio2: 100, peep: 5, faixaPeep: null, presetAdmissao: true };
+  } else {
+    let fio2: number;
+    if (!num(pf)) fio2 = 40;
+    else if (pf >= 300) fio2 = 30;
+    else if (pf >= 200) fio2 = 40;
+    else if (pf >= 100) fio2 = 60;
+    else fio2 = 80;
+    if (num(spo2) && spo2 < 90) fio2 = Math.min(100, fio2 + 10);
+    const row = ARDSNET_LOW.find((r) => r.fio2 >= fio2) ?? ARDSNET_LOW[ARDSNET_LOW.length - 1];
+    base = { fio2: row.fio2, peep: row.peep, faixaPeep: null, presetAdmissao: false };
+  }
+
+  if (!obstrutivo) return semModulacao(base);
+
+  // Obstrutivo sem oxigenação E sem auto-PEEP: o 5 do preset continua, porque é
+  // o ponto de partida para montar o ventilador, mas deixa de sair calado. Sem
+  // esta linha o paciente obstrutivo via "5 cmH₂O · tabela ARDSnet" e nada mais.
+  // Vem antes do ramo da asma de propósito: aqui não há medida nenhuma a
+  // interpretar, e o que o terapeuta precisa ler é que o número é provisório.
+  if (semOxigenacao && !num(autoPeep)) {
     return {
-      valor: preset,
-      base: preset,
+      valor: base,
+      base,
       modulacoes: [
         {
           motivo:
@@ -165,19 +192,6 @@ export function sugerirPeepFio2(
       ],
     };
   }
-  let fio2: number;
-  if (!num(pf)) fio2 = 40;
-  else if (pf >= 300) fio2 = 30;
-  else if (pf >= 200) fio2 = 40;
-  else if (pf >= 100) fio2 = 60;
-  else fio2 = 80;
-  if (num(spo2) && spo2 < 90) fio2 = Math.min(100, fio2 + 10);
-  const row = ARDSNET_LOW.find((r) => r.fio2 >= fio2) ?? ARDSNET_LOW[ARDSNET_LOW.length - 1];
-  const base: AlvoPeepFio2 = {
-    fio2: row.fio2, peep: row.peep, faixaPeep: null, presetAdmissao: false,
-  };
-
-  if (!obstrutivo) return semModulacao(base);
 
   // As duas marcadas: aplica-se o teto da asma, e a modulação declara as duas.
   // Não é precedência clínica: o mentor não foi perguntado sobre o paciente com

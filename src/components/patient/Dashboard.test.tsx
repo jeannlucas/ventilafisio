@@ -220,7 +220,12 @@ describe("Dashboard", () => {
   // Dia sem gasometria e sem oximetria, com o auto-PEEP registrado: o portão
   // do preset vinha antes do da patologia e descartava a medida em silêncio,
   // mostrando "5 cmH₂O · tabela ARDSnet" — a tabela que não se aplica ao DPOC.
-  it("DPOC sem gasometria mas com auto-PEEP recebe a faixa, não o preset", () => {
+  //
+  // As duas caixas na mesma asserção de propósito: o auto-PEEP medido abre a
+  // regra da PEEP e NÃO diz nada sobre oxigenação, então a FiO₂ continua sendo
+  // a do preset. Uma FiO₂ de 40% aqui seria número afirmativo nascido de dado
+  // nenhum, e ainda por cima baixo.
+  it("DPOC sem oxigenação e com auto-PEEP: faixa de PEEP medida, FiO₂ ainda do preset", () => {
     renderDashboard(
       { comorbidities: ["dpoc"] },
       { pao2: null, fio2: null, spo2: null, auto_peep: 10 }
@@ -228,6 +233,8 @@ describe("Dashboard", () => {
     const caixa = screen.getByTestId("sug-peep");
     expect(caixa).toHaveTextContent("8");
     expect(caixa).not.toHaveTextContent(/ARDSnet/i);
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.queryByText("40%")).not.toBeInTheDocument();
   });
 
   // Sem auto-PEEP o 5 continua, porque é ponto de partida para montar o
