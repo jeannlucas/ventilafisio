@@ -420,15 +420,39 @@ describe("sugerirPeepFio2 por patologia", () => {
   // Sem auto-PEEP o preset continua devolvendo 5 — não se tira do terapeuta o
   // ponto de partida na hora de montar o ventilador. O que ele deixa de fazer é
   // sair calado.
-  it("obstrutivo sem gasometria e sem auto-PEEP recebe o preset COM modulação", () => {
-    for (const patologia of ["dpoc", "asma"] as const) {
-      const a = sugerirPeepFio2(null, null, perfilCom([patologia]), null);
-      expect(a.valor.peep).toBe(5);
-      expect(a.valor.presetAdmissao).toBe(true);
-      expect(a.modulacoes).toHaveLength(1);
-      expect(a.modulacoes[0].motivo).toMatch(/ponto de partida/i);
-      expect(a.modulacoes[0].motivo).toMatch(/auto-PEEP/i);
-      expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+  it("DPOC sem gasometria e sem auto-PEEP recebe o preset COM modulação", () => {
+    const a = sugerirPeepFio2(null, null, perfilCom(["dpoc"]), null);
+    expect(a.valor.peep).toBe(5);
+    expect(a.valor.presetAdmissao).toBe(true);
+    expect(a.modulacoes).toHaveLength(1);
+    expect(a.modulacoes[0].motivo).toMatch(/ponto de partida/i);
+    expect(a.modulacoes[0].motivo).toMatch(/auto-PEEP/i);
+    expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+  });
+
+  // A asma NÃO cai no ramo do ponto de partida, e é por isso que ele mora
+  // abaixo do teto da asma. O teto dela é 5 fixo: com auto-PEEP 10 o mesmo
+  // paciente continua recebendo 5, então mandá-lo registrar o auto-PEEP pede
+  // uma medida que a regra não usa. E como o AdmissionCard sempre chama com
+  // `autoPeep` nulo, era TODA admissão de asmático mostrando o pedido inútil.
+  it("asma sem gasometria e sem auto-PEEP recebe o teto da asma, não o pedido de auto-PEEP", () => {
+    const a = sugerirPeepFio2(null, null, perfilCom(["asma"]), null);
+    expect(a.valor.peep).toBe(5);
+    expect(a.valor.presetAdmissao).toBe(true);
+    expect(a.modulacoes).toHaveLength(1);
+    expect(a.modulacoes[0].motivo).toMatch(/asma/i);
+    expect(a.modulacoes[0].motivo).not.toMatch(/registre o auto-PEEP/i);
+    expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+  });
+
+  // O texto que pede o auto-PEEP é do DPOC, e só dele: nenhum caminho da asma
+  // pode alcançá-lo, com ou sem auto-PEEP, com ou sem oxigenação.
+  it("nenhum caminho da asma pede o auto-PEEP", () => {
+    for (const autoPeep of [null, 0, 10]) {
+      for (const pf of [null, 150]) {
+        const a = sugerirPeepFio2(pf, null, perfilCom(["asma"]), autoPeep);
+        for (const m of a.modulacoes) expect(m.motivo).not.toMatch(/registre o auto-PEEP/i);
+      }
     }
   });
 

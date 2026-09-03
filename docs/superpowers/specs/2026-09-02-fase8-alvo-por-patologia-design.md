@@ -161,8 +161,27 @@ parágrafo acima diz explicitamente que ninguém respondeu. Vai ao mentor.
 
 Hoje ela devolve `fr: Math.max(12, Math.min(35, fr))`. **O piso de 12 é
 obstáculo em obstrutivo**: Demoule 2020 orienta frequência baixa e relação I:E
-de 1:4 a 1:6 justamente para dar tempo de expirar. O piso cai para 10 quando
-há DPOC ou asma, com a modulação declarando a razão.
+de 1:4 a 1:6 justamente para dar tempo de expirar. O piso caía para 10 quando
+havia DPOC ou asma, com a modulação declarando a razão.
+
+**O piso obstrutivo de 10 foi implementado e depois REMOVIDO**, na onda de
+correção do fim da fase, e o parágrafo acima fica como registro do que se
+pretendia. A review da branch pegou dois defeitos nele. Primeiro, ele nunca
+entrava em vigor: o peso predito se cancela em `bruto = veL / vcTargetMl`,
+porque `veL` é `predBW * 100 / 1000` e `vcTargetMl` é `predBW * 6` ou
+`predBW * 7`, então `bruto` é sempre 17 ou 14 e nenhum dos dois pisos é
+alcançado — a tela afirmava a todo paciente com DPOC ou asma um rebaixamento
+que não acontecia. Segundo, **o 10 não é publicado nem é parecer do mentor**:
+este próprio dossiê o registra como pergunta aberta (§ "O piso de frequência de
+12/min do motor"), e as fontes citadas dizem apenas "frequência baixa". Era
+número clínico inventado, exibido sob fontes que não o sustentam.
+
+A modulação continua existindo, porque a orientação do Demoule é real, mas
+passou a dizer só o que é verdade: que o alvo é a relação I:E de 1:4 a 1:6, que
+quem regula a frequência é o terapeuta e que **o aplicativo não a rebaixa**.
+`valor.fr` é igual a `base.fr` sempre, com `modulacoes` não vazia — o mesmo que
+`alvoPaco2` faz, e pelo mesmo motivo. **Não reintroduza um piso aqui**: qual é o
+piso em obstrutivo é pergunta para o mentor.
 
 A relação I:E entra como **informação exibida**, não como número calculado: o
 aplicativo não controla o ventilador e não sabe o tempo inspiratório
@@ -282,7 +301,15 @@ lista escrita à mão.
 6. **Auto-PEEP zero** é medida: aceito pela cerca de plausibilidade, com teste
    de aceitação **e** de reprovação, porque campo sem entrada no mapa é
    ignorado em silêncio.
-7. **O piso de frequência cai para 10** em obstrutivo, e volta a 12 sem ele.
+7. ~~**O piso de frequência cai para 10** em obstrutivo, e volta a 12 sem
+   ele.~~ **Substituído** (§6.2): o piso obstrutivo foi removido, porque nunca
+   entrava em vigor e o 10 não tinha fonte. O teste que ficou no lugar prova o
+   contrário — que a frequência do obstrutivo é **idêntica** à do não obstrutivo
+   com o mesmo peso e o mesmo alvo de volume —, e um segundo proíbe no motivo
+   qualquer afirmação de rebaixamento (`/baixad|piso/i`). As fixtures saem de
+   `sugerirVc(perfil).valor.target`, e não de um volume digitado à mão: era a
+   fixture inalcançável que deixava o piso "testado" enquanto ele não existia
+   na tela.
 8. **`alvoPaco2` devolve `null`** sem lesão cerebral aguda, e o alvo não
    aparece na tela.
 9. **A ressalva da hipertensão intracraniana** está junto do alvo de PaCO₂;

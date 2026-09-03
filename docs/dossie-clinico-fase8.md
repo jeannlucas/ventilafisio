@@ -947,6 +947,25 @@ não têm base publicada para mexer em nada** — e é assim que devem aparecer.
    rate", e frequências de 10 ou menos aparecem na prática. **O piso deve
    cair em asma? Até quanto?**
 
+   **A pergunta continua aberta, e ficou mais nítida.** A fase chegou a embarcar
+   um piso obstrutivo de 10, e a onda de correção do fim dela o REMOVEU. Duas
+   razões. A primeira é que ele nunca entrava em vigor: o peso predito se
+   cancela na conta da frequência, então o valor bruto é sempre 17 ou 14 e
+   nenhum piso é alcançado — a tela afirmava um rebaixamento que não acontecia.
+   A segunda é esta pergunta aqui: **o 10 saiu de lugar nenhum**. Não é
+   publicado, não é parecer do senhor, e as fontes citadas dizem só "frequência
+   baixa". Era número clínico inventado, exibido sob fontes que não o sustentam.
+
+   Hoje o aplicativo **não rebaixa** a frequência do paciente obstrutivo. A
+   modulação continua na tela, dizendo o que é verdade: alvo de I:E de 1:4 a
+   1:6, e quem regula a frequência é o terapeuta. O piso de 12 do clamp
+   permanece no código e, pelo mesmo cancelamento, também não é alcançado por
+   paciente nenhum.
+
+   Então a pergunta ao senhor é a mesma de antes, e nenhum número entra na tela
+   até ela ser respondida: **existe piso de frequência em obstrutivo, e qual
+   é?**
+
 7. **PEEP e insuficiência cardíaca.** O senhor ajusta PEEP pensando em
    pré-carga/pós-carga? Se sim, **isso é prática, não literatura**, e eu não
    tenho fonte para colocar na tela. Qual é a sua regra?

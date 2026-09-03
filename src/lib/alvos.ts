@@ -174,25 +174,6 @@ export function sugerirPeepFio2(
 
   if (!obstrutivo) return semModulacao(base);
 
-  // Obstrutivo sem oxigenação E sem auto-PEEP: o 5 do preset continua, porque é
-  // o ponto de partida para montar o ventilador, mas deixa de sair calado. Sem
-  // esta linha o paciente obstrutivo via "5 cmH₂O · tabela ARDSnet" e nada mais.
-  // Vem antes do ramo da asma de propósito: aqui não há medida nenhuma a
-  // interpretar, e o que o terapeuta precisa ler é que o número é provisório.
-  if (semOxigenacao && !num(autoPeep)) {
-    return {
-      valor: base,
-      base,
-      modulacoes: [
-        {
-          motivo:
-            "Obstrutivo (DPOC ou asma): 5 cmH₂O é ponto de partida inicial para montar o ventilador, não o alvo deste paciente — a tabela do ARDSnet não se aplica ao obstrutivo. Registre o auto-PEEP para o alvo da patologia aparecer.",
-          sourceKey: "obstrutivo",
-        },
-      ],
-    };
-  }
-
   // As duas marcadas: aplica-se o teto da asma, e a modulação declara as duas.
   // Não é precedência clínica: o mentor não foi perguntado sobre o paciente com
   // as duas patologias.
@@ -211,6 +192,30 @@ export function sugerirPeepFio2(
       valor: { ...base, peep: Math.min(base.peep!, PEEP_MAX_ASMA) },
       base,
       modulacoes: [{ motivo, sourceKey: "obstrutivo" }],
+    };
+  }
+
+  // DPOC sem oxigenação E sem auto-PEEP: o 5 do preset continua, porque é o
+  // ponto de partida para montar o ventilador, mas deixa de sair calado. Sem
+  // esta linha o paciente via "5 cmH₂O · tabela ARDSnet" e nada mais.
+  //
+  // Vem DEPOIS do ramo da asma, e isso é o ponto. Enquanto vinha antes, a asma
+  // caía aqui e o texto mandava registrar o auto-PEEP — medida que a regra da
+  // asma não usa: o teto dela é 5 fixo, e com auto-PEEP 10 o mesmo paciente
+  // continua recebendo 5. E como o AdmissionCard sempre chama com `pf`, `spo2`
+  // e `autoPeep` nulos, TODA admissão de asmático mostrava esse pedido inútil.
+  // É a confusão de "obstrutivo genérico" que o cabeçalho desta função proíbe.
+  if (semOxigenacao && !num(autoPeep)) {
+    return {
+      valor: base,
+      base,
+      modulacoes: [
+        {
+          motivo:
+            "DPOC: 5 cmH₂O é ponto de partida inicial para montar o ventilador, não o alvo deste paciente — a tabela do ARDSnet não se aplica ao obstrutivo. Registre o auto-PEEP para o alvo da patologia aparecer.",
+          sourceKey: "obstrutivo",
+        },
+      ],
     };
   }
 

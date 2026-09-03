@@ -183,6 +183,51 @@ describe("Dashboard", () => {
     expect(screen.queryByText(/Parecer clínico \(VC no obeso\)/)).not.toBeInTheDocument();
   });
 
+  // O outro lado do item 5, e a sub-citação que ele abriu: o rodapé dos
+  // HeroCards é escrito à mão, e `vcKg` sozinho cita só as publicações da faixa
+  // 4-6. No obeso o card mostra "meta 6–8" e classifica por ela, e quem
+  // sustenta essa faixa é o parecer. O par acima NÃO pega isto, porque ele olha
+  // o painel de sugestão, cujo rodapé é derivado.
+  it("o rodapé dos HeroCards cita o parecer quando o card mostra a meta do obeso", () => {
+    renderDashboard({ height_cm: 170, weight_kg: 95 });
+
+    // O card mostra "meta 6–8": é a faixa do obeso, e é ela que o rodapé
+    // abaixo precisa sustentar.
+    expect(screen.getByText("meta 6–8")).toBeInTheDocument();
+    // O rodapé dos HeroCards é irmão do grid, não filho do card: procurar na
+    // tela inteira bastaria, mas o painel de sugestão também cita o parecer.
+    // Duas ocorrências provam que o segundo rodapé, o escrito à mão, passou a
+    // citá-lo.
+    expect(screen.getAllByText(/Parecer clínico \(VC no obeso\)/).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("o rodapé dos HeroCards não cita o parecer em quem não é obeso", () => {
+    renderDashboard({ height_cm: 170, weight_kg: 70 });
+
+    expect(screen.getByText("meta 4–6")).toBeInTheDocument();
+    expect(screen.queryByText(/Parecer clínico \(VC no obeso\)/)).not.toBeInTheDocument();
+  });
+
+  // A FiO₂ do preset nasce de dado nenhum. No DPOC com auto-PEEP e sem
+  // oxigenação ela fica ao lado de uma faixa de PEEP com número seguro, e sem
+  // esta nota o leitor toma as duas pela mesma coisa. O crachá que diz isso só
+  // existe no AdmissionCard.
+  it("a caixa da FiO₂ diz que o número é preset quando não há oxigenação medida", () => {
+    renderDashboard(
+      { comorbidities: ["dpoc"] },
+      { pao2: null, fio2: null, spo2: null, auto_peep: 10 }
+    );
+    const caixa = screen.getByTestId("sug-fio2");
+    expect(caixa).toHaveTextContent("100%");
+    expect(caixa).toHaveTextContent(/preset inicial/i);
+    expect(caixa).toHaveTextContent(/sem gasometria/i);
+  });
+
+  it("a caixa da FiO₂ não fala em preset quando a oxigenação foi medida", () => {
+    renderDashboard({ comorbidities: ["dpoc"] }, { pao2: 150, fio2: 100, spo2: 95, auto_peep: 10 });
+    expect(screen.getByTestId("sug-fio2")).not.toHaveTextContent(/preset/i);
+  });
+
   // ---------- Fase 8: as modulações por patologia na tela ----------
 
   it("mostra a modulação de PEEP na asma", () => {
@@ -369,6 +414,10 @@ describe("textoPeep", () => {
     );
     expect(t.sub).not.toMatch(/ARDSnet/i);
     expect(t.sub).toMatch(/abaixo/i);
+    // Sem esta linha, devolver "limitada pela patologia · ver abaixo" no ramo
+    // do preset mantinha a suíte verde afirmando que uma patologia limitou um
+    // número em que ela não tocou.
+    expect(t.sub).toMatch(/preset/i);
   });
 
   it("só diz 'tabela ARDSnet' quando o número veio mesmo da tabela", () => {

@@ -165,7 +165,15 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
         <HeroCard label="RELAÇÃO P/F" value={fmt(pf, 0)} unit="" st={C.classify.pf(pf)} formula="PaO₂ / FiO₂" suggestion={sug.pf} />
       </div>
 
-      <SourceFooter sourceKeys={["dp", "pplat", "vcKg", "pf"]} />
+      {/* `vcKg` sozinho cita as duas publicações da faixa 4-6. No obeso o card
+          mostra "meta 6–8" e classifica por essa faixa, que quem sustenta é o
+          parecer do mentor — por isso a chave da modulação entra aqui também.
+          Sem ela, o obeso via uma banda classificada como Ideal sobre um rodapé
+          que só cita fontes que não a sustentam: a citação sob a afirmação
+          errada, na direção oposta à do item 5 e igualmente falsa. */}
+      <SourceFooter
+        sourceKeys={["dp", "pplat", "vcKg", "pf", ...sVc.modulacoes.map((m) => m.sourceKey)]}
+      />
 
       {reading.length > 0 && (
         <Panel title="Leitura do caso" sub="Alertas dos indicadores e correlações do quadro clínico com a ventilação">
@@ -179,7 +187,12 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
             <p style={{ margin: "4px 0 0", fontSize: 10.5, color: T.dim, fontStyle: "italic" }}>
               Apoio à decisão, não conduta automática.
             </p>
-            <SourceFooter sourceKeys={["vcKg", "pplat", "dp", "mp"]} />
+            {/* Mesma razão do rodapé dos HeroCards: o alerta de VC acima de 8
+                fala da faixa do paciente, e no obeso quem a sustenta é o
+                parecer. */}
+            <SourceFooter
+              sourceKeys={["vcKg", "pplat", "dp", "mp", ...sVc.modulacoes.map((m) => m.sourceKey)]}
+            />
           </div>
         </Panel>
       )}
@@ -193,7 +206,22 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
               uma PEEP que o motor recusou dar, ou o app perderia a FiO₂
               sugerida só para não afirmá-la. */}
           <SugBox label="PEEP" big={peepTexto.big} sub={peepTexto.sub} testid="sug-peep" />
-          <SugBox label="FiO₂" big={`${sPeep.valor.fio2}%`} sub="titular pela SpO₂/PaO₂" />
+          {/* A FiO₂ do preset nasce de dado nenhum, e a tela tem de dizer isso:
+              no DPOC com auto-PEEP e sem oxigenação, uma faixa de PEEP com
+              número seguro fica ao lado dela, e sem esta nota o leitor toma as
+              duas pela mesma coisa. O crachá que diz isso só existe no
+              AdmissionCard. Nenhum número novo entra aqui, e o valor da FiO₂
+              não muda. */}
+          <SugBox
+            label="FiO₂"
+            big={`${sPeep.valor.fio2}%`}
+            sub={
+              sPeep.valor.presetAdmissao
+                ? "preset inicial, sem gasometria e sem oximetria · titular pela SpO₂/PaO₂"
+                : "titular pela SpO₂/PaO₂"
+            }
+            testid="sug-fio2"
+          />
           <SugBox label="FREQUÊNCIA" big={`${sVent.valor.fr} /min`} sub="derivada do VC alvo" />
           <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />
         </div>
