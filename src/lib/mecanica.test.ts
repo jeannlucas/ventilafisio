@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  classificarDrive, classificarEsforco, estimarEsforco, calcularRi,
+  classificarDrive, classificarEsforco, classificarDpL, estimarEsforco, calcularRi,
   type RecrutabilidadeEntrada,
 } from "./mecanica";
 
@@ -55,6 +55,41 @@ describe("classificarEsforco", () => {
   });
 });
 
+// A ΔP_L,dyn saía SEM faixa até 02/09/2026, porque o mentor não tinha sido
+// perguntado sobre limiar nenhum. Ele foi, em 03/09/2026: "Por favor
+// classifica com os cortes já vistos como 15 e 20." São dois números e três
+// faixas, com a MESMA convenção de inclusividade de `classificarEsforco`.
+describe("classificarDpL", () => {
+  it("abaixo de 15 é baixa", () => {
+    expect(classificarDpL(14.9)).toBe("baixa");
+  });
+
+  it("15 exato já é intermediária", () => {
+    expect(classificarDpL(15)).toBe("intermediaria");
+  });
+
+  it("entre os dois cortes é intermediária", () => {
+    expect(classificarDpL(19.9)).toBe("intermediaria");
+  });
+
+  it("20 exato já é elevada", () => {
+    expect(classificarDpL(20)).toBe("elevada");
+  });
+
+  // São TRÊS faixas e dois números. Uma quarta fronteira aqui seria número
+  // clínico sem parecer, e o mentor deu dois.
+  it("não existe quarta faixa acima de 20", () => {
+    for (const v of [20, 25, 40, 100]) expect(classificarDpL(v)).toBe("elevada");
+  });
+
+  // ΔP_L,dyn zero ou negativa é aritmética possível (pico igual à PEEP), e não
+  // ausência de dado: cai na faixa mais baixa, como o Pmus zero.
+  it("zero e negativo caem na faixa baixa, não em dado faltando", () => {
+    expect(classificarDpL(0)).toBe("baixa");
+    expect(classificarDpL(-3)).toBe("baixa");
+  });
+});
+
 describe("estimarEsforco", () => {
   it("converte o ΔPocc em Pmus", () => {
     const e = estimarEsforco(-10, null, null)!;
@@ -104,6 +139,32 @@ describe("estimarEsforco", () => {
   it("PEEP zero (ZEEP) é valor presente e a ΔP_L,dyn é calculada", () => {
     const e = estimarEsforco(-9, 30, 0)!;
     expect(e.dpLDinamica).toBeCloseTo(36, 5);
+  });
+
+  // A faixa acompanha o número, e é a faixa DELE: 28 é elevada mesmo com o
+  // Pmus de 9 caindo em "aumentado". Se alguém copiar a faixa do Pmus para
+  // cá, é este teste que fica vermelho.
+  it("classifica a ΔP_L,dyn pela faixa dela, e não pela do Pmus", () => {
+    const e = estimarEsforco(-12, 30, 10)!;
+    expect(e.dpLDinamica).toBeCloseTo(28, 5);
+    expect(e.faixaDpL).toBe("elevada");
+    expect(e.faixa).toBe("aumentado");
+  });
+
+  it("ΔP_L,dyn abaixo de 15 é lida como baixa", () => {
+    const e = estimarEsforco(-3, 20, 12)!;
+    expect(e.dpLDinamica).toBeCloseTo(10, 5);
+    expect(e.faixaDpL).toBe("baixa");
+  });
+
+  // Sem número não há faixa: `null` aqui é ausência de ΔP_L,dyn, e não a
+  // faixa mais baixa. Classificar o que não foi calculado é a armadilha nº 5
+  // do projeto, e no painel sairia como caixa verde afirmando estresse baixo
+  // num paciente sem pico registrado.
+  it("sem ΔP_L,dyn não há faixa, e null não vira faixa baixa", () => {
+    const e = estimarEsforco(-12, null, 10)!;
+    expect(e.dpLDinamica).toBeNull();
+    expect(e.faixaDpL).toBeNull();
   });
 });
 

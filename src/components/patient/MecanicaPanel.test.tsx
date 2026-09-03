@@ -93,39 +93,71 @@ describe("MecanicaPanel", () => {
     expect(screen.getByTestId("mec-dpl")).toHaveTextContent("28.0");
   });
 
-  // DECISÃO DE NÃO EXIBIR: o mentor não foi perguntado sobre limiares da
-  // ΔP_L,dyn. Se este teste começar a falhar porque alguém classificou o
-  // número, a implementação é que está errada.
-  it("a ΔP_L,dyn aparece SEM faixa de classificação", () => {
+  // A DECISÃO MUDOU EM 03/09/2026, e este teste virou do avesso.
+  //
+  // Até então ele exigia que a ΔP_L,dyn saísse SEM faixa, porque o mentor não
+  // tinha sido perguntado sobre limiar nenhum e a literatura ter algum (15 e
+  // 20) não autorizava o app a exibi-lo: era decisão de não exibir, e o teste
+  // era a prova dela. Ele foi perguntado e respondeu — "Por favor classifica
+  // com os cortes já vistos como 15 e 20" —, então a recusa caiu e a guarda
+  // se inverte em vez de sumir: agora é a AUSÊNCIA de faixa que fica vermelha.
+  it("a ΔP_L,dyn aparece COM a faixa que o parecer autorizou", () => {
     montar(ev({ pocc: -12, ppico: 30, peep: 10 }));
-    expect(screen.getByTestId("mec-dpl"))
-      .not.toHaveTextContent(/elevad|adequad|aument|alto|normal/i);
+    const bloco = screen.getByTestId("mec-dpl");
+    expect(bloco).toHaveTextContent("28.0");
+    expect(bloco).toHaveTextContent(/elevado/i);
   });
 
-  // O teste acima olha um elemento só, e escopo de elemento não cobre texto
-  // escrito logo ao lado dele — foi por isso que a promessa do painel de
-  // recrutabilidade ganhou uma asserção de `container.textContent`. O fixture
-  // aqui é escolhido de propósito: com Pmus na faixa mais baixa, NENHUM outro
-  // texto da tela carrega essas palavras, então o que a asserção de painel
-  // inteiro está proibindo é faixa para a ΔP_L,dyn, em qualquer canto.
-  it("nenhum canto do painel dá faixa à ΔP_L,dyn", () => {
-    const { container } = montar(ev({ pocc: -4, ppico: 30, peep: 10 }));
+  // O teste acima olha um elemento só, e escopo de elemento não cobre o texto
+  // escrito ao lado. O fixture aqui é escolhido de propósito e continua sendo
+  // o mesmo: Pmus 3 cai em "muito baixo" e a ΔP_L,dyn em 22,7 cai em
+  // "elevado", ou seja, as duas leituras DISCORDAM. É isso que prova que a
+  // faixa impressa embaixo da ΔP_L,dyn é a dela — copiar a do Pmus para cá
+  // deixaria as duas caixas dizendo "muito baixo".
+  it("a faixa da ΔP_L,dyn é a dela, e não uma cópia da faixa do Pmus", () => {
+    montar(ev({ pocc: -4, ppico: 30, peep: 10 }));
     expect(screen.getByTestId("mec-dpl")).toHaveTextContent("22.7");
-    expect(container.textContent ?? "").not.toMatch(/elevad|adequad|aument|alto|normal/i);
+    expect(screen.getByTestId("mec-dpl")).toHaveTextContent(/elevado/i);
+    expect(screen.getByTestId("mec-esforco")).toHaveTextContent(/muito baixo/i);
   });
 
-  // A ausência de faixa vem de `caixa(T.dim)`, e T.dim é exatamente
-  // `statusColor(null)`. Trocar por `caixa(statusColor(...))` não mudaria UMA
-  // LETRA na tela: o número ganharia borda verde, âmbar ou vermelha e todos os
-  // testes de texto continuariam verdes. Quem prova a decisão de não
-  // classificar é a cor, e por isso ela é asserida aqui.
-  it("a ΔP_L,dyn não carrega cor de status", () => {
+  // A cor era a ÚNICA prova da decisão anterior: trocar `caixa(T.dim)` por
+  // `caixa(statusColor(...))` não mudava uma letra na tela, e a suíte de texto
+  // ficava verde de qualquer jeito. A prova continua sendo a cor, e o que ela
+  // prova agora é o oposto: a borda tem que ser a da faixa devolvida pelo
+  // módulo, e não o cinza neutro. Reverter para `T.dim` deixa este teste
+  // vermelho sem mexer em texto nenhum, que é exatamente o que se quer.
+  it("a ΔP_L,dyn carrega a cor da faixa dela", () => {
     montar(ev({ pocc: -12, ppico: 30, peep: 10 }));
     const borda = screen.getByTestId("mec-dpl").style.borderLeftColor;
-    expect(borda).toBe(rgb(statusColor(null)));
-    for (const s of ["ok", "warn", "danger"] as const) {
-      expect(borda).not.toBe(rgb(statusColor(s)));
-    }
+    expect(borda).toBe(rgb(statusColor("danger")));
+    expect(borda).not.toBe(rgb(statusColor(null)));
+  });
+
+  // E a cor acompanha a faixa em vez de ser fixa: com a mesma tela e um valor
+  // abaixo de 15, a borda é verde. Sem este par, uma cor constante de status
+  // passaria pelo teste acima.
+  it("a cor da ΔP_L,dyn muda com a faixa, e não é constante", () => {
+    montar(ev({ pocc: -3, ppico: 20, peep: 12 }));
+    const bloco = screen.getByTestId("mec-dpl");
+    expect(bloco).toHaveTextContent("10.0");
+    expect(bloco.style.borderLeftColor).toBe(rgb(statusColor("ok")));
+  });
+
+  // O parecer que sustenta as faixas é citado no rodapé, e só quando a
+  // ΔP_L,dyn de fato aparece: sem pico não há número na tela, e fonte sem
+  // afirmação acima dela é o defeito que este painel já embarcou três vezes.
+  it("cita o parecer das faixas só quando a ΔP_L,dyn aparece", () => {
+    montar(ev({ pocc: -12, ppico: 30, peep: 10 }));
+    expect(screen.getByTestId("mec-fonte")).toHaveTextContent(
+      /Parecer clínico \(faixas da ΔP_L,dyn\), 2026/
+    );
+  });
+
+  it("sem ΔP_L,dyn na tela, o parecer das faixas dela não é citado", () => {
+    montar(ev({ pocc: -12 }));
+    expect(screen.queryByTestId("mec-dpl")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mec-fonte")).not.toHaveTextContent(/faixas da ΔP_L,dyn/);
   });
 
   it("sem pico não mostra ΔP_L,dyn, mas mostra o Pmus", () => {

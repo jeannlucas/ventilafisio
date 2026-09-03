@@ -52,12 +52,38 @@ export function classificarEsforco(pmus: number): FaixaEsforco {
   return "elevado";
 }
 
+export type FaixaDpL = "baixa" | "intermediaria" | "elevada";
+
+/**
+ * Fronteiras da leitura da ΔP_L,dyn estimada, em cmH₂O. Parecer do mentor
+ * (03/09/2026): "Por favor classifica com os cortes já vistos como 15 e 20."
+ *
+ * Até 02/09/2026 este número saía SEM faixa e sem cor, porque o mentor não
+ * tinha sido perguntado. Ele foi, e respondeu — a decisão de não classificar
+ * caiu, e no lugar dela ficam estes dois números, que são dele e não da
+ * literatura. `COEF_DPL` continua sendo Bertoni 2019: o parecer sustenta as
+ * faixas, não o coeficiente.
+ *
+ * Mesma convenção de inclusividade de `classificarEsforco`: a comparação é
+ * `<`, então 15 já é `intermediaria` e 20 já é `elevada`. Três faixas, dois
+ * números, sem quarta faixa.
+ */
+export const FRONTEIRAS_DPL = { intermediaria: 15, elevada: 20 } as const;
+
+export function classificarDpL(dpl: number): FaixaDpL {
+  if (dpl < FRONTEIRAS_DPL.intermediaria) return "baixa";
+  if (dpl < FRONTEIRAS_DPL.elevada) return "intermediaria";
+  return "elevada";
+}
+
 export interface Esforco {
   /** Sempre positivo, qualquer que seja o sinal do ΔPocc gravado. */
   pmus: number;
   faixa: FaixaEsforco;
-  /** Estimativa de estresse pulmonar. SEM FAIXA: o mentor não foi consultado. */
+  /** Estimativa de estresse pulmonar. */
   dpLDinamica: number | null;
+  /** Faixa da ΔP_L,dyn. null quando não há ΔP_L,dyn a classificar. */
+  faixaDpL: FaixaDpL | null;
 }
 
 const COEF_PMUS = 0.75;
@@ -88,7 +114,15 @@ export function estimarEsforco(
   const pmus = COEF_PMUS * modulo;
   const dpLDinamica =
     num(ppico) && num(peep) ? ppico - peep + COEF_DPL * modulo : null;
-  return { pmus, faixa: classificarEsforco(pmus), dpLDinamica };
+  return {
+    pmus,
+    faixa: classificarEsforco(pmus),
+    dpLDinamica,
+    // Sem ΔP_L,dyn não há o que classificar, e `null` aqui é ausência de
+    // número, não faixa baixa: classificar o que não foi calculado seria a
+    // armadilha nº 5 do projeto.
+    faixaDpL: dpLDinamica != null ? classificarDpL(dpLDinamica) : null,
+  };
 }
 
 export interface RecrutabilidadeEntrada {

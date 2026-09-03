@@ -7,6 +7,7 @@ import {
   type Esforco,
   type FaixaDrive,
   type FaixaEsforco,
+  type FaixaDpL,
 } from "../../lib/mecanica";
 import type { SourceKey } from "../../lib/references";
 import { T, fmt } from "../../lib/theme";
@@ -91,6 +92,41 @@ const ESFORCO: Record<FaixaEsforco, Rotulo> = {
 /** Faixa fora do domínio conhecido: avisa, em vez de renderizar `undefined`. */
 const ESFORCO_DESCONHECIDO: Rotulo = {
   rotulo: "Leitura de esforço não reconhecida",
+  explicacao:
+    "O app recebeu uma classificação que esta tela não sabe nomear. Não interprete por aqui.",
+  cor: T.warn,
+};
+
+/**
+ * Leitura por extenso de cada faixa da ΔP_L,dyn estimada.
+ *
+ * As fronteiras (15 e 20) NÃO moram aqui: quem classifica é
+ * `classificarDpL`, em `lib/mecanica.ts`. Este mapa só nomeia o que voltou.
+ */
+const DPL: Record<FaixaDpL, Rotulo> = {
+  baixa: {
+    rotulo: "Estresse dinâmico baixo",
+    explicacao:
+      "ΔP_L,dyn estimada abaixo do primeiro corte usado aqui. Continua sendo estimativa, não medida: ela não substitui a manometria esofágica nem descarta lesão em curso.",
+    cor: T.ok,
+  },
+  intermediaria: {
+    rotulo: "Estresse dinâmico intermediário",
+    explicacao:
+      "ΔP_L,dyn estimada entre os dois cortes usados aqui. Vale revisar assistência, sedação e demanda ventilatória antes de aceitar o valor como estável.",
+    cor: T.warn,
+  },
+  elevada: {
+    rotulo: "Estresse dinâmico elevado",
+    explicacao:
+      "ΔP_L,dyn estimada além do corte superior usado aqui. É o cenário em que a preocupação com lesão pulmonar induzida pelo próprio paciente pesa mais na decisão.",
+    cor: T.danger,
+  },
+};
+
+/** Faixa fora do domínio conhecido: avisa, em vez de renderizar `undefined`. */
+const DPL_DESCONHECIDA: Rotulo = {
+  rotulo: "Leitura de ΔP_L,dyn não reconhecida",
   explicacao:
     "O app recebeu uma classificação que esta tela não sabe nomear. Não interprete por aqui.",
   cor: T.warn,
@@ -201,24 +237,38 @@ export function MecanicaPanel({ ev }: { ev: DailyEvolution }) {
                 " Nesta faixa, a preocupação com sobrecarga muscular e com P-SILI fica mais forte acima de 15 cmH₂O; isso é ênfase dentro da mesma faixa, não uma fronteira a mais."}
             </p>
 
-            {/* SEM FAIXA, SEM COR DE STATUS, SEM ADJETIVO: o mentor não foi
+            {/* COM FAIXA E COM COR, desde 03/09/2026. Até então este bloco saía
+                em `caixa(T.dim)` de propósito: o mentor não tinha sido
                 perguntado sobre limiar de ΔP_L,dyn, e a literatura ter algum
-                não autoriza este app a exibi-lo. É decisão de não exibir. */}
-            {esforco.dpLDinamica != null ? (
-              <div data-testid="mec-dpl" style={caixa(T.dim)}>
-                <div style={rotuloAviso}>ΔP_L,dyn ESTIMADA</div>
-                <div style={{ fontSize: 12.5, color: T.txt, lineHeight: 1.7 }}>
-                  <strong style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {fmt(esforco.dpLDinamica, 1)}
-                  </strong>{" "}
-                  cmH₂O
-                </div>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: T.dim, lineHeight: 1.5 }}>
-                  Estimativa de estresse pulmonar derivada do ΔPocc, do pico e da PEEP. Não é medida
-                  e o app não a classifica: não há faixa de leitura aprovada pelo mentor para este
-                  número, e inventar uma diria mais do que a fonte sustenta.
-                </p>
-              </div>
+                não autorizava o app a exibi-lo. Ele foi perguntado e respondeu
+                ("classifica com os cortes já vistos como 15 e 20"), então a
+                recusa caiu. Os dois números continuam morando em
+                `lib/mecanica.ts`, e o que muda aqui é só a cor e o rótulo. */}
+            {esforco.dpLDinamica != null && esforco.faixaDpL != null ? (
+              (() => {
+                const dpl = DPL[esforco.faixaDpL] ?? DPL_DESCONHECIDA;
+                return (
+                  <div data-testid="mec-dpl" style={caixa(dpl.cor)}>
+                    <div style={rotuloAviso}>ΔP_L,dyn ESTIMADA</div>
+                    <div style={{ fontSize: 12.5, color: T.txt, lineHeight: 1.7 }}>
+                      <strong style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {fmt(esforco.dpLDinamica, 1)}
+                      </strong>{" "}
+                      cmH₂O
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: dpl.cor, marginTop: 4 }}>
+                      {dpl.rotulo}
+                    </div>
+                    <p style={{ margin: "4px 0 0", fontSize: 12.5, color: T.txt, lineHeight: 1.6 }}>
+                      {dpl.explicacao}
+                    </p>
+                    <p style={{ margin: "4px 0 0", fontSize: 12, color: T.dim, lineHeight: 1.5 }}>
+                      Estimativa de estresse pulmonar derivada do ΔPocc, do pico e da PEEP. Não é
+                      medida, e as fronteiras de leitura são prática do mentor.
+                    </p>
+                  </div>
+                );
+              })()
             ) : (
               <p data-testid="mec-dpl-ausente" style={textoRessalva}>
                 Sem P_pico e PEEP registrados nesta evolução, o app não estima a ΔP_L,dyn.
@@ -254,5 +304,9 @@ function chaves(drive: FaixaDrive | null, esforco: Esforco | null): SourceKey[] 
   const ks: SourceKey[] = [];
   if (drive) ks.push("drive");
   if (esforco) ks.push("esforco");
+  // Só quando a ΔP_L,dyn de fato aparece classificada: sem pico e sem PEEP não
+  // há número na tela, e citar o parecer das faixas ali seria fonte sem
+  // afirmação acima dela.
+  if (esforco?.faixaDpL != null) ks.push("dplFaixas");
   return ks;
 }
