@@ -425,6 +425,26 @@ describe("textoPeep", () => {
     expect(t.sub).toMatch(/ARDSnet/i);
   });
 
+  // A3: asma e DPOC marcadas com auto-PEEP medido produzem `peep` E
+  // `faixaPeep`. O ramo do número solto testa `peep != null` PRIMEIRO, então
+  // sem um ramo próprio antes dele a faixa do DPOC nunca chegaria à tela — o
+  // motor a calcularia e a formatação a jogaria fora em silêncio, que é a
+  // forma mais barata de desfazer a decisão de mostrar os dois.
+  it("mostra os DOIS limites quando o motor devolveu número e faixa", () => {
+    const t = textoPeep(
+      alvoPeep({ fio2: 60, peep: 5, faixaPeep: { min: 8, max: 8.5 }, presetAdmissao: false })
+    );
+    expect(t.big).toContain("5");
+    expect(t.big).toContain("8.0");
+    expect(t.big).toContain("8.5");
+    // Nem "ARDSnet" (a tabela não se aplica ao obstrutivo) nem número novo no
+    // subtítulo: o porquê sai da modulação, como sempre.
+    expect(t.sub).not.toMatch(/ARDSnet/i);
+    expect(t.sub).not.toMatch(/\d/);
+    // A formatação não elege um dos dois: quem compara é o terapeuta.
+    expect(t.sub).not.toMatch(/conservador|mais restritiv|prevalece/i);
+  });
+
   it("mostra a faixa quando o motor deu faixa", () => {
     const t = textoPeep(
       alvoPeep({ fio2: 60, peep: null, faixaPeep: { min: 8, max: 8.5 }, presetAdmissao: false })

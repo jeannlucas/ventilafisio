@@ -117,6 +117,55 @@ const PEEP_MAX_ASMA = 5;
 const FRACAO_AUTO_PEEP = { min: 0.8, max: 0.85 } as const;
 
 /**
+ * Nível de auto-PEEP abaixo do qual a regra dos 80 a 85% ganha uma RESSALVA A
+ * MAIS. Parecer do mentor (03/09/2026).
+ *
+ * NÃO É LIMIAR DE COMPORTAMENTO. Nada muda de valor em 3: a faixa continua
+ * sendo exibida para qualquer auto-PEEP acima de zero, e o que aparece abaixo
+ * de 3 é texto. O mentor recusou o limiar com todas as letras — "não existe um
+ * valor mágico de auto-PEEP a partir do qual a regra passa a ser obrigatória"
+ * —, então transformar isto em corte que suprime a faixa contraria o parecer.
+ *
+ * Ele escreveu "3 a 4" e código precisa de um número onde ele escreveu dois,
+ * como já aconteceu com o "> 12-15" do Pmus na Fase 7. A borda INFERIOR é a
+ * escolhida porque faz a ressalva cobrir MAIS casos, que é a direção segura
+ * para uma ressalva.
+ */
+const AUTO_PEEP_POUCA_UTILIDADE = 3;
+
+/**
+ * Ressalvas que acompanham TODA faixa de PEEP derivada do auto-PEEP.
+ *
+ * A primeira vale sempre que há faixa; a segunda só abaixo de
+ * `AUTO_PEEP_POUCA_UTILIDADE`. Ficam em modulações próprias, com chave
+ * própria, porque quem as sustenta é o parecer de 03/09/2026 e não Ranieri
+ * nem Demoule: sob `obstrutivo` elas apareceriam citando quem não as disse.
+ */
+function ressalvasAutoPeep(autoPeep: number): Modulacao[] {
+  const ms: Modulacao[] = [
+    {
+      motivo:
+        "O objetivo da PEEP externa aqui é reduzir o limiar de disparo imposto pela hiperinsuflação dinâmica, e não corrigir o número do auto-PEEP. Titule pela resposta do paciente.",
+      sourceKey: "autoPeepAplicacao",
+    },
+  ];
+  if (autoPeep < AUTO_PEEP_POUCA_UTILIDADE) {
+    ms.push({
+      motivo:
+        "Neste nível de auto-PEEP a regra tem pouca utilidade prática: o valor resultante fica abaixo da capacidade de ajuste da maioria dos ventiladores. E auto-PEEP baixo não exclui hiperinsuflação — a medida depende de ter sido obtida com pausa expiratória e paciente passivo, e no paciente em respiração espontânea ela é menos representativa. O sinal a olhar é se o fluxo expiratório retorna a zero antes do próximo ciclo.",
+      sourceKey: "autoPeepAplicacao",
+    });
+  }
+  return ms;
+}
+
+/** A faixa do DPOC: 80 a 85% do auto-PEEP medido. */
+const faixaDoAutoPeep = (autoPeep: number) => ({
+  min: autoPeep * FRACAO_AUTO_PEEP.min,
+  max: autoPeep * FRACAO_AUTO_PEEP.max,
+});
+
+/**
  * PEEP e FiO₂ sugeridas.
  *
  * Base: tabela low do ARDSnet, a partir da P/F e da SpO₂.
@@ -174,24 +223,87 @@ export function sugerirPeepFio2(
 
   if (!obstrutivo) return semModulacao(base);
 
-  // As duas marcadas: aplica-se o teto da asma, e a modulação declara as duas.
-  // Não é precedência clínica: o mentor não foi perguntado sobre o paciente com
-  // as duas patologias.
+  // As duas marcadas: o aplicativo DEIXA DE ESCOLHER e mostra os dois limites
+  // lado a lado, quando os dois existem. Parecer do mentor (03/09/2026): ele
+  // não tinha resposta e pediu minúcia nos dois casos. É o mesmo hábito que já
+  // faz o aplicativo exibir 80% e 85% em vez de eleger um dos dois.
   //
-  // O teto da asma NÃO é comparado com o do DPOC, e o texto não afirma que
-  // seja. Os dois são tetos, mas com auto-PEEP baixo o limite do DPOC cai
-  // abaixo de 5, e aí o teto aplicado deixa de ser o menor dos dois. Afirmar
-  // "o mais conservador" seria uma comparação que o código não faz. Tomar o
-  // menor dos dois resolveria sozinho uma pergunta que ninguém respondeu, e é
-  // decisão do mentor, não daqui.
+  // O teto da asma continua NÃO sendo comparado com o do DPOC, e o texto não
+  // afirma que seja: qual dos dois prevalece é pergunta aberta, e a comparação
+  // entre eles é do terapeuta que está vendo os dois números.
   if (temAsma) {
-    const motivo = temDpoc
-      ? "Asma e DPOC marcadas: aplicado o teto de 5 cmH₂O da asma. A PEEP externa alta agrava o aprisionamento aéreo. Este teto não é comparado com o do auto-PEEP: com auto-PEEP baixo, o limite do DPOC seria menor que 5. Ninguém decidiu qual dos dois vale no paciente com as duas patologias."
-      : "Asma: PEEP externa limitada a 5 cmH₂O. A tabela do ARDSnet não se aplica ao obstrutivo.";
+    const peepAsma = Math.min(base.peep!, PEEP_MAX_ASMA);
+    if (temDpoc) {
+      // Os dois limites existem: exibe os dois. `peep` é o teto da asma e
+      // `faixaPeep` é o do DPOC, e a tela precisa mostrar ambos — foi por isso
+      // que `textoPeep` ganhou o ramo dos dois não nulos.
+      if (num(autoPeep) && autoPeep > 0) {
+        return {
+          valor: { ...base, peep: peepAsma, faixaPeep: faixaDoAutoPeep(autoPeep) },
+          base,
+          modulacoes: [
+            {
+              motivo:
+                "Asma e DPOC marcadas: o teto da asma é 5 cmH₂O e o limite do DPOC é 80 a 85% do auto-PEEP medido. Ranieri 1993 situa em 85% e Demoule 2020 em 80%; o aplicativo mostra a faixa em vez de escolher um dos dois.",
+              sourceKey: "obstrutivo",
+            },
+            {
+              motivo:
+                "Os dois limites aparecem lado a lado porque ninguém decidiu qual deles prevalece no paciente com as duas patologias marcadas. A comparação entre eles é do terapeuta.",
+              sourceKey: "asmaDpoc",
+            },
+            ...ressalvasAutoPeep(autoPeep),
+          ],
+        };
+      }
+      // Zero é MEDIDA, e boa: não há aprisionamento aéreo. A mesma distinção do
+      // ramo do DPOC puro — os dois casos abaixo recusam a faixa, e recusam por
+      // razões diferentes, escritas em textos diferentes.
+      if (autoPeep === 0) {
+        return {
+          valor: { ...base, peep: peepAsma, faixaPeep: null },
+          base,
+          modulacoes: [
+            {
+              motivo:
+                "Asma e DPOC marcadas: vale o teto de 5 cmH₂O da asma. O auto-PEEP medido foi zero, ou seja, não há aprisionamento aéreo, e a regra dos 80 a 85% do DPOC perde o referente aqui.",
+              sourceKey: "obstrutivo",
+            },
+            {
+              motivo:
+                "Ninguém decidiu qual dos dois limites prevalece no paciente com as duas patologias marcadas; neste dia só o da asma tem referente.",
+              sourceKey: "asmaDpoc",
+            },
+          ],
+        };
+      }
+      return {
+        valor: { ...base, peep: peepAsma, faixaPeep: null },
+        base,
+        modulacoes: [
+          {
+            motivo:
+              "Asma e DPOC marcadas: vale o teto de 5 cmH₂O da asma. O limite do DPOC é 80 a 85% do auto-PEEP, que não foi medido.",
+            sourceKey: "obstrutivo",
+          },
+          {
+            motivo:
+              "Ninguém decidiu qual dos dois limites prevalece no paciente com as duas patologias marcadas. Registre o auto-PEEP para o limite do DPOC aparecer também.",
+            sourceKey: "asmaDpoc",
+          },
+        ],
+      };
+    }
     return {
-      valor: { ...base, peep: Math.min(base.peep!, PEEP_MAX_ASMA) },
+      valor: { ...base, peep: peepAsma },
       base,
-      modulacoes: [{ motivo, sourceKey: "obstrutivo" }],
+      modulacoes: [
+        {
+          motivo:
+            "Asma: PEEP externa limitada a 5 cmH₂O. A tabela do ARDSnet não se aplica ao obstrutivo.",
+          sourceKey: "obstrutivo",
+        },
+      ],
     };
   }
 
@@ -257,14 +369,7 @@ export function sugerirPeepFio2(
     };
   }
   return {
-    valor: {
-      ...base,
-      peep: null,
-      faixaPeep: {
-        min: autoPeep * FRACAO_AUTO_PEEP.min,
-        max: autoPeep * FRACAO_AUTO_PEEP.max,
-      },
-    },
+    valor: { ...base, peep: null, faixaPeep: faixaDoAutoPeep(autoPeep) },
     base,
     modulacoes: [
       {
@@ -272,6 +377,7 @@ export function sugerirPeepFio2(
           "DPOC: a tabela do ARDSnet não se aplica. O limite da PEEP externa é 80 a 85% do auto-PEEP medido. Ranieri 1993 situa em 85% e Demoule 2020 em 80%; o aplicativo mostra a faixa em vez de escolher um dos dois.",
         sourceKey: "obstrutivo",
       },
+      ...ressalvasAutoPeep(autoPeep),
     ],
   };
 }
@@ -297,8 +403,17 @@ const FR_MIN_PADRAO = 12;
  * `vcTargetMl` é `predBW * 6` ou `predBW * 7` —, então `bruto` é sempre 17 ou
  * 14 e nenhum dos dois pisos jamais entra em vigor: a tela afirmava um
  * rebaixamento que nunca acontecia. Segundo porque o 10 não é publicado nem é
- * parecer do mentor: nenhuma fonte publica piso de frequência em obstrutivo, e
- * a pergunta está aberta com ele. Não reintroduza um número aqui.
+ * parecer do mentor: nenhuma fonte publica piso de frequência em obstrutivo.
+ * A pergunta ESTEVE aberta com ele e foi respondida em 03/09/2026:
+ * "Frequência sempre decidida na beira do leito." A remoção deixou de valer
+ * por falta de fonte e passou a valer por decisão registrada, que é mais
+ * forte. Não reintroduza um número aqui.
+ *
+ * São DUAS modulações e não uma, porque `Modulacao` carrega uma fonte só e as
+ * duas afirmações têm procedências diferentes: a relação I:E é de Demoule
+ * 2020, e a decisão de não impor limite inferior de frequência é parecer do
+ * mentor. Fundir as duas sob `obstrutivo` faria o parecer aparecer também no
+ * rodapé do ramo da PEEP, que ele não sustenta.
  *
  * `valor` igual a `base` com `modulacoes` não vazia é legítimo, e é o mesmo que
  * `alvoPaco2` faz: a modulação carrega informação, não alteração de número.
@@ -330,6 +445,14 @@ export function sugerirVentilacao(
           "Obstrutivo (DPOC ou asma): o alvo é a relação I:E de 1:4 a 1:6, para dar tempo de expirar. Quem regula a frequência é o terapeuta, à beira do leito: o aplicativo não altera a frequência sugerida e não calcula a relação I:E, porque não conhece o tempo inspiratório configurado no ventilador.",
         sourceKey: "obstrutivo",
       },
+      {
+        // Sem a palavra "piso" e sem a palavra "rebaixada" de propósito: o
+        // teste que proíbe as duas varre TODAS as modulações desta função, e
+        // ele é a guarda contra alguém reintroduzir o número removido.
+        motivo:
+          "A frequência é sempre decidida à beira do leito: o aplicativo não impõe limite inferior de frequência ao paciente obstrutivo, e nenhuma fonte publica esse número.",
+        sourceKey: "frObstrutivo",
+      },
     ],
   };
 }
@@ -350,21 +473,33 @@ export interface AlvoPaco2 {
  * neurológica" NÃO dispara este alvo: ela pega desde TCE agudo até
  * neuromuscular crônico, e num neuromuscular com DPOC o alvo empurraria na
  * direção errada.
+ *
+ * Com uma patologia obstrutiva marcada JUNTO, entra uma segunda modulação: o
+ * mentor decidiu em 03/09/2026 que a lesão cerebral prevalece e a hipercapnia
+ * permissiva usual do obstrutivo deixa de ser opção. Ela é condicionada ao PAR
+ * e tem chave própria: sob `lesaoCerebral` a citação apareceria para todo TCE,
+ * inclusive o que não tem obstrutivo nenhum.
  */
 export function alvoPaco2(perfil: PerfilClinico): Alvo<AlvoPaco2> | null {
   if (!perfil.patologias.includes("lesao_cerebral_aguda")) return null;
   const valor: AlvoPaco2 = { min: 35, max: 45 };
-  return {
-    valor,
-    base: valor,
-    modulacoes: [
-      {
-        motivo:
-          "Lesão cerebral aguda: alvo de PaCO₂ de 35 a 45 mmHg. Recomendação forte com evidência de qualidade baixa, e válida para o paciente sem hipertensão intracraniana clinicamente significativa, que o aplicativo não tem como saber.",
-        sourceKey: "lesaoCerebral",
-      },
-    ],
-  };
+  const modulacoes: Modulacao[] = [
+    {
+      motivo:
+        "Lesão cerebral aguda: alvo de PaCO₂ de 35 a 45 mmHg. Recomendação forte com evidência de qualidade baixa, e válida para o paciente sem hipertensão intracraniana clinicamente significativa, que o aplicativo não tem como saber.",
+      sourceKey: "lesaoCerebral",
+    },
+  ];
+  const obstrutivo =
+    perfil.patologias.includes("dpoc") || perfil.patologias.includes("asma");
+  if (obstrutivo) {
+    modulacoes.push({
+      motivo:
+        "Este paciente também tem patologia obstrutiva marcada. A hipercapnia permissiva usual do obstrutivo NÃO se aplica aqui: o alvo de 35 a 45 mmHg prevalece, porque na lesão cerebral aguda não pode haver retenção de CO₂.",
+      sourceKey: "paco2Obstrutivo",
+    });
+  }
+  return { valor, base: valor, modulacoes };
 }
 
 // ============================================================

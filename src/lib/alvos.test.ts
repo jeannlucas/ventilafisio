@@ -182,16 +182,40 @@ describe("sugerirVentilacao por patologia", () => {
 
   // A modulação continua existindo (Demoule 2020 é real e publicado), mas
   // passa a dizer só o que é verdade. Se alguém reintroduzir a afirmação de
-  // rebaixamento, é aqui que fica vermelho.
+  // rebaixamento, é aqui que fica vermelho. A varredura é sobre TODAS as
+  // modulações, e não sobre a primeira: desde 03/09/2026 são duas, e um piso
+  // reintroduzido na segunda passaria por um `modulacoes[0]`.
   it("a modulação do obstrutivo não afirma rebaixamento nem piso de frequência", () => {
     for (const patologia of ["dpoc", "asma"] as const) {
       const a = frDe([patologia]);
-      expect(a.modulacoes).toHaveLength(1);
-      expect(a.modulacoes[0].motivo).not.toMatch(/baixad|piso/i);
-      expect(a.modulacoes[0].motivo).toMatch(/1:4 a 1:6/);
-      expect(a.modulacoes[0].motivo).toMatch(/terapeuta/i);
-      expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+      for (const m of a.modulacoes) expect(m.motivo).not.toMatch(/baixad|piso/i);
+      expect(a.modulacoes.some((m) => /1:4 a 1:6/.test(m.motivo))).toBe(true);
+      expect(a.modulacoes.some((m) => /terapeuta/i.test(m.motivo))).toBe(true);
+      expect(a.modulacoes.some((m) => m.sourceKey === "obstrutivo")).toBe(true);
     }
+  });
+
+  // A1 (parecer de 03/09/2026): "Frequência sempre decidida na beira do leito."
+  // A ausência do piso deixou de valer por falta de fonte e passou a valer por
+  // decisão registrada. A chave é PRÓPRIA: sob `obstrutivo` o parecer passaria
+  // a ser citado também no rodapé do ramo da PEEP, que ele não sustenta.
+  it("o obstrutivo cita o parecer da frequência, em chave própria e além de Demoule", () => {
+    for (const patologia of ["dpoc", "asma"] as const) {
+      const a = frDe([patologia]);
+      const chaves = a.modulacoes.map((m) => m.sourceKey);
+      expect(chaves).toContain("obstrutivo");
+      expect(chaves).toContain("frObstrutivo");
+      const parecer = a.modulacoes.find((m) => m.sourceKey === "frObstrutivo")!;
+      expect(parecer.motivo).toMatch(/beira do leito/i);
+      // Nenhum número entrou junto com o parecer.
+      expect(parecer.motivo).not.toMatch(/\d/);
+    }
+  });
+
+  // O não obstrutivo não recebe nem uma nem outra: o parecer é sobre o
+  // obstrutivo, e citá-lo em todo paciente seria o mesmo defeito de sempre.
+  it("o não obstrutivo não cita o parecer da frequência", () => {
+    expect(frDe([]).modulacoes).toEqual([]);
   });
 
   // Lesão cerebral aguda não mexe na frequência: o alvo dela é de PaCO₂, e
@@ -223,6 +247,40 @@ describe("alvoPaco2", () => {
   it("a modulação declara a condição da hipertensão intracraniana", () => {
     const a = alvoPaco2(perfilCom(["lesao_cerebral_aguda"]))!;
     expect(a.modulacoes[0].motivo).toMatch(/intracraniana/i);
+  });
+
+  // ---------- A4: no TCE com obstrutivo, o TCE manda ----------
+  // Parecer de 03/09/2026: "não pode haver retenção de CO2". A hipercapnia
+  // permissiva usual do obstrutivo deixa de ser opção.
+  it("com lesão cerebral aguda E obstrutivo, recusa a hipercapnia permissiva", () => {
+    for (const obstrutiva of ["dpoc", "asma"] as const) {
+      const a = alvoPaco2(perfilCom(["lesao_cerebral_aguda", obstrutiva]))!;
+      // O alvo NÃO muda de número: o que entra é a recusa da exceção.
+      expect(a.valor).toEqual({ min: 35, max: 45 });
+      const m = a.modulacoes.find((x) => x.sourceKey === "paco2Obstrutivo");
+      expect(m).toBeDefined();
+      expect(m!.motivo).toMatch(/hipercapnia permissiva/i);
+      expect(m!.motivo).toMatch(/retenção de CO₂/i);
+    }
+  });
+
+  // ESTE é o teste que impede a modulação de virar incondicional. Ela é do
+  // PAR: citada em todo TCE, o rodapé passaria a trazer um parecer sobre
+  // obstrutivo embaixo da tela de quem não tem obstrutivo nenhum — o mesmo
+  // defeito que a chave própria existe para evitar.
+  it("o TCE sem obstrutivo não recebe a modulação do obstrutivo", () => {
+    const a = alvoPaco2(perfilCom(["lesao_cerebral_aguda"]))!;
+    expect(a.modulacoes).toHaveLength(1);
+    expect(a.modulacoes.map((m) => m.sourceKey)).not.toContain("paco2Obstrutivo");
+    expect(a.modulacoes[0].motivo).not.toMatch(/hipercapnia permissiva/i);
+  });
+
+  // E o obstrutivo sem lesão cerebral continua sem alvo de PaCO₂ nenhum: a
+  // modulação nova não pode abrir a porta que `alvoPaco2` mantém fechada.
+  it("o obstrutivo sem lesão cerebral aguda continua sem alvo de PaCO₂", () => {
+    expect(alvoPaco2(perfilCom(["dpoc"]))).toBeNull();
+    expect(alvoPaco2(perfilCom(["asma"]))).toBeNull();
+    expect(alvoPaco2(perfilCom(["dpoc", "asma"]))).toBeNull();
   });
 });
 
@@ -344,28 +402,139 @@ describe("sugerirPeepFio2 por patologia", () => {
     });
   });
 
-  // Duas patologias marcadas: aplica-se o teto da asma, e a modulação declara
-  // as duas. Não é precedência clínica — é a recusa de escolher entre duas
-  // quando ninguém decidiu.
-  it("asma e DPOC juntas aplicam o teto da asma e declaram as duas", () => {
-    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 10);
-    expect(a.valor.peep).toBe(5);
-    expect(a.valor.faixaPeep).toBeNull();
-    expect(a.modulacoes.some((m) => /asma/i.test(m.motivo) && /DPOC/i.test(m.motivo))).toBe(true);
+  // ---------- A2: o auto-PEEP baixo é RESSALVA, nunca supressão ----------
+  // O mentor recusou o limiar com todas as letras em 03/09/2026: "não existe um
+  // valor mágico de auto-PEEP a partir do qual a regra passa a ser
+  // obrigatória". O 3 do parecer decide se aparece um texto A MAIS, e nada
+  // mais: nenhum valor muda em 3.
+  //
+  // Este é o teste que fica vermelho se alguém transformar o 3 em corte. Ele
+  // varre a vizinhança inteira da fronteira, inclusive o 3 exato, porque um
+  // `<`, um `<=` ou um `return null` mudariam o resultado em pontos
+  // diferentes.
+  it("a faixa do DPOC sobrevive a qualquer auto-PEEP acima de zero, inclusive abaixo de 3", () => {
+    for (const autoPeep of [0.5, 1, 2, 2.9, 3, 3.5, 4, 10]) {
+      const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), autoPeep);
+      expect(a.valor.faixaPeep).toEqual({
+        min: autoPeep * 0.8,
+        max: autoPeep * 0.85,
+      });
+    }
   });
 
-  // Com auto-PEEP baixo, 80% dele fica ABAIXO de 5, então o teto aplicado não é
-  // o menor dos dois. O comportamento é esse de propósito, e fica fixado aqui
-  // para não mudar em silêncio: quem decide o paciente com as duas patologias é
-  // o mentor. O que a modulação não pode fazer é afirmar uma comparação que o
-  // código não faz.
-  it("com auto-PEEP baixo, o teto da asma não é o menor dos dois, e o texto não afirma que seja", () => {
-    // 80% de 4 é 3,2, abaixo dos 5 aplicados. Fica como comentário e não como
-    // asserção: `expect(4 * 0.8).toBeLessThan(5)` só afirmava aritmética de JS.
-    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 4);
+  // Ressalva (a): vale SEMPRE que há faixa, inclusive com auto-PEEP alto. Sem
+  // ela a tela sugeria que a PEEP externa existe para corrigir o número do
+  // auto-PEEP, que é justamente o que o mentor disse não ser o objetivo.
+  it("toda faixa de PEEP carrega o objetivo real da PEEP externa, com fonte própria", () => {
+    for (const autoPeep of [1, 4, 10]) {
+      const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), autoPeep);
+      const r = a.modulacoes.find((m) => m.sourceKey === "autoPeepAplicacao" && /limiar de disparo/i.test(m.motivo));
+      expect(r).toBeDefined();
+      expect(r!.motivo).toMatch(/hiperinsuflação/i);
+      expect(r!.motivo).toMatch(/não corrigir o número do auto-PEEP/i);
+    }
+  });
+
+  // Ressalva (b): só abaixo de 3, e é texto A MAIS — a faixa continua exibida
+  // (o teste acima é quem prova isso). O ponto que o mentor destacou como o
+  // mais importante é que auto-PEEP baixo NÃO exclui hiperinsuflação.
+  it("abaixo de 3, o auto-PEEP ganha a ressalva a mais, sem perder a faixa", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), 2);
+    expect(a.valor.faixaPeep).toEqual({ min: 1.6, max: 1.7 });
+    const extra = a.modulacoes.find((m) => /não exclui hiperinsuflação/i.test(m.motivo));
+    expect(extra).toBeDefined();
+    expect(extra!.sourceKey).toBe("autoPeepAplicacao");
+    expect(extra!.motivo).toMatch(/pausa expiratória/i);
+    expect(extra!.motivo).toMatch(/fluxo expiratório retorna a zero/i);
+  });
+
+  // A fronteira é `< 3`, mesma convenção de inclusividade das faixas de
+  // esforço. Em 3 exato a ressalva a mais NÃO aparece, e a faixa continua.
+  it("em 3 e acima, a ressalva a mais não aparece", () => {
+    for (const autoPeep of [3, 4, 10]) {
+      const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), autoPeep);
+      expect(a.modulacoes.some((m) => /não exclui hiperinsuflação/i.test(m.motivo))).toBe(false);
+      expect(a.valor.faixaPeep).not.toBeNull();
+    }
+  });
+
+  // Sem faixa não há ressalva de aplicação: fonte sem afirmação acima dela é
+  // ruído, e os dois caminhos que recusam número não têm regra a ressalvar.
+  it("os caminhos que recusam a faixa não citam a ressalva da aplicação", () => {
+    for (const autoPeep of [null, 0]) {
+      const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), autoPeep);
+      expect(a.valor.faixaPeep).toBeNull();
+      expect(a.modulacoes.map((m) => m.sourceKey)).not.toContain("autoPeepAplicacao");
+    }
+  });
+
+  // ---------- A3: asma e DPOC mostram os DOIS limites ----------
+  // Parecer de 03/09/2026: o mentor não tinha resposta e pediu minúcia nos dois
+  // casos. O aplicativo deixou de escolher e passou a exibir os dois lado a
+  // lado, como já faz com os 80% e os 85%.
+  it("asma e DPOC com auto-PEEP medido mostram os DOIS limites", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 10);
     expect(a.valor.peep).toBe(5);
-    expect(a.modulacoes).toHaveLength(1);
-    expect(a.modulacoes[0].motivo).not.toMatch(/conservador|mais restritiv/i);
+    expect(a.valor.faixaPeep).toEqual({ min: 8, max: 8.5 });
+    expect(a.modulacoes.some((m) => m.sourceKey === "asmaDpoc")).toBe(true);
+    const decisao = a.modulacoes.find((m) => m.sourceKey === "asmaDpoc")!;
+    expect(decisao.motivo).toMatch(/ninguém decidiu/i);
+  });
+
+  // O que o texto NÃO pode fazer é comparar os dois por conta própria: eleger
+  // um deles é decisão do mentor, e ele não a tomou. A varredura é sobre todas
+  // as modulações, porque o defeito caberia em qualquer uma delas.
+  it("com os dois limites na tela, nenhum texto diz qual é o mais restritivo", () => {
+    for (const autoPeep of [1, 4, 10]) {
+      const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), autoPeep);
+      expect(a.valor.peep).toBe(5);
+      expect(a.valor.faixaPeep).not.toBeNull();
+      for (const m of a.modulacoes) {
+        expect(m.motivo).not.toMatch(/conservador|mais restritiv|vale o menor|prefira|use o/i);
+      }
+    }
+  });
+
+  // Com auto-PEEP baixo, 80% dele fica ABAIXO de 5 — e agora os dois números
+  // aparecem juntos na tela, então quem compara é o terapeuta, com os dois à
+  // vista. Antes o aplicativo escondia o do DPOC e mostrava só o 5.
+  it("com auto-PEEP baixo, os dois limites continuam aparecendo, e as ressalvas junto", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 2);
+    expect(a.valor.peep).toBe(5);
+    expect(a.valor.faixaPeep).toEqual({ min: 1.6, max: 1.7 });
+    expect(a.modulacoes.some((m) => /não exclui hiperinsuflação/i.test(m.motivo))).toBe(true);
+  });
+
+  // Zero é MEDIDA, e boa: a regra do DPOC perde o referente e só o teto da asma
+  // sobra. Distinto do não medido, e o par de testes abaixo é o que separa os
+  // dois textos — a mesma garantia que já existe no DPOC puro.
+  it("asma e DPOC com auto-PEEP zero mostram só o teto da asma, com motivo próprio", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 0);
+    expect(a.valor.peep).toBe(5);
+    expect(a.valor.faixaPeep).toBeNull();
+    const m = a.modulacoes.map((x) => x.motivo).join(" ");
+    expect(m).toMatch(/zero/i);
+    expect(m).toMatch(/aprisionamento/i);
+    expect(m).not.toMatch(/não foi medido/i);
+    expect(m).not.toMatch(/registre o auto-PEEP/i);
+  });
+
+  it("asma e DPOC sem auto-PEEP medido pedem a medida, e o texto não é o do zero", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), null);
+    expect(a.valor.peep).toBe(5);
+    expect(a.valor.faixaPeep).toBeNull();
+    const m = a.modulacoes.map((x) => x.motivo).join(" ");
+    expect(m).toMatch(/não foi medido/i);
+    expect(m).toMatch(/registre o auto-PEEP/i);
+    expect(m).not.toMatch(/aprisionamento/i);
+  });
+
+  // O teto da asma sobrevive nos três casos: o que varia é só o limite do
+  // DPOC, que só existe com auto-PEEP acima de zero.
+  it("o teto da asma vale nos três estados do auto-PEEP", () => {
+    for (const autoPeep of [null, 0, 10]) {
+      expect(sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), autoPeep).valor.peep).toBe(5);
+    }
   });
 
   it("o preset de admissão continua valendo sem gasometria nem oximetria", () => {
@@ -445,30 +614,32 @@ describe("sugerirPeepFio2 por patologia", () => {
     expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
   });
 
-  // O texto que pede o auto-PEEP é do DPOC, e só dele: nenhum caminho da asma
-  // pode alcançá-lo, com ou sem auto-PEEP, com ou sem oxigenação.
-  // A varredura cobre a asma pura E a dupla, porque o defeito era de ORDEM de
-  // ramo: o pedido de auto-PEEP nascia acima do teto da asma e alcançava os
-  // dois. A folha sem gasometria e sem auto-PEEP é a que ninguém fixava, e é
-  // justamente a que o `AdmissionCard` sempre produz.
-  it.each([
-    ["asma", ["asma"] as PatologiaKey[]],
-    ["asma e DPOC", ["dpoc", "asma"] as PatologiaKey[]],
-  ])(
-    "nenhum caminho com %s pede o auto-PEEP",
-    (_rotulo, patologias) => {
-      for (const autoPeep of [null, 0, 10]) {
-        for (const pf of [null, 150]) {
-          const a = sugerirPeepFio2(pf, null, perfilCom(patologias), autoPeep);
-          expect(a.valor.peep).toBe(5);
-          for (const m of a.modulacoes) {
-            expect(m.motivo).not.toMatch(/registre o auto-PEEP/i);
-            expect(m.motivo).toMatch(/asma/i);
-          }
+  // O texto que pede o auto-PEEP não alcança a ASMA PURA, em caminho nenhum,
+  // com ou sem auto-PEEP, com ou sem oxigenação: o teto dela é 5 fixo, e com
+  // auto-PEEP 10 o mesmo paciente continua recebendo 5. Pedir uma medida que a
+  // regra não usa é o defeito de ORDEM de ramo que este teste guarda — o
+  // pedido nascia acima do teto da asma e alcançava todo asmático.
+  //
+  // ESTREITADO em 03/09/2026, de propósito. Antes ele varria também a dupla
+  // asma + DPOC, e varria com razão: enquanto o ramo da dupla ignorava o
+  // auto-PEEP, pedi-lo ali era tão inútil quanto na asma pura. Com A3 a dupla
+  // passou a USAR a medida — os dois limites saem lado a lado —, então pedi-la
+  // virou correto, e o teste oposto está logo acima ("asma e DPOC sem
+  // auto-PEEP medido pedem a medida"). A variante da asma pura fica, porque é
+  // ela que guarda o defeito original.
+  it("nenhum caminho com asma pura pede o auto-PEEP", () => {
+    for (const autoPeep of [null, 0, 10]) {
+      for (const pf of [null, 150]) {
+        const a = sugerirPeepFio2(pf, null, perfilCom(["asma"]), autoPeep);
+        expect(a.valor.peep).toBe(5);
+        expect(a.valor.faixaPeep).toBeNull();
+        for (const m of a.modulacoes) {
+          expect(m.motivo).not.toMatch(/registre o auto-PEEP/i);
+          expect(m.motivo).toMatch(/asma/i);
         }
       }
     }
-  );
+  });
 
   it("sem patologia obstrutiva o preset continua sem modulação nenhuma", () => {
     expect(sugerirPeepFio2(null, null, perfilCom([]), null).modulacoes).toEqual([]);

@@ -28,6 +28,17 @@ import { LinhaModulacaoSimples } from "./LinhaModulacaoSimples";
  */
 export function textoPeep(alvo: Alvo<AlvoPeepFio2>): { big: string; sub: string } {
   const { peep, faixaPeep, presetAdmissao } = alvo.valor;
+  // Os DOIS presentes: asma e DPOC marcadas com auto-PEEP medido. Vem antes do
+  // ramo do número solto porque aquele testa `peep != null` e devolveria só o
+  // teto da asma — a faixa do DPOC nunca chegaria à tela, e o motor a produziu
+  // justamente para que os dois limites aparecessem lado a lado. Qual deles
+  // prevalece ninguém decidiu, e este arquivo não é onde essa decisão moraria.
+  if (peep != null && faixaPeep != null) {
+    return {
+      big: `${fmt(peep, 0)} cmH₂O · ${fmt(faixaPeep.min)}–${fmt(faixaPeep.max)} cmH₂O`,
+      sub: "dois limites · ver abaixo",
+    };
+  }
   if (peep != null) {
     // "tabela ARDSnet" só quando o número VEIO da tabela. O preset de admissão
     // (sem gasometria e sem oximetria) não vem: rotulá-lo assim afirmava a
