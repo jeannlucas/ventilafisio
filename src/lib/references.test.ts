@@ -238,3 +238,37 @@ describe("fontes do alvo por patologia (Fase 8)", () => {
     expect(sourcesFor("vcKg").map((r) => r.id)).toEqual(["ardsnet_2000", "amib_sbpt_2024"]);
   });
 });
+
+// ---------- Os pareceres de 03/09/2026 ----------
+//
+// Cinco pareceres, cinco chaves PRÓPRIAS. Anexar qualquer um deles a uma chave
+// existente o faria aparecer embaixo de afirmação que ele não sustenta: o da
+// frequência sob o ramo da PEEP, o do TCE sob todo paciente com lesão cerebral,
+// inclusive o que não tem obstrutivo nenhum. É o mesmo defeito do
+// `parecer_vc_obeso` sob `vcKg`, que esta suíte já guarda logo acima.
+describe("os pareceres do mentor de 03/09/2026", () => {
+  const NOVOS = [
+    ["frObstrutivo", "parecer_fr_obstrutivo"],
+    ["autoPeepAplicacao", "parecer_auto_peep_baixo"],
+    ["asmaDpoc", "parecer_asma_dpoc"],
+    ["paco2Obstrutivo", "parecer_paco2_tce"],
+    ["dplFaixas", "parecer_dpl_faixas"],
+  ] as const;
+
+  it.each(NOVOS)("a chave %s resolve exatamente para %s", (chave, id) => {
+    expect(sourcesFor(chave).map((r) => r.id)).toEqual([id]);
+  });
+
+  it.each(NOVOS)("%s: %s é Parecer, não Publicacao", (_chave, id) => {
+    const r = REFERENCES.find((x) => x.id === id);
+    expect(r).toBeDefined();
+    expect(ehParecer(r!)).toBe(true);
+  });
+
+  // A nota é o registro da decisão clínica, e aparece na página pública de
+  // fontes. Ela cita o mentor entre aspas, então tem que trazer as aspas.
+  it.each(NOVOS)("%s: a nota de %s cita o mentor literalmente", (_chave, id) => {
+    const r = REFERENCES.find((x) => x.id === id)!;
+    expect(r.nota).toMatch(/"/);
+  });
+});

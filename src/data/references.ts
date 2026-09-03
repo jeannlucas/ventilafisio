@@ -481,7 +481,7 @@ export const REFERENCES: Reference[] = [
     profissional: "Mentor clínico do projeto",
     data: "03/09/2026",
     nota:
-      "\"Não tenho uma resposta satisfatória para essa pergunta agora, mas acho que vc pode considerar da melhor maneira possível, sendo minucioso nos dois casos.\" Sustenta a decisão de exibir os dois limites lado a lado, sem eleger um deles: ninguém decidiu qual prevalece no paciente com as duas patologias marcadas.",
+      "\"Não tenho uma resposta satisfatória para essa pergunta agora, mas acho que vc pode considerar da melhor maneira possível, sendo minucioso nos dois casos.\" Ele DELEGOU a decisão em vez de tomá-la. O aplicativo optou por exibir os dois limites lado a lado, sem eleger um deles, e essa escolha é do aplicativo: o que o parecer sustenta é que ninguém decidiu qual prevalece no paciente com as duas patologias marcadas.",
   },
   {
     id: "parecer_paco2_tce",
@@ -497,6 +497,6 @@ export const REFERENCES: Reference[] = [
     profissional: "Mentor clínico do projeto",
     data: "03/09/2026",
     nota:
-      "\"Por favor classifica com os cortes já vistos como 15 e 20.\" As fronteiras de 15 e 20 cmH₂O para a ΔP_L,dyn estimada são escolha clínica dele. Bertoni 2019 sustenta a conversão que produz o número, não estas faixas.",
+      "\"Por favor classifica com os cortes já vistos como 15 e 20.\" Ele ADOTOU as fronteiras de 15 e 20 cmH₂O que já circulam na literatura, e não as propôs: \"os cortes já vistos\". Nenhuma publicação foi levantada para elas, e por isso entram como parecer. Bertoni 2019 sustenta a conversão que produz o número, não estas faixas.",
   },
 ];

@@ -434,7 +434,11 @@ describe("textoPeep", () => {
     const t = textoPeep(
       alvoPeep({ fio2: 60, peep: 5, faixaPeep: { min: 8, max: 8.5 }, presetAdmissao: false })
     );
-    expect(t.big).toContain("5");
+    // Ancorado no INÍCIO: um `toContain("5")` solto é satisfeito pelo 5 de
+    // "8.5", então passaria numa implementação que jogasse fora o teto da asma
+    // e mostrasse só a faixa do DPOC — que é exatamente a decisão que este
+    // ramo existe para impedir.
+    expect(t.big).toMatch(/^5 cmH₂O · /);
     expect(t.big).toContain("8.0");
     expect(t.big).toContain("8.5");
     // Nem "ARDSnet" (a tabela não se aplica ao obstrutivo) nem número novo no

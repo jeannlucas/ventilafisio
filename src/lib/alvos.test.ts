@@ -435,6 +435,49 @@ describe("sugerirPeepFio2 por patologia", () => {
     }
   });
 
+  // A garantia da ressalva era uma helper chamada A MAO nos dois sítios que
+  // produzem faixa, e é a mesma forma da dívida do R/I na Fase 7: um terceiro
+  // sítio reintroduziria a lacuna em silêncio. Este teste troca a lista escrita
+  // à mão por um INVARIANTE varrido sobre todo o domínio de entrada da função,
+  // então um sítio novo entra coberto sem ninguém lembrar dele.
+  //
+  // Vale nos dois sentidos de propósito: faixa sem a ressalva é o defeito
+  // original, e ressalva sem faixa citaria `autoPeepAplicacao` no rodapé de um
+  // paciente que não tem regra nenhuma a ressalvar.
+  // A chave da dupla é citada nos TRÊS estados do auto-PEEP, inclusive naqueles
+  // em que só um dos limites aparece. Não é sobre-citação: a frase que ela
+  // sustenta é sobre a INDECISÃO ("ninguém decidiu qual prevalece"), e essa
+  // frase é verdadeira com um número na tela ou com dois. Fica fixado porque a
+  // decisão é discutível e sem teste ela mudaria em silêncio nos dois sentidos.
+  it.each([null, 0, 4])(
+    "a dupla cita o parecer da indecisão com auto-PEEP %s",
+    (autoPeep) => {
+      const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), autoPeep);
+      expect(a.modulacoes.some((m) => m.sourceKey === "asmaDpoc")).toBe(true);
+    }
+  );
+
+  // E não vaza para quem tem só uma das duas: aí não há indecisão nenhuma.
+  it.each([["dpoc"], ["asma"]])("%s sozinha não cita o parecer da dupla", (p) => {
+    for (const autoPeep of [null, 0, 4]) {
+      const a = sugerirPeepFio2(150, 95, perfilCom([p as PatologiaKey]), autoPeep);
+      expect(a.modulacoes.some((m) => m.sourceKey === "asmaDpoc")).toBe(false);
+    }
+  });
+
+  it("há ressalva de aplicação SE E SOMENTE SE há faixa, em todo o domínio", () => {
+    const patologias: PatologiaKey[][] = [["dpoc"], ["asma"], ["dpoc", "asma"], []];
+    for (const pats of patologias) {
+      for (const autoPeep of [null, 0, 0.5, 2, 3, 10]) {
+        for (const pf of [null, 150]) {
+          const a = sugerirPeepFio2(pf, null, perfilCom(pats), autoPeep);
+          const temRessalva = a.modulacoes.some((m) => m.sourceKey === "autoPeepAplicacao");
+          expect(temRessalva).toBe(a.valor.faixaPeep != null);
+        }
+      }
+    }
+  });
+
   // Ressalva (b): só abaixo de 3, e é texto A MAIS — a faixa continua exibida
   // (o teste acima é quem prova isso). O ponto que o mentor destacou como o
   // mais importante é que auto-PEEP baixo NÃO exclui hiperinsuflação.
