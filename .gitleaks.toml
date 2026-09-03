@@ -1,0 +1,30 @@
+# Configuração do gitleaks, usada pela varredura local que alimenta o painel
+# do DefectDojo e por qualquer execução manual.
+#
+# A lista de exceção existe para que um achado que a pessoa já sabe ser falso
+# não apareça em toda execução. Achado repetido e sabidamente falso é o que faz
+# a varredura deixar de ser lida.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "sourceKey de conteudo clinico, que nunca foi credencial"
+
+# A regra `generic-api-key` dispara em `sourceKey`, porque o nome do campo
+# contém "key". O valor é o identificador de um texto clínico, do tipo
+# `sourceKey: "paco2Obstrutivo"`, que o teste usa para achar a modulação
+# correspondente. Entropia 3.64, medida em 03/09/2026: baixa demais para
+# credencial, alta o suficiente para a regra genérica.
+#
+# A exceção é pelo formato, não pelo valor, porque `sourceKey` novo aparece a
+# cada patologia que entra, e uma lista de valores exigiria manutenção a cada
+# uma. Ela continua estreita de propósito: só isenta valor alfanumérico
+# simples. Credencial de verdade atribuída a `sourceKey` continua sendo pega,
+# porque chave real traz `+`, `/`, `=`, `-` ou `_`, que o padrão abaixo não
+# aceita. Verificado em 03/09/2026 com os três casos: o sourceKey clínico
+# passou isento, um base64 em `sourceKey` foi detectado, e uma chave Stripe
+# em campo comum foi detectada.
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = ['''sourceKey["'\s]*[:=]+\s*["'][a-zA-Z0-9]+["']''']
