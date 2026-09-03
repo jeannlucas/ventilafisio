@@ -84,7 +84,7 @@ describe("derivarPerfil: patologias", () => {
     expect(derivarPerfil(paciente()).patologias).toEqual([]);
   });
 
-  // As doze sem base publicada não modulam NADA, e isso é decisão registrada,
+  // As onze sem base publicada não modulam NADA, e isso é decisão registrada,
   // não lacuna. Provado na origem: se a chave não entra em `patologias`,
   // nenhuma função de alvo consegue reagir a ela.
   it.each([

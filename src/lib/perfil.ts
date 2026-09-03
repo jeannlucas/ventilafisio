@@ -10,7 +10,7 @@ import type { Patient } from "../types";
 /**
  * Patologia que modula algum alvo ventilatório. União fechada e curta de
  * propósito: só entram as que a Fase 8 decidiu, com fonte, que mudam um
- * número. Doze das comorbidades registradas não modulam nada, e isso é
+ * número. Onze das comorbidades registradas não modulam nada, e isso é
  * decisão registrada, não lacuna.
  *
  * A OBESIDADE não está aqui: ela já modula o volume corrente pelo
@@ -39,7 +39,7 @@ export interface PerfilClinico {
   /**
    * O que muda algum alvo ventilatório, não o que o paciente tem. Filtrado
    * das comorbidades registradas pela união fechada de `PatologiaKey` — as
-   * doze comorbidades fora dela ficam de fora daqui mesmo que o paciente as
+   * onze comorbidades fora dela ficam de fora daqui mesmo que o paciente as
    * tenha marcadas, porque nenhuma delas tem fonte publicada que module um
    * número. Achados de imagem (`imaging`) ainda não entram neste campo.
    */
