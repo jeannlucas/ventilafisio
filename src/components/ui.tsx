@@ -289,9 +289,14 @@ export function HeroCard({
   );
 }
 
-export function SugBox({ label, big, sub }: { label: string; big: string; sub: string }) {
+/**
+ * `testid` é opcional e existe para o teste poder escopar a asserção NA CAIXA,
+ * não na tela inteira: "a PEEP sugerida não tem número" só é verificável se o
+ * elemento examinado for exatamente esta caixa.
+ */
+export function SugBox({ label, big, sub, testid }: { label: string; big: string; sub: string; testid?: string }) {
   return (
-    <div style={{ background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 10, padding: "12px 14px", flex: "1 1 150px", minWidth: 0 }}>
+    <div data-testid={testid} style={{ background: T.panel2, border: `1px solid ${T.line}`, borderRadius: 10, padding: "12px 14px", flex: "1 1 150px", minWidth: 0 }}>
       <div style={{ fontSize: 11, color: T.dim, letterSpacing: 0.3 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: T.txt, marginTop: 4 }}>{big}</div>
       <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>{sub}</div>

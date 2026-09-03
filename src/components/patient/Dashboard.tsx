@@ -2,10 +2,63 @@ import { T, fmt } from "../../lib/theme";
 import { Panel, HeroCard, SugBox } from "../ui";
 import { Patient, DailyEvolution } from "../../types";
 import * as C from "../../lib/clinical";
-import { sugerirVc, sugerirPeepFio2, sugerirVentilacao } from "../../lib/alvos";
+import { sugerirVc, sugerirPeepFio2, sugerirVentilacao, alvoPaco2 } from "../../lib/alvos";
+import type { Alvo, AlvoPeepFio2, Modulacao } from "../../lib/alvos";
 import { derivarPerfil } from "../../lib/perfil";
 import { SourceFooter } from "../SourceFooter";
 import { LinhaModulacao } from "./LinhaModulacao";
+import { LinhaModulacaoSimples } from "./LinhaModulacaoSimples";
+
+/**
+ * Como a PEEP sugerida aparece na caixa: número, faixa ou traço.
+ *
+ * Os três casos vêm do motor, não daqui. `peep` é null quando o aplicativo
+ * NÃO TEM número a dar (DPOC sem auto-PEEP medido, onde a tabela do ARDSnet
+ * não se aplica), e `faixaPeep` traz a faixa do DPOC. O traço sai de
+ * `fmt(null)`, e não de interpolar o valor: `${null}` escreveria a palavra
+ * "null" na tela de um aplicativo clínico.
+ *
+ * Nenhum número clínico mora aqui — nem o teto da asma, nem a fração do
+ * auto-PEEP. O `sub` remete à linha de modulação, que é onde o motor escreve
+ * o porquê, com a fonte junto.
+ *
+ * Exportada porque o AdmissionCard exibe o mesmo alvo: dois lugares
+ * formatando "número, faixa ou traço" por conta própria divergem, e o que
+ * divergiria é justamente o caso em que não há número.
+ */
+export function textoPeep(alvo: Alvo<AlvoPeepFio2>): { big: string; sub: string } {
+  const { peep, faixaPeep } = alvo.valor;
+  if (peep != null) {
+    return {
+      big: `${fmt(peep, 0)} cmH₂O`,
+      sub: alvo.modulacoes.length > 0 ? "limitada pela patologia · ver abaixo" : "tabela ARDSnet",
+    };
+  }
+  if (faixaPeep != null) {
+    return {
+      big: `${fmt(faixaPeep.min)}–${fmt(faixaPeep.max)} cmH₂O`,
+      sub: "fração do auto-PEEP medido · ver abaixo",
+    };
+  }
+  return { big: `${fmt(null)} cmH₂O`, sub: "sem número · ver a modulação abaixo" };
+}
+
+/**
+ * O aviso do obeso sobre recrutamento.
+ *
+ * É a RECUSA de um alvo, não um alvo: o ensaio que testou recrutamento com
+ * PEEP alta no obeso é intraoperatório e negativo, e não sustenta piso de
+ * PEEP nenhum — por isso o texto não tem número. Não vem de `alvos.ts`
+ * porque não modula valor nenhum, e é montado como `Modulacao` para que
+ * motivo e fonte andem no mesmo objeto: o rodapé cita a chave desta mesma
+ * lista, então não há como o aviso aparecer sem a fonte, nem a fonte sem o
+ * aviso.
+ */
+const AVISO_OBESO: Modulacao = {
+  motivo:
+    "Obesidade: recrutamento alveolar de rotina com PEEP alta não está autorizado. O ensaio que testou essa estratégia no obeso não achou benefício, e a evidência não sustenta piso de PEEP — titule a PEEP pela resposta do paciente.",
+  sourceKey: "obesidadeVentilacao",
+};
 
 // ---------- Dashboard 4 indicadores + sugestão ----------
 export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolution }) {
@@ -25,6 +78,13 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
   // sugerirVentilacao nunca cai no ramo null nesta chamada. Assertion
   // documentada, não suposição: sem ela sobrava um `sVc ?` morto.
   const sVent = sugerirVentilacao(pbwVal, sVc.valor.target, perfil)!;
+  // null sem lesão cerebral aguda: o aplicativo não sugere PaCO₂ em nenhum
+  // outro caso, e o bloco inteiro só existe quando este alvo existe.
+  const sPaco2 = alvoPaco2(perfil);
+  // Lista, e não booleano, para o rodapé citar a fonte a partir do MESMO
+  // valor que desenha o aviso.
+  const avisoObeso: Modulacao[] = obese ? [AVISO_OBESO] : [];
+  const peepTexto = textoPeep(sPeep);
 
   // Conteúdo de apoio à decisão exibido quando o indicador sai da faixa (item 2).
   // A validar pela equipe; não altera nenhuma fórmula nem os limites de classify.
@@ -120,11 +180,38 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
         sub={`${obese ? `obeso (IMC ≥30): alvo ${vcLow}–${vcHigh} ml/kg sobre peso predito` : `alvo protetor ${vcLow}–${vcHigh} ml/kg`} · ponto de partida, ajuste pela resposta`}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <SugBox label="VOLUME CORRENTE" big={`${sVc.valor.target} mL`} sub={`faixa ${sVc.valor.low}–${sVc.valor.high} mL · 6kg=${sVc.valor.ml6} 8kg=${sVc.valor.ml8}`} />
-          <SugBox label="PEEP / FiO₂" big={`${fmt(sPeep.valor.peep)} cmH₂O`} sub={`FiO₂ ${sPeep.valor.fio2}% · tabela ARDSnet`} />
+          {/* PEEP e FiO₂ em caixas separadas: no DPOC sem auto-PEEP medido a
+              PEEP não tem número e a FiO₂ tem. Juntas, ou a caixa afirmaria
+              uma PEEP que o motor recusou dar, ou o app perderia a FiO₂
+              sugerida só para não afirmá-la. */}
+          <SugBox label="PEEP" big={peepTexto.big} sub={peepTexto.sub} testid="sug-peep" />
+          <SugBox label="FiO₂" big={`${sPeep.valor.fio2}%`} sub="titular pela SpO₂/PaO₂" />
           <SugBox label="FREQUÊNCIA" big={`${sVent.valor.fr} /min`} sub="derivada do VC alvo" />
           <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />
         </div>
+        <LinhaModulacaoSimples modulacoes={sPeep.modulacoes} testid="peep-modulacao" />
+        <LinhaModulacaoSimples modulacoes={sVent.modulacoes} testid="ventilacao-modulacao" />
         <LinhaModulacao alvo={sVc} />
+        {/* Junto da modulação de volume corrente, e não em bloco próprio: é a
+            mesma patologia falando do mesmo paciente. Em elemento separado
+            porque o que ele afirma é a AUSÊNCIA de número, e a asserção que
+            garante isso precisa de um elemento sem os números da linha de
+            cima. */}
+        <LinhaModulacaoSimples modulacoes={avisoObeso} testid="obeso-recrutamento" />
+        {sPaco2 && (
+          <div style={{ marginTop: 12 }}>
+            <div
+              data-testid="alvo-paco2"
+              style={{ fontSize: 13, color: T.txt, fontWeight: 600 }}
+            >
+              Alvo de PaCO₂: {sPaco2.valor.min} a {sPaco2.valor.max} mmHg
+            </div>
+            {/* A ressalva fica FORA do bloco acima, e não dentro: ela repete
+                os mesmos números na prosa, e um teste que procurasse "35" no
+                bloco passaria pela prosa mesmo que o alvo sumisse da tela. */}
+            <LinhaModulacaoSimples modulacoes={sPaco2.modulacoes} testid="alvo-paco2-ressalva" />
+          </div>
+        )}
         <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
           A Pressão de Platô é o limite de segurança: se passar de 30 cmH₂O, reduza o VC mesmo dentro da faixa.
         </p>
@@ -133,7 +220,17 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
             da onda de fechamento — já foi a terceira vez que essa lacuna
             apareceu). SourceFooter já deduplica, então repetir uma chave
             citada em outro lugar do painel é inofensivo. */}
-        <SourceFooter sourceKeys={["vcTarget", "peepFio2", ...sVc.modulacoes.map((m) => m.sourceKey)]} />
+        <SourceFooter
+          sourceKeys={[
+            "vcTarget",
+            "peepFio2",
+            ...sVc.modulacoes.map((m) => m.sourceKey),
+            ...sPeep.modulacoes.map((m) => m.sourceKey),
+            ...sVent.modulacoes.map((m) => m.sourceKey),
+            ...(sPaco2?.modulacoes ?? []).map((m) => m.sourceKey),
+            ...avisoObeso.map((m) => m.sourceKey),
+          ]}
+        />
       </Panel>
     </div>
   );

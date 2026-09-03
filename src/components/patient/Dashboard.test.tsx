@@ -83,11 +83,16 @@ const EVOLUCAO_COM_ALERTA: DailyEvolution = {
   peep: 8,
 };
 
-// `overrides.patient` permite variar altura/peso (IMC) sem duplicar o
-// fixture inteiro. Toda chamada existente, com um único argumento, continua
-// funcionando: o parâmetro é opcional.
-function renderDashboard(ev: DailyEvolution, overrides: { patient?: Partial<Patient> } = {}) {
-  const patient: Patient = { ...PACIENTE, ...overrides.patient };
+// Os dois lados variam por sobreposição sobre as fixtures: comorbidade e
+// IMC no paciente, gasometria e auto-PEEP na evolução. A ordem é
+// (paciente, evolução) porque a Fase 8 pergunta primeiro quem é o paciente —
+// é a patologia dele que decide qual alvo o motor devolve.
+function renderDashboard(
+  patientOver: Partial<Patient> = {},
+  evOver: Partial<DailyEvolution> = {}
+) {
+  const patient: Patient = { ...PACIENTE, ...patientOver };
+  const ev: DailyEvolution = { ...EVOLUCAO_ESTAVEL, ...evOver };
   return render(
     <MemoryRouter>
       <Dashboard patient={patient} ev={ev} />
@@ -101,7 +106,7 @@ describe("Dashboard", () => {
   // então o único jeito de "Amato, 2015" aparecer na tela é o SourceFooter
   // fixo logo abaixo dos quatro HeroCards.
   it("mostra o embasamento dos HeroCards mesmo sem nenhum alerta", () => {
-    renderDashboard(EVOLUCAO_ESTAVEL);
+    renderDashboard();
 
     expect(screen.getByText(/Amato, 2015/)).toBeInTheDocument();
     // Sem alerta e sem correlação, o painel condicional não deve existir.
@@ -109,7 +114,7 @@ describe("Dashboard", () => {
   });
 
   it("mostra o embasamento dos HeroCards e o do painel 'Leitura do caso' quando há alerta", () => {
-    renderDashboard(EVOLUCAO_COM_ALERTA);
+    renderDashboard({}, EVOLUCAO_COM_ALERTA);
 
     expect(screen.getByText("Leitura do caso")).toBeInTheDocument();
     // Um rodapé para os HeroCards, outro para o painel de leitura do caso.
@@ -123,7 +128,7 @@ describe("Dashboard", () => {
   // Item 2 da onda de fechamento: a tabela ARDSnet do painel "Sugestão
   // inicial" também precisa de rodapé — antes desta mudança não tinha nenhum.
   it("cita a tabela ARDSnet no painel 'Sugestão inicial'", () => {
-    renderDashboard(EVOLUCAO_ESTAVEL);
+    renderDashboard();
 
     expect(screen.getByText(/Sugestão inicial/)).toBeInTheDocument();
     // "ARDSnet, 2000" já aparece no rodapé incondicional dos HeroCards
@@ -135,7 +140,7 @@ describe("Dashboard", () => {
   // tipo é encanamento morto (Fase 4, Tarefa 5).
   it("mostra o alvo padrão quando a obesidade deslocou a faixa", () => {
     // 95 kg e 1,70 m dão IMC ~32,9 (95 / 1,70²): obeso.
-    renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 95 } });
+    renderDashboard({ height_cm: 170, weight_kg: 95 });
 
     // O "6–8" também aparece no `sub` do Panel (texto fixo, independente de
     // modulação); escopar em `alvo-modulacao` é o que garante que é a linha
@@ -149,7 +154,7 @@ describe("Dashboard", () => {
 
   it("não mostra alvo padrão quando não houve modulação", () => {
     // 70 kg e 1,70 m dão IMC ~24,2: não obeso, sem modulação.
-    renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 70 } });
+    renderDashboard({ height_cm: 170, weight_kg: 70 });
 
     expect(screen.queryByText(/padrão/i)).not.toBeInTheDocument();
   });
@@ -161,10 +166,86 @@ describe("Dashboard", () => {
   // por isso é a citação certa para provar que o rodapé deriva das
   // modulações do alvo, e não uma lista de chaves decorada à mão.
   it("cita a fonte da modulação no rodapé do painel de sugestão inicial", () => {
-    renderDashboard(EVOLUCAO_ESTAVEL, { patient: { height_cm: 170, weight_kg: 95 } });
+    renderDashboard({ height_cm: 170, weight_kg: 95 });
 
     const painel = screen.getByText(/Sugestão inicial/).closest("section")!;
     expect(within(painel).getByText(/AMIB\/SBPT, 2024/)).toBeInTheDocument();
+  });
+
+  // ---------- Fase 8: as modulações por patologia na tela ----------
+
+  it("mostra a modulação de PEEP na asma", () => {
+    renderDashboard({ comorbidities: ["asma"] }, { pao2: 150, fio2: 100, spo2: 95 });
+    expect(screen.getByTestId("peep-modulacao")).toHaveTextContent(/asma/i);
+  });
+
+  // Sem auto-PEEP o aplicativo não tem número de PEEP para o DPOC, e a tela
+  // precisa dizer isso em vez de mostrar o da tabela como se valesse.
+  it("DPOC sem auto-PEEP não mostra número de PEEP", () => {
+    renderDashboard({ comorbidities: ["dpoc"] }, { pao2: 150, fio2: 100, spo2: 95, auto_peep: null });
+    expect(screen.getByTestId("peep-modulacao")).toHaveTextContent(/não foi medido/i);
+    expect(screen.getByTestId("sug-peep")).not.toHaveTextContent(/\d/);
+  });
+
+  it("DPOC com auto-PEEP mostra a faixa", () => {
+    renderDashboard({ comorbidities: ["dpoc"] }, { pao2: 150, fio2: 100, spo2: 95, auto_peep: 10 });
+    expect(screen.getByTestId("sug-peep")).toHaveTextContent("8");
+  });
+
+  // A obesidade não ganha número de PEEP: o PROBESE é intraoperatório e
+  // negativo, e não sustenta piso nenhum. Ganha o aviso, que é a recusa de um
+  // alvo — e o teste garante que ninguém "complete" isso com um número.
+  it("no obeso mostra o aviso de recrutamento, e nenhum número de PEEP novo", () => {
+    renderDashboard({ weight_kg: 120, height_cm: 170 }, {});
+    const aviso = screen.getByTestId("obeso-recrutamento");
+    expect(aviso).toHaveTextContent(/recrutamento/i);
+    expect(aviso).not.toHaveTextContent(/\d/);
+  });
+
+  it("sem obesidade não mostra o aviso", () => {
+    renderDashboard({ weight_kg: 70, height_cm: 170 }, {});
+    expect(screen.queryByTestId("obeso-recrutamento")).not.toBeInTheDocument();
+  });
+
+  it("o alvo de PaCO₂ só aparece na lesão cerebral aguda", () => {
+    renderDashboard({ comorbidities: ["dpoc"] }, {});
+    expect(screen.queryByTestId("alvo-paco2")).not.toBeInTheDocument();
+  });
+
+  it("na lesão cerebral aguda mostra o alvo e a ressalva", () => {
+    renderDashboard({ comorbidities: ["lesao_cerebral_aguda"] }, {});
+    const alvo = screen.getByTestId("alvo-paco2");
+    expect(alvo).toHaveTextContent("35");
+    expect(alvo).toHaveTextContent("45");
+    expect(screen.getByTestId("alvo-paco2-ressalva")).toHaveTextContent(/intracraniana/i);
+  });
+
+  // O rodapé cita o que foi CALCULADO, nunca uma lista escrita à mão. Este
+  // par é o que separa as duas coisas: uma lista fixa contendo
+  // "lesaoCerebral" passaria no teste de cima e reprovaria neste, porque
+  // citaria o consenso de lesão cerebral na tela de um paciente que não a
+  // tem. Este projeto já embarcou três vezes um rodapé citando fonte que o
+  // painel não exibia.
+  it("cita a fonte do alvo de PaCO₂ quando ele aparece", () => {
+    renderDashboard({ comorbidities: ["lesao_cerebral_aguda"] }, {});
+    expect(screen.getByText(/ESICM, 2020/)).toBeInTheDocument();
+  });
+
+  it("não cita a fonte da lesão cerebral em quem não a tem", () => {
+    renderDashboard({ comorbidities: ["dpoc"] }, {});
+    expect(screen.queryByText(/ESICM, 2020/)).not.toBeInTheDocument();
+  });
+
+  // Mesma prova para o aviso do obeso: a fonte dele (PROBESE) não pode
+  // aparecer na tela de quem não recebeu o aviso.
+  it("cita a fonte do aviso do obeso só quando o aviso aparece", () => {
+    renderDashboard({ weight_kg: 120, height_cm: 170 }, {});
+    expect(screen.getByText(/PROBESE, 2019/)).toBeInTheDocument();
+  });
+
+  it("não cita a fonte do aviso do obeso em quem não é obeso", () => {
+    renderDashboard({ weight_kg: 70, height_cm: 170 }, {});
+    expect(screen.queryByText(/PROBESE, 2019/)).not.toBeInTheDocument();
   });
 });
 

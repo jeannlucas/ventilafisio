@@ -7,8 +7,9 @@ import { Panel, Field, Btn, Grid, Row, FormSection, Tabs, ChipGroup, ChipToggle,
 import { invalidMeasurements, inconsistentMeasurements } from "../lib/measurement-limits";
 import VentilatorGuide from "../components/VentilatorGuide";
 import { PatientHeader } from "../components/patient/PatientHeader";
-import { Dashboard } from "../components/patient/Dashboard";
+import { Dashboard, textoPeep } from "../components/patient/Dashboard";
 import { LinhaModulacao } from "../components/patient/LinhaModulacao";
+import { LinhaModulacaoSimples } from "../components/patient/LinhaModulacaoSimples";
 import { ScoresPanel } from "../components/patient/ScoresPanel";
 import { CareBundlePanel } from "../components/patient/CareBundlePanel";
 import { EvolutionHistory } from "../components/patient/EvolutionHistory";
@@ -417,6 +418,7 @@ function AdmissionCard({ patient }: { patient: Patient }) {
   // sugerirVentilacao nunca cai no ramo null aqui. Assertion documentada,
   // não suposição: sem ela sobrava um `ventilacao &&` morto.
   const ventilacao = sug.ventilacao!;
+  const peepTexto = textoPeep(peepFio2);
 
   return (
     <Panel
@@ -444,10 +446,17 @@ function AdmissionCard({ patient }: { patient: Patient }) {
           big={`${vc.valor.target} mL`}
           sub={`faixa ${vc.valor.low}–${vc.valor.high} mL · PBW ${sug.pbw.toFixed(0)} kg`}
         />
-        <SugBox label="PEEP / FiO₂" big={`${peepFio2.valor.peep} cmH₂O`} sub={`FiO₂ ${peepFio2.valor.fio2}%`} />
+        {/* Mesma formatação do Dashboard, e da mesma função: `peep` é
+            `number | null`, e interpolar direto escreveria "null" na tela
+            quando o motor recusa dar número. */}
+        <SugBox label="PEEP" big={peepTexto.big} sub={peepTexto.sub} />
+        <SugBox label="FiO₂" big={`${peepFio2.valor.fio2}%`} sub="titular pela SpO₂/PaO₂" />
         <SugBox label="FREQUÊNCIA" big={`${ventilacao.valor.fr} /min`} sub="derivada do VC alvo" />
         <SugBox label="VOLUME-MINUTO" big={`${fmt(ventilacao.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />
       </div>
+      {/* Sem esta linha o traço da PEEP apareceria sem explicação nenhuma —
+          o mesmo motivo pelo qual o Dashboard a exibe. */}
+      <LinhaModulacaoSimples modulacoes={peepFio2.modulacoes} testid="admissao-peep-modulacao" />
       <LinhaModulacao alvo={vc} />
 
       <p style={{ margin: "12px 0 0", fontSize: 11, color: T.dim }}>
@@ -456,7 +465,14 @@ function AdmissionCard({ patient }: { patient: Patient }) {
       </p>
       {/* Deriva do alvo em vez de listar "vcKg" à mão: item 3 da onda de
           fechamento — mesma razão do Dashboard. */}
-      <SourceFooter sourceKeys={["vcTarget", "peepFio2", ...vc.modulacoes.map((m) => m.sourceKey)]} />
+      <SourceFooter
+        sourceKeys={[
+          "vcTarget",
+          "peepFio2",
+          ...vc.modulacoes.map((m) => m.sourceKey),
+          ...peepFio2.modulacoes.map((m) => m.sourceKey),
+        ]}
+      />
     </Panel>
   );
 }
