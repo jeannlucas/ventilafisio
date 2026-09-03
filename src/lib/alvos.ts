@@ -151,13 +151,19 @@ export function sugerirPeepFio2(
   const temDpoc = perfil.patologias.includes("dpoc");
   if (!temAsma && !temDpoc) return semModulacao(base);
 
-  // As duas marcadas: prevalece o teto mais conservador, e a modulação declara
-  // as duas. Não é precedência clínica — o mentor não foi perguntado sobre o
-  // paciente com as duas, e escolher a mais restritiva é a recusa de inventar
-  // uma regra, não uma regra.
+  // As duas marcadas: aplica-se o teto da asma, e a modulação declara as duas.
+  // Não é precedência clínica: o mentor não foi perguntado sobre o paciente com
+  // as duas patologias.
+  //
+  // O teto da asma NÃO é comparado com o do DPOC, e o texto não afirma que
+  // seja. Os dois são tetos, mas com auto-PEEP baixo o limite do DPOC cai
+  // abaixo de 5, e aí o teto aplicado deixa de ser o menor dos dois. Afirmar
+  // "o mais conservador" seria uma comparação que o código não faz. Tomar o
+  // menor dos dois resolveria sozinho uma pergunta que ninguém respondeu, e é
+  // decisão do mentor, não daqui.
   if (temAsma) {
     const motivo = temDpoc
-      ? "Asma e DPOC marcadas: aplicado o teto mais conservador, de 5 cmH₂O da asma. A PEEP externa alta agrava o aprisionamento aéreo."
+      ? "Asma e DPOC marcadas: aplicado o teto de 5 cmH₂O da asma. A PEEP externa alta agrava o aprisionamento aéreo. Este teto não é comparado com o do auto-PEEP: com auto-PEEP baixo, o limite do DPOC seria menor que 5. Ninguém decidiu qual dos dois vale no paciente com as duas patologias."
       : "Asma: PEEP externa limitada a 5 cmH₂O. A tabela do ARDSnet não se aplica ao obstrutivo.";
     return {
       valor: { ...base, peep: Math.min(base.peep!, PEEP_MAX_ASMA) },

@@ -142,10 +142,18 @@ nenhum consumidor.
 Asma e DPOC vão em **direções opostas**, e o aplicativo nunca as trata como
 "obstrutivo" genérico. Foi o ponto que o mentor confirmou explicitamente.
 
-Paciente com as duas marcadas: **prevalece o teto da asma**, que é o mais
-restritivo, e a modulação declara que as duas patologias estão marcadas e que o
-teto mais conservador foi aplicado. Não é regra clínica de precedência — é a
-recusa de escolher entre duas quando ninguém decidiu.
+Paciente com as duas marcadas: **prevalece o teto da asma**, e a modulação
+declara que as duas patologias estão marcadas. Não é regra clínica de
+precedência — é a recusa de escolher entre duas quando ninguém decidiu.
+
+Este parágrafo dizia que o teto da asma "é o mais restritivo" e que a modulação
+declarava ter aplicado "o teto mais conservador". **Não é verdade em toda a
+faixa**, e a review da tarefa 4 pegou: os dois são tetos, mas o do DPOC é 80 a
+85% do auto-PEEP, então com auto-PEEP baixo ele cai abaixo de 5 e o teto
+aplicado deixa de ser o menor dos dois. O texto na tela foi corrigido para não
+afirmar uma comparação que o código não faz. **Tomar o menor dos dois não foi
+feito de propósito**: resolveria sozinho, em silêncio, a pergunta que o
+parágrafo acima diz explicitamente que ninguém respondeu. Vai ao mentor.
 
 ### 6.2 Frequência e tempo expiratório
 

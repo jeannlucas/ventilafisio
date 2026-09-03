@@ -277,14 +277,27 @@ describe("sugerirPeepFio2 por patologia", () => {
     expect(a.valor.faixaPeep).toEqual({ min: 0, max: 0 });
   });
 
-  // Duas patologias marcadas: prevalece o teto mais conservador, e a
-  // modulação declara as duas. Não é precedência clínica — é a recusa de
-  // escolher entre duas quando ninguém decidiu.
+  // Duas patologias marcadas: aplica-se o teto da asma, e a modulação declara
+  // as duas. Não é precedência clínica — é a recusa de escolher entre duas
+  // quando ninguém decidiu.
   it("asma e DPOC juntas aplicam o teto da asma e declaram as duas", () => {
     const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 10);
     expect(a.valor.peep).toBe(5);
     expect(a.valor.faixaPeep).toBeNull();
     expect(a.modulacoes.some((m) => /asma/i.test(m.motivo) && /DPOC/i.test(m.motivo))).toBe(true);
+  });
+
+  // Com auto-PEEP baixo, 80% dele fica ABAIXO de 5, então o teto aplicado não é
+  // o menor dos dois. O comportamento é esse de propósito, e fica fixado aqui
+  // para não mudar em silêncio: quem decide o paciente com as duas patologias é
+  // o mentor. O que a modulação não pode fazer é afirmar uma comparação que o
+  // código não faz.
+  it("com auto-PEEP baixo, o teto da asma não é o menor dos dois, e o texto não afirma que seja", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 4);
+    expect(a.valor.peep).toBe(5);
+    expect(4 * 0.8).toBeLessThan(5);
+    expect(a.modulacoes).toHaveLength(1);
+    expect(a.modulacoes[0].motivo).not.toMatch(/conservador|mais restritiv/i);
   });
 
   it("o preset de admissão continua valendo sem gasometria nem oximetria", () => {
