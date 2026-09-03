@@ -25,6 +25,9 @@ const LABELS: Record<SourceKey, string> = {
   drive: "Drive respiratório pelo P0.1",
   esforco: "Esforço inspiratório e pressão transpulmonar dinâmica",
   recrutabilidade: "Recrutabilidade pela razão R/I",
+  obstrutivo: "Ventilação em DPOC e asma",
+  obesidadeVentilacao: "Ventilação no paciente obeso",
+  lesaoCerebral: "Alvo de PaCO₂ em lesão cerebral aguda",
 };
 
 export default function Sources() {

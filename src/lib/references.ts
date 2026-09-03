@@ -17,11 +17,13 @@ export type SourceKey =
   // gasometria interpretada
   | "acidoBase" | "anionGap" | "dpocOxigenio"
   // mecânica: drive, esforço e recrutabilidade
-  | "drive" | "esforco" | "recrutabilidade";
+  | "drive" | "esforco" | "recrutabilidade"
+  // alvo por patologia
+  | "obstrutivo" | "obesidadeVentilacao" | "lesaoCerebral";
 
 export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   pf: ["ardsnet_2000", "amib_sbpt_2024"],
-  vcKg: ["ardsnet_2000", "amib_sbpt_2024"],
+  vcKg: ["ardsnet_2000", "amib_sbpt_2024", "parecer_vc_obeso"],
   pplat: ["ardsnet_2000", "amib_sbpt_2024"],
   dp: ["amato_2015", "guerin_2016"],
   mp: ["gattinoni_2016", "serpaneto_2018"],
@@ -59,6 +61,9 @@ export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   drive: ["telias_2020", "parecer_p01_faixa"],
   esforco: ["bertoni_2019", "parecer_pmus_faixas"],
   recrutabilidade: ["chen_2020"],
+  obstrutivo: ["demoule_2020", "ranieri_1993"],
+  obesidadeVentilacao: ["probese_2019", "dejong_2020"],
+  lesaoCerebral: ["robba_2020"],
 };
 
 const BY_ID = new Map(REFERENCES.map((r) => [r.id, r]));

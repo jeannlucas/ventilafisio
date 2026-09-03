@@ -317,6 +317,69 @@ export const REFERENCES: Reference[] = [
       "Introduz a razão R/I. O valor de 0,5 que circula como corte é a MEDIANA da coorte de derivação (n = 45), usada ali para dicotomizar a análise: não é ponto de corte validado contra desfecho. O erro de medida em torno de 0,5 é da ordem da distância entre os limiares propostos na literatura.",
   },
   {
+    id: "demoule_2020",
+    citacaoCurta: "Demoule, 2020",
+    autores:
+      "Demoule A, Brochard L, Dres M, Heunks L, Jubran A, Laghi F, Mekontso-Dessap A, Nava S, Ouanes-Besbes L, Peñuelas O, Piquilloud L, Vassilakopoulos T, Mancebo J",
+    titulo: "How to ventilate obstructive and asthmatic patients",
+    veiculo: "Intensive Care Med 2020;46(12):2436-2449",
+    ano: 2020,
+    verificada: true,
+    nota:
+      "Revisão NARRATIVA, sem graduação GRADE. Na asma orienta PEEP externa baixa e relação I:E de 1:4 a 1:6; na DPOC diz que a PEEP externa não altera a hiperinsuflação até se aproximar de 80% do auto-PEEP. São direções OPOSTAS na PEEP para duas doenças obstrutivas.",
+  },
+  {
+    id: "ranieri_1993",
+    citacaoCurta: "Ranieri, 1993",
+    autores:
+      "Ranieri VM, Giuliani R, Cinnella G, Pesce C, Brienza N, Ippolito EL, Pomo V, Fiore T, Gottfried SB, Brienza A",
+    titulo:
+      "Physiologic effects of positive end-expiratory pressure in patients with chronic obstructive pulmonary disease during acute ventilatory failure and controlled mechanical ventilation",
+    veiculo: "Am Rev Respir Dis 1993;147(1):5-13",
+    ano: 1993,
+    verificada: true,
+    nota:
+      "Nove pacientes com DPOC em ventilação controlada. Situa o limite em 85% do auto-PEEP, contra os 80% de Demoule 2020. A divergência é real e o aplicativo exibe a faixa em vez de escolher um dos dois.",
+  },
+  {
+    id: "probese_2019",
+    citacaoCurta: "PROBESE, 2019",
+    autores:
+      "Bluth T, Serpa Neto A, Schultz MJ, Pelosi P, Gama de Abreu M, et al. (PROBESE Collaborative Group)",
+    titulo:
+      "Effect of Intraoperative High Positive End-Expiratory Pressure (PEEP) With Recruitment Maneuvers vs Low PEEP on Postoperative Pulmonary Complications in Obese Patients: A Randomized Clinical Trial",
+    veiculo: "JAMA 2019;321(23):2292-2305",
+    ano: 2019,
+    verificada: true,
+    nota:
+      "Ensaio randomizado, 2013 adultos obesos, 77 centros. PEEP 12 com recrutamento contra PEEP 4: sem diferença no desfecho primário (21,3% contra 23,6%). É INTRAOPERATÓRIO, não de UTI, e o aplicativo o usa só na direção negativa: não autoriza recrutamento de rotina com PEEP alta. Não sustenta piso de PEEP nenhum.",
+  },
+  {
+    id: "dejong_2020",
+    citacaoCurta: "De Jong, 2020",
+    autores:
+      "De Jong A, Wrigge H, Hedenstierna G, Gattinoni L, Chiumello D, Frat JP, Ball L, Schetz M, Pickkers P, Jaber S",
+    titulo: "How to ventilate obese patients in the ICU",
+    veiculo: "Intensive Care Med 2020;46(12):2423-2435",
+    ano: 2020,
+    verificada: true,
+    nota:
+      "Revisão narrativa. Recomenda volume corrente baixo pelo peso predito nos dois grupos, SDRA e não SDRA, e alerta que o peso predito ESTIMADO tende a ser superestimado no obeso. Dá a faixa de PEEP de 7 a 20 mas declara não propor algoritmo.",
+  },
+  {
+    id: "robba_2020",
+    citacaoCurta: "ESICM, 2020",
+    autores:
+      "Robba C, Poole D, McNett M, Asehnoune K, Bösel J, Bruder N, et al.",
+    titulo:
+      "Mechanical ventilation in patients with acute brain injury: recommendations of the European Society of Intensive Care Medicine consensus",
+    veiculo: "Intensive Care Med 2020;46(12):2397-2410",
+    ano: 2020,
+    verificada: true,
+    nota:
+      "Alvo de PaCO₂ de 35 a 45 mmHg em lesão cerebral aguda: recomendação FORTE com evidência de qualidade BAIXA. Vale para o paciente SEM hipertensão intracraniana clinicamente significativa, e o aplicativo não conhece a pressão intracraniana.",
+  },
+  {
     id: "parecer_mrc_faixa",
     citacaoCurta: "Parecer clínico, 2026",
     profissional: "Mentor clínico do projeto",
@@ -387,5 +450,13 @@ export const REFERENCES: Reference[] = [
     data: "02/09/2026",
     nota:
       "A leitura do Pmus estimado por faixas (muito baixo abaixo de 4, adequado de 4 a 8, aumentado de 8 a 12, elevado acima de 12) é prática dele. Bertoni 2019 valida a conversão do ΔPocc em Pmus, não estas faixas.",
+  },
+  {
+    id: "parecer_vc_obeso",
+    citacaoCurta: "Parecer clínico (VC no obeso), 2026",
+    profissional: "Mentor clínico do projeto",
+    data: "02/09/2026",
+    nota:
+      "A faixa de 6 a 8 ml/kg de peso predito no obeso é escolha clínica, reafirmada depois de ver que De Jong 2020 recomenda 6 nos dois grupos e alerta que o peso predito estimado tende a ser superestimado nesse paciente.",
   },
 ];

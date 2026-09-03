@@ -193,3 +193,39 @@ describe("fontes da mecânica (Fase 7)", () => {
     expect(sourcesFor("recrutabilidade").map((r) => r.id)).toContain("chen_2020");
   });
 });
+
+describe("fontes do alvo por patologia (Fase 8)", () => {
+  it("as três chaves novas resolvem para fontes existentes", () => {
+    for (const k of ["obstrutivo", "obesidadeVentilacao", "lesaoCerebral"] as const) {
+      expect(sourcesFor(k).length).toBeGreaterThan(0);
+    }
+  });
+
+  // Ranieri diz 85% e Demoule diz 80%. A tela exibe a faixa e cita as duas:
+  // fundir os dois números seria afirmar precisão que a literatura não tem.
+  it("obstrutivo cita as duas fontes que divergem no teto do auto-PEEP", () => {
+    const ids = sourcesFor("obstrutivo").map((r) => r.id);
+    expect(ids).toContain("demoule_2020");
+    expect(ids).toContain("ranieri_1993");
+  });
+
+  it("obesidadeVentilacao cita o ensaio que testou recrutamento de rotina", () => {
+    expect(sourcesFor("obesidadeVentilacao").map((r) => r.id)).toContain("probese_2019");
+  });
+
+  it("lesaoCerebral cita o consenso da ESICM", () => {
+    expect(sourcesFor("lesaoCerebral").map((r) => r.id)).toContain("robba_2020");
+  });
+
+  // A faixa 6-8 no obeso é escolha do mentor: De Jong 2020 recomenda 6 nos
+  // dois grupos. Atribuí-la ao artigo seria citar uma fonte que a contradiz.
+  it("o parecer do VC no obeso é Parecer, não Publicacao", () => {
+    const r = REFERENCES.find((x) => x.id === "parecer_vc_obeso");
+    expect(r).toBeDefined();
+    expect(ehParecer(r!)).toBe(true);
+  });
+
+  it("vcKg passa a citar o parecer junto das publicações", () => {
+    expect(sourcesFor("vcKg").map((r) => r.id)).toContain("parecer_vc_obeso");
+  });
+});
