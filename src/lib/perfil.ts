@@ -8,11 +8,27 @@ import { pbwOrEstimate, bmi } from "./clinical";
 import type { Patient } from "../types";
 
 /**
- * Chave de patologia que pode modular alvo ventilatório. A LISTA de quais
- * patologias modulam o quê é conteúdo clínico da Fase 8, decidida com o
- * mentor. Aqui só se registra o que o paciente tem.
+ * Patologia que modula algum alvo ventilatório. União fechada e curta de
+ * propósito: só entram as que a Fase 8 decidiu, com fonte, que mudam um
+ * número. Doze das comorbidades registradas não modulam nada, e isso é
+ * decisão registrada, não lacuna.
+ *
+ * A OBESIDADE não está aqui: ela já modula o volume corrente pelo
+ * `perfil.obeso`, derivado do IMC e não da caixinha. Um paciente obeso sem a
+ * comorbidade marcada continua recebendo a faixa deslocada, que é o
+ * comportamento certo — e pôr a chave aqui também criaria duas fontes de
+ * verdade para a mesma pergunta.
  */
-export type PatologiaKey = string;
+export type PatologiaKey = "dpoc" | "asma" | "lesao_cerebral_aguda";
+
+const PATOLOGIAS_QUE_MODULAM: readonly PatologiaKey[] = [
+  "dpoc",
+  "asma",
+  "lesao_cerebral_aguda",
+] as const;
+
+const ehPatologia = (k: string): k is PatologiaKey =>
+  (PATOLOGIAS_QUE_MODULAM as readonly string[]).includes(k);
 
 export interface PerfilClinico {
   pbw: number;
@@ -21,12 +37,11 @@ export interface PerfilClinico {
   /** Sem IMC não dá para afirmar. Assume-se a faixa protetora, mas sinalizado. */
   obesoIndeterminado: boolean;
   /**
-   * Hoje guarda as chaves cruas de `patient.comorbidities`, copiadas como
-   * vieram do paciente — ainda não o vocabulário curado de patologia que a
-   * Fase 8 vai definir, que também incorpora os achados de imagem da
-   * evolução (`imaging`). Mapear comorbidade + imagem para uma patologia que
-   * de fato module um alvo é conteúdo clínico, decidido com o mentor, e fica
-   * deliberadamente para a fase que decidir qual patologia modula qual alvo.
+   * O que muda algum alvo ventilatório, não o que o paciente tem. Filtrado
+   * das comorbidades registradas pela união fechada de `PatologiaKey` — as
+   * doze comorbidades fora dela ficam de fora daqui mesmo que o paciente as
+   * tenha marcadas, porque nenhuma delas tem fonte publicada que module um
+   * número. Achados de imagem (`imaging`) ainda não entram neste campo.
    */
   patologias: PatologiaKey[];
 }
@@ -42,6 +57,6 @@ export function derivarPerfil(patient: Patient): PerfilClinico {
     pbwEstimado: estimated,
     obeso: imc != null ? imc >= 30 : false,
     obesoIndeterminado: imc == null,
-    patologias: patient.comorbidities ?? [],
+    patologias: (patient.comorbidities ?? []).filter(ehPatologia),
   };
 }

@@ -24,5 +24,6 @@ export const COMORBIDITIES: Comorbidity[] = [
   { key: "drc", label: "Doença renal crônica", pulmonar: false },
   { key: "obesidade", label: "Obesidade", pulmonar: false },
   { key: "neuro", label: "Doença neurológica", pulmonar: false },
+  { key: "lesao_cerebral_aguda", label: "Lesão cerebral aguda", pulmonar: false },
   { key: "neoplasia", label: "Neoplasia", pulmonar: false },
 ];
