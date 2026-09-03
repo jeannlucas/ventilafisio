@@ -1,12 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { sugerirVc, sugerirPeepFio2, sugerirVentilacao, sugestaoAdmissao } from "./alvos";
 import { derivarPerfil } from "./perfil";
-import type { PerfilClinico } from "./perfil";
+import type { PerfilClinico, PatologiaKey } from "./perfil";
 import type { Patient } from "../types";
 
 const perfil = (over: Partial<PerfilClinico> = {}): PerfilClinico => ({
   pbw: 70, pbwEstimado: false, obeso: false, obesoIndeterminado: false,
   patologias: [], ...over,
+});
+
+const perfilCom = (patologias: PatologiaKey[], over: Partial<PerfilClinico> = {}): PerfilClinico => ({
+  pbw: 70, pbwEstimado: false, obeso: false, obesoIndeterminado: false,
+  patologias, ...over,
 });
 
 // Mesma fixture mínima de perfil.test.ts: só os campos que derivarPerfil lê
@@ -85,24 +90,24 @@ describe("sugerirVc", () => {
 // ============================================================
 describe("sugerirPeepFio2", () => {
   it("sem gasometria e sem oximetria devolve o preset de admissão", () => {
-    const a = sugerirPeepFio2(null, null);
-    expect(a.valor).toEqual({ fio2: 100, peep: 5, presetAdmissao: true });
+    const a = sugerirPeepFio2(null, null, perfil(), null);
+    expect(a.valor).toEqual({ fio2: 100, peep: 5, faixaPeep: null, presetAdmissao: true });
     expect(a.modulacoes).toEqual([]);
   });
 
   it("desce na tabela ARDSnet conforme a relação P/F", () => {
-    expect(sugerirPeepFio2(350, null).valor).toMatchObject({ fio2: 30, peep: 5 });
-    expect(sugerirPeepFio2(250, null).valor).toMatchObject({ fio2: 40, peep: 5 });
-    expect(sugerirPeepFio2(150, null).valor).toMatchObject({ fio2: 60, peep: 10 });
-    expect(sugerirPeepFio2(50, null).valor).toMatchObject({ fio2: 80, peep: 14 });
+    expect(sugerirPeepFio2(350, null, perfil(), null).valor).toMatchObject({ fio2: 30, peep: 5 });
+    expect(sugerirPeepFio2(250, null, perfil(), null).valor).toMatchObject({ fio2: 40, peep: 5 });
+    expect(sugerirPeepFio2(150, null, perfil(), null).valor).toMatchObject({ fio2: 60, peep: 10 });
+    expect(sugerirPeepFio2(50, null, perfil(), null).valor).toMatchObject({ fio2: 80, peep: 14 });
   });
 
   it("sobe a FiO2 um degrau quando a saturação está abaixo de 90", () => {
-    expect(sugerirPeepFio2(350, 85).valor).toMatchObject({ fio2: 40, peep: 5 });
+    expect(sugerirPeepFio2(350, 85, perfil(), null).valor).toMatchObject({ fio2: 40, peep: 5 });
   });
 
   it("sem gasometria mas com oximetria parte de FiO2 40", () => {
-    expect(sugerirPeepFio2(null, 95).valor).toMatchObject({
+    expect(sugerirPeepFio2(null, 95, perfil(), null).valor).toMatchObject({
       fio2: 40,
       peep: 5,
       presetAdmissao: false,
@@ -171,5 +176,67 @@ describe("sugestaoAdmissao", () => {
     const s = sugestaoAdmissao(p, null, null, null);
     expect(s.obeso).toBe(false);
     expect(s.obesoIndeterminado).toBe(true);
+  });
+});
+
+describe("sugerirPeepFio2 por patologia", () => {
+  it("sem patologia, devolve a tabela ARDSnet e nenhuma modulação", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom([]), null);
+    expect(a.valor.peep).toBe(10);
+    expect(a.valor.faixaPeep).toBeNull();
+    expect(a.modulacoes).toEqual([]);
+  });
+
+  // A tabela daria 10; a asma limita a 5. Direção OPOSTA à do DPOC.
+  it("asma limita a PEEP a 5", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["asma"]), null);
+    expect(a.valor.peep).toBe(5);
+    expect(a.base.peep).toBe(10);
+    expect(a.modulacoes.length).toBe(1);
+    expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+  });
+
+  it("asma não eleva a PEEP quando a tabela já dá menos de 5", () => {
+    const a = sugerirPeepFio2(400, 98, perfilCom(["asma"]), null);
+    expect(a.valor.peep).toBe(5);
+  });
+
+  // Sem auto-PEEP medido o aplicativo NÃO tem número de PEEP para o DPOC.
+  // Devolver o da tabela seria afirmar que ela se aplica, e ela não se aplica.
+  it("DPOC sem auto-PEEP não produz número de PEEP", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), null);
+    expect(a.valor.peep).toBeNull();
+    expect(a.valor.faixaPeep).toBeNull();
+    expect(a.modulacoes.length).toBe(1);
+  });
+
+  // 80 a 85% de 10 = 8 a 8,5. A FAIXA, não um número: Ranieri diz 85% e
+  // Demoule diz 80%, e fundir os dois esconderia a divergência.
+  it("DPOC com auto-PEEP produz a faixa de 80 a 85% dele", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), 10);
+    expect(a.valor.peep).toBeNull();
+    expect(a.valor.faixaPeep).toEqual({ min: 8, max: 8.5 });
+  });
+
+  // Auto-PEEP ZERO é medida: ausência de aprisionamento. A faixa é 0 a 0, e
+  // isso é resultado, não dado faltando.
+  it("auto-PEEP zero produz faixa zero, não ausência de faixa", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), 0);
+    expect(a.valor.faixaPeep).toEqual({ min: 0, max: 0 });
+  });
+
+  // Duas patologias marcadas: prevalece o teto mais conservador, e a
+  // modulação declara as duas. Não é precedência clínica — é a recusa de
+  // escolher entre duas quando ninguém decidiu.
+  it("asma e DPOC juntas aplicam o teto da asma e declaram as duas", () => {
+    const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 10);
+    expect(a.valor.peep).toBe(5);
+    expect(a.valor.faixaPeep).toBeNull();
+    expect(a.modulacoes.some((m) => /asma/i.test(m.motivo) && /DPOC/i.test(m.motivo))).toBe(true);
+  });
+
+  it("o preset de admissão continua valendo sem gasometria nem oximetria", () => {
+    const a = sugerirPeepFio2(null, null, perfilCom([]), null);
+    expect(a.valor.presetAdmissao).toBe(true);
   });
 });

@@ -19,7 +19,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
   const mp = C.mechanicalPower(ev.fr, ev.vc, ev.ppico, dp);
 
   const sVc = sugerirVc(perfil);
-  const sPeep = sugerirPeepFio2(pf, ev.spo2);
+  const sPeep = sugerirPeepFio2(pf, ev.spo2, perfil, ev.auto_peep);
   // sVc nunca é null (sugerirVc devolve Alvo<AlvoVc> sempre) e perfil.pbw vem
   // de pbwOrEstimate, que sempre devolve um número finito — então
   // sugerirVentilacao nunca cai no ramo null nesta chamada. Assertion
@@ -120,7 +120,7 @@ export function Dashboard({ patient, ev }: { patient: Patient; ev: DailyEvolutio
         sub={`${obese ? `obeso (IMC ≥30): alvo ${vcLow}–${vcHigh} ml/kg sobre peso predito` : `alvo protetor ${vcLow}–${vcHigh} ml/kg`} · ponto de partida, ajuste pela resposta`}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <SugBox label="VOLUME CORRENTE" big={`${sVc.valor.target} mL`} sub={`faixa ${sVc.valor.low}–${sVc.valor.high} mL · 6kg=${sVc.valor.ml6} 8kg=${sVc.valor.ml8}`} />
-          <SugBox label="PEEP / FiO₂" big={`${sPeep.valor.peep} cmH₂O`} sub={`FiO₂ ${sPeep.valor.fio2}% · tabela ARDSnet`} />
+          <SugBox label="PEEP / FiO₂" big={`${fmt(sPeep.valor.peep)} cmH₂O`} sub={`FiO₂ ${sPeep.valor.fio2}% · tabela ARDSnet`} />
           <SugBox label="FREQUÊNCIA" big={`${sVent.valor.fr} /min`} sub="derivada do VC alvo" />
           <SugBox label="VOLUME-MINUTO" big={`${fmt(sVent.valor.veL)} L/min`} sub="~100 ml/kg PBW/min" />
         </div>
