@@ -7,7 +7,7 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 03/09/2026: a suíte roda e passa. `pnpm test` devolve **617 testes
+Estado em 03/09/2026: a suíte roda e passa. `pnpm test` devolve **664 testes
 em 28 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
@@ -421,10 +421,22 @@ fronteiras são 4, 8 e 12. O mentor escreveu as bordas de forma difusa ("< 3-4",
 
 ### Três recusas deliberadas, cada uma com teste
 
-1. **A ΔP_L,dyn não recebe faixa nem cor de status.** O mentor não foi
-   perguntado sobre limiares dela; a literatura tem 15 e 20. A ausência de cor
-   é testada por `borderLeftColor`, porque trocar `T.dim` por uma cor de status
-   não mudaria texto nenhum e a suíte ficaria verde.
+1. ~~**A ΔP_L,dyn não recebe faixa nem cor de status.**~~ **REVOGADA em
+   03/09/2026**, e vale entender como. Ela existia porque o mentor não tinha
+   sido perguntado sobre os limiares; perguntado, ele respondeu *"classifica com
+   os cortes já vistos como 15 e 20"*, e a ΔP_L,dyn passou a ter três faixas e
+   cor, sustentadas por `parecer_dpl_faixas`.
+
+   O teste de `borderLeftColor` **inverteu, não sumiu**: ele exigia
+   `statusColor(null)` e hoje exige a cor da faixa. A razão de existir é a
+   mesma nos dois sentidos — trocar a cor não mudaria uma letra na tela, então
+   a cor é a única prova da decisão. Junto dele há um teste de faixa `ok`, sem
+   o qual a asserção invertida seria satisfeita por uma cor constante.
+
+   As fronteiras não são guardadas pelo painel: quem as fixa é `classificarDpL`
+   em `mecanica.ts`, com teste em 14,9 / 15 / 19,9 / 20. Os coeficientes
+   continuam sendo Bertoni 2019 e não se tocam: o parecer sustenta as faixas,
+   não a conversão.
 2. **O app não diz se o paciente é recrutável.** O 0,5 que circula como corte é
    a **mediana da coorte de derivação de Chen 2020 (n = 45)**, o erro de medida
    em torno dele é da ordem da distância entre os limiares propostos, e a
@@ -467,8 +479,16 @@ afirmando o que a versão anterior achava.
   razão formatada. Não foi inventado teto: teto de escala é número clínico e
   precisa de fonte. Se entrar, entra em `measurement-limits.ts` para o app
   inteiro, não só para a manobra.
-- **A ΔP_L,dyn merece faixas?** A literatura tem 15 e 20; o mentor não foi
-  consultado.
+
+  **Perguntado em 03/09/2026, o mentor decidiu que NÃO precisa de máximo**:
+  *"em recrutamento já se vi utilizar até 40 de PEEP"*. Ou seja, a cerca fica
+  como está, e o efeito colateral conhecido fica junto: um valor digitado
+  errado continua passando e virando número formatado na tela. Isso é decisão
+  registrada, não lacuna.
+- ~~**A ΔP_L,dyn merece faixas?**~~ RESOLVIDA em 03/09/2026: sim, com 15 e 20.
+  O mentor **adotou** os cortes que já circulam na literatura, não os propôs, e
+  a nota do parecer diz isso com essas palavras. Nenhuma publicação foi
+  levantada para eles, e é por isso que entram como parecer.
 - **A origem do P0.1 muda a leitura** (valor do ventilador contra oclusão
   dedicada, que Telias mostra não serem intercambiáveis), e o app não a
   distingue.
@@ -632,17 +652,54 @@ porque os dígitos de uma ressalva estavam no mesmo elemento do valor asserido.
 
 ### O que ficou pendente
 
-- **Qual é o piso de frequência em obstrutivo, se existe?** O 10 saiu por não ter
-  fonte. Demoule diz "frequência baixa" e não publica número.
-- **Auto-PEEP pequeno mas não nulo.** O corte é em zero exato; 1 produz faixa, e
-  ela aparece como "0,8 a 0,8".
-- **DPOC e lesão cerebral aguda juntos puxam a PaCO₂ em direções opostas** —
-  hipercapnia permissiva contra normocapnia de 35 a 45. O app mostra os dois
-  alvos lado a lado sem reconciliar.
-- **Asma e DPOC marcados juntos: o teto da asma é aplicado, e o texto NÃO afirma
-  que é o mais conservador**, porque não é em toda a faixa: com auto-PEEP baixo o
-  limite do DPOC cai abaixo de 5. Tomar o menor dos dois seria aritmética de dois
-  tetos já publicados, mas resolveria sozinha uma pergunta que ninguém respondeu.
+As quatro primeiras foram respondidas pelo mentor em **03/09/2026** e viraram
+código. Ficam registradas aqui com a resposta, porque a resposta é que sustenta
+o comportamento de hoje.
+
+- ~~**Qual é o piso de frequência em obstrutivo?**~~ **Não existe piso.**
+  *"Frequência sempre decidida na beira do leito."* O 10 já tinha saído por
+  falta de fonte; agora está fora por decisão registrada, que é mais forte.
+  `parecer_fr_obstrutivo`.
+- ~~**Auto-PEEP pequeno mas não nulo.**~~ Respondida, e a resposta é uma
+  **recusa de limiar**: *"não existe um valor mágico de auto-PEEP a partir do
+  qual a regra passa a ser obrigatória"*. Então **a faixa continua sendo
+  exibida para qualquer auto-PEEP acima de zero**, e o que entra é ressalva.
+
+  Abaixo de **3** aparece um texto a mais, dizendo que nesse nível a regra tem
+  pouca utilidade prática e — o ponto que ele destacou como o mais importante —
+  que **auto-PEEP baixa não exclui hiperinsuflação**: a medida depende de ter
+  sido feita com pausa expiratória e paciente passivo, e o sinal a olhar é se o
+  fluxo expiratório retorna a zero antes do próximo ciclo.
+
+  **O 3 não é limiar de comportamento.** Nada muda de valor nele; só aparece
+  texto. Ele é a borda inferior do "3 a 4" que o mentor escreveu, escolhida
+  para a ressalva cobrir mais casos, que é a direção segura. Quem transformar
+  isso em corte que suprime a faixa contraria o parecer, e há um teste varrendo
+  o domínio inteiro que fica vermelho.
+- ~~**DPOC e lesão cerebral aguda juntos.**~~ **O TCE manda.** *"Puxa o cuidado
+  muito minucioso que é necessário em TCE, tendo em vista que não pode haver
+  retenção de CO2."* A hipercapnia permissiva do obstrutivo deixa de ser opção,
+  e a modulação diz isso, com chave própria: anexar ao `lesaoCerebral` faria a
+  frase aparecer para todo TCE, inclusive o que não tem obstrutivo nenhum.
+- ~~**Asma e DPOC marcados juntos.**~~ Ele **delegou**: *"não tenho uma resposta
+  satisfatória para essa pergunta agora, mas acho que vc pode considerar da
+  melhor maneira possível, sendo minucioso nos dois casos."*
+
+  A leitura adotada foi parar de escolher: o app mostra **os dois limites lado a
+  lado** — o teto de 5 da asma e o derivado do auto-PEEP medido — e diz que
+  ninguém decidiu qual prevalece. **Não escreve qual é o mais restritivo**: a
+  comparação é do terapeuta. É o mesmo hábito que já faz o app mostrar 80% e
+  85% em vez de eleger um.
+
+  A escolha de exibir os dois é **do aplicativo**, não do mentor, e a nota do
+  `parecer_asma_dpoc` separa as duas coisas com essas palavras. O que o parecer
+  sustenta é a indecisão, e por isso a chave é citada nos três estados do
+  auto-PEEP, inclusive naqueles em que só um limite aparece — a frase embaixo
+  dela é sobre não haver decisão, e isso é verdade com um número ou com dois.
+
+  `textoPeep` ganhou ramo para `peep` e `faixaPeep` os dois não nulos. Sem ele a
+  faixa nunca chegaria à tela: o motor a calcularia e a formatação a jogaria
+  fora em silêncio, que é a forma mais barata de desfazer a decisão.
 - **O preset de admissão é cego à patologia por construção**, e o portão do
   preset só cede quando há auto-PEEP medido.
 - **O alvo de PaCO₂, o aviso do obeso e a linha de I:E não existem no
@@ -653,9 +710,13 @@ porque os dígitos de uma ressalva estavam no mesmo elemento do valor asserido.
   exibe no rodapé um artigo de auto-PEEP em DPOC que não sustenta o teto de 5. É
   sobre-citação, não afirmação falsa, e separar em duas chaves mexe em
   `references`, no `LABELS` do `Sources.tsx` e no teste de referência órfã.
-- **`auto_peep`, como `peep`, `pplat` e `vc`, não tem teto de escala.** A
-  diferença é que auto-PEEP 150 não fica parado num campo: vira faixa formatada
-  como alvo. Teto de escala é número clínico e precisa de fonte.
+- ~~**`auto_peep` não tem teto de escala.**~~ **Decidido em 03/09/2026: não
+  precisa de máximo**, porque *"em recrutamento já se vi utilizar até 40 de
+  PEEP"*. Fica sem teto por decisão, e o efeito colateral fica junto: auto-PEEP
+  150 continua virando faixa formatada como alvo.
+- **As modalidades do TRE seguem sem fonte.** Perguntado, o mentor respondeu que
+  não tem referência no momento e liberou procurar uma. Continua marcada como
+  conteúdo a validar.
 
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
@@ -736,7 +797,14 @@ porque os dígitos de uma ressalva estavam no mesmo elemento do valor asserido.
     manda o asmático medir o que o app nunca vai usar nele, e o
     `AdmissionCard` chama sempre com os três valores nulos, então TODO
     asmático veria. Já aconteceu nesta fase.
-18. **Auto-PEEP ZERO é medida real e favorável, e recusa número por motivo
+18. **O 3 cmH₂O do auto-PEEP é gatilho de RESSALVA, nunca corte.** O mentor
+    recusou o limiar com todas as letras, então a faixa aparece para qualquer
+    auto-PEEP acima de zero e abaixo de 3 só ganha texto a mais. Um teste
+    varre `patologias × autoPeep × pf` inteiro afirmando que há ressalva de
+    aplicação **se e somente se** há faixa: é invariante derivado, não lista
+    escrita à mão, então um sítio novo que produza faixa entra coberto sem
+    ninguém lembrar dele.
+19. **Auto-PEEP ZERO é medida real e favorável, e recusa número por motivo
     PRÓPRIO.** Zero significa que não há aprisionamento a limitar, ou seja, a
     regra dos 80 a 85% perdeu o referente. Não é a mesma recusa do "não
     medido", e há teste que fica vermelho se alguém fundir os dois textos.
