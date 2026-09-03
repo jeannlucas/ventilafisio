@@ -19,11 +19,15 @@ export type SourceKey =
   // mecânica: drive, esforço e recrutabilidade
   | "drive" | "esforco" | "recrutabilidade"
   // alvo por patologia
-  | "obstrutivo" | "obesidadeVentilacao" | "lesaoCerebral";
+  | "obstrutivo" | "obesidadeVentilacao" | "lesaoCerebral"
+  // A faixa do obeso tem chave PRÓPRIA: o parecer que a sustenta não sustenta
+  // a faixa 4-6 do não obeso, e `vcKg` é citado no rodapé de todo paciente.
+  | "vcKgObeso";
 
 export const THRESHOLD_SOURCES: Record<SourceKey, string[]> = {
   pf: ["ardsnet_2000", "amib_sbpt_2024"],
-  vcKg: ["ardsnet_2000", "amib_sbpt_2024", "parecer_vc_obeso"],
+  vcKg: ["ardsnet_2000", "amib_sbpt_2024"],
+  vcKgObeso: ["parecer_vc_obeso"],
   pplat: ["ardsnet_2000", "amib_sbpt_2024"],
   dp: ["amato_2015", "guerin_2016"],
   mp: ["gattinoni_2016", "serpaneto_2018"],

@@ -7,6 +7,7 @@ import { T } from "../lib/theme";
 const LABELS: Record<SourceKey, string> = {
   pf: "Relação P/F",
   vcKg: "Volume corrente por peso predito",
+  vcKgObeso: "Volume corrente por peso predito no paciente obeso",
   pplat: "Pressão de platô",
   dp: "Driving Pressure",
   mp: "Mechanical Power",

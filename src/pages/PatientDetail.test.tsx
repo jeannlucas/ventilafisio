@@ -612,29 +612,35 @@ describe("sugestão de admissão", () => {
   // Item 3 da onda de fechamento: o rodapé do painel também precisa citar
   // a fonte da própria modulação, não só vcTarget/peepFio2.
   it("cita a fonte da modulação no rodapé da sugestão de admissão", async () => {
-    // THRESHOLD_SOURCES.vcKg inclui "amib_sbpt_2024", que não aparece via
-    // vcTarget nem peepFio2 (os dois só citam ardsnet_2000) — por isso é a
-    // citação certa para provar que o rodapé deriva das modulações do
-    // alvo, e não uma lista de chaves decorada à mão.
+    // A modulação da obesidade cita `vcKgObeso`, que resolve para o parecer do
+    // mentor e não aparece via vcTarget nem peepFio2 (os dois só citam
+    // ardsnet_2000) — por isso é a citação certa para provar que o rodapé
+    // deriva das modulações do alvo, e não de uma lista decorada à mão.
     db.patient = { ...PACIENTE_BASE, height_cm: 170, weight_kg: 95 };
     renderDetail();
     await screen.findByText("Paciente Teste");
 
     const painel = screen.getByText(/Sugestão de admissão/).closest("section")!;
-    expect(within(painel).getByText(/AMIB\/SBPT, 2024/)).toBeInTheDocument();
+    expect(within(painel).getByText(/Parecer clínico \(VC no obeso\)/)).toBeInTheDocument();
   });
 
-  // A caixa de PEEP da admissão passou a formatar por `textoPeep`, porque
-  // `peep` é `number | null` e a interpolação anterior escreveria a palavra
-  // "null" na tela de beira de leito. O caso do traço NÃO é alcançável por
-  // aqui, e isso é comportamento do motor, não da tela: `sugestaoAdmissao`
-  // chama `sugerirPeepFio2` sem P/F e sem SpO₂, e o preset de admissão sai
-  // ANTES do portão da patologia — o DPOC nunca chega a zerar a PEEP na
-  // admissão. Por isso este teste fixa o que existe (o número do preset, sem
-  // linha de modulação) e o caso sem número é coberto onde ele é alcançável,
-  // em `textoPeep` (Dashboard.test.tsx), que é a MESMA função que este card
-  // usa. Quem tornar o portão da patologia alcançável na admissão derruba
-  // este teste — e é esse o aviso para acrescentar aqui a asserção do traço.
+  // O outro lado do par: enquanto o parecer estava em `vcKg`, ele era citado
+  // na tela de todo paciente, embaixo da faixa 4-6 do não obeso.
+  it("não cita o parecer do VC no obeso na admissão de quem não é obeso", async () => {
+    db.patient = { ...PACIENTE_BASE, height_cm: 170, weight_kg: 70 };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    expect(screen.queryByText(/Parecer clínico \(VC no obeso\)/)).not.toBeInTheDocument();
+  });
+
+  // A caixa de PEEP da admissão formata por `textoPeep`, porque `peep` é
+  // `number | null` e a interpolação anterior escreveria a palavra "null" na
+  // tela de beira de leito. O caso do traço NÃO é alcançável por aqui, e isso
+  // é comportamento do motor, não da tela: `sugestaoAdmissao` sempre chama
+  // `sugerirPeepFio2` com `autoPeep = null`, e sem auto-PEEP o obstrutivo
+  // recebe o preset. O caso sem número fica coberto onde ele é alcançável, em
+  // `textoPeep` (Dashboard.test.tsx), que é a MESMA função que este card usa.
   it("formata a PEEP de admissão pelo motor, sem escrever 'null' na tela", async () => {
     db.patient = { ...PACIENTE_BASE, comorbidities: ["dpoc"] };
     renderDetail();
@@ -643,6 +649,25 @@ describe("sugestão de admissão", () => {
     const caixa = screen.getByTestId("admissao-sug-peep");
     expect(caixa).toHaveTextContent("5");
     expect(caixa).not.toHaveTextContent(/null/i);
+  });
+
+  // O 5 continua, porque é o ponto de partida para montar o ventilador. O que
+  // ele deixa de fazer é sair calado e rotulado de "tabela ARDSnet" — a tabela
+  // que a fase declara não se aplicar ao obstrutivo.
+  it("na admissão do obstrutivo o preset vem com modulação e sem dizer ARDSnet", async () => {
+    db.patient = { ...PACIENTE_BASE, comorbidities: ["dpoc"] };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
+    expect(screen.getByTestId("admissao-sug-peep")).not.toHaveTextContent(/ARDSnet/i);
+    expect(screen.getByTestId("admissao-peep-modulacao")).toHaveTextContent(/ponto de partida/i);
+  });
+
+  it("sem patologia obstrutiva a admissão continua sem linha de modulação da PEEP", async () => {
+    db.patient = { ...PACIENTE_BASE, comorbidities: [] };
+    renderDetail();
+    await screen.findByText("Paciente Teste");
+
     expect(screen.queryByTestId("admissao-peep-modulacao")).not.toBeInTheDocument();
   });
 });

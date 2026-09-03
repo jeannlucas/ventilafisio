@@ -78,7 +78,10 @@ export function sugerirVc(perfil: PerfilClinico): Alvo<AlvoVc> {
     modulacoes: [
       {
         motivo: "Obesidade (IMC ≥ 30): faixa de volume corrente deslocada de 4–6 para 6–8 ml/kg de peso predito.",
-        sourceKey: "vcKg",
+        // Chave própria, e não `vcKg`: o parecer do mentor sustenta a faixa
+        // DO OBESO. Citado sob `vcKg`, ele apareceria no rodapé de todo
+        // paciente, embaixo da faixa 4–6, que ele não sustenta.
+        sourceKey: "vcKgObeso",
       },
     ],
   };
@@ -125,6 +128,12 @@ const FRACAO_AUTO_PEEP = { min: 0.8, max: 0.85 } as const;
  * No DPOC a tabela do ARDSnet NÃO SE APLICA. Sem auto-PEEP medido o
  * aplicativo não tem número a dar, e `peep` é null: devolver o da tabela seria
  * afirmar que ela vale ali.
+ *
+ * O preset de admissão (sem gasometria e sem oximetria) NÃO passa na frente do
+ * obstrutivo com auto-PEEP medido. A regra do DPOC precisa do auto-PEEP, não da
+ * oxigenação: devolver o preset ali descartaria em silêncio a medida que o
+ * terapeuta acabou de registrar, e ainda rotularia o número de "tabela
+ * ARDSnet", que é justamente a tabela que não se aplica a esse paciente.
  */
 export function sugerirPeepFio2(
   pf: number | null,
@@ -132,8 +141,29 @@ export function sugerirPeepFio2(
   perfil: PerfilClinico,
   autoPeep: number | null
 ): Alvo<AlvoPeepFio2> {
-  if (!num(pf) && !num(spo2)) {
-    return semModulacao({ fio2: 100, peep: 5, faixaPeep: null, presetAdmissao: true });
+  const temAsma = perfil.patologias.includes("asma");
+  const temDpoc = perfil.patologias.includes("dpoc");
+  const obstrutivo = temAsma || temDpoc;
+
+  if (!num(pf) && !num(spo2) && !(obstrutivo && num(autoPeep))) {
+    const preset: AlvoPeepFio2 = {
+      fio2: 100, peep: 5, faixaPeep: null, presetAdmissao: true,
+    };
+    if (!obstrutivo) return semModulacao(preset);
+    // Obstrutivo sem auto-PEEP: o número continua, porque é o ponto de partida
+    // para montar o ventilador, mas deixa de sair calado. Sem esta linha o
+    // paciente obstrutivo via "5 cmH₂O · tabela ARDSnet" e nada mais.
+    return {
+      valor: preset,
+      base: preset,
+      modulacoes: [
+        {
+          motivo:
+            "Obstrutivo (DPOC ou asma): 5 cmH₂O é ponto de partida inicial para montar o ventilador, não o alvo deste paciente — a tabela do ARDSnet não se aplica ao obstrutivo. Registre o auto-PEEP para o alvo da patologia aparecer.",
+          sourceKey: "obstrutivo",
+        },
+      ],
+    };
   }
   let fio2: number;
   if (!num(pf)) fio2 = 40;
@@ -147,9 +177,7 @@ export function sugerirPeepFio2(
     fio2: row.fio2, peep: row.peep, faixaPeep: null, presetAdmissao: false,
   };
 
-  const temAsma = perfil.patologias.includes("asma");
-  const temDpoc = perfil.patologias.includes("dpoc");
-  if (!temAsma && !temDpoc) return semModulacao(base);
+  if (!obstrutivo) return semModulacao(base);
 
   // As duas marcadas: aplica-se o teto da asma, e a modulação declara as duas.
   // Não é precedência clínica: o mentor não foi perguntado sobre o paciente com
@@ -185,6 +213,30 @@ export function sugerirPeepFio2(
       ],
     };
   }
+  // Auto-PEEP exatamente ZERO é medida, e boa: não há aprisionamento aéreo a
+  // limitar a PEEP externa. A premissa de Ranieri e de Demoule simplesmente não
+  // existe nesse paciente, e nenhuma das duas diz "auto-PEEP zero, logo PEEP
+  // zero" — multiplicar o zero por 0,8 prescrevia ZEEP a partir de um achado
+  // favorável.
+  //
+  // Isto NÃO é confundir zero com ausência: os dois caminhos recusam número, e
+  // recusam por razões diferentes, escritas em textos diferentes. O corte é em
+  // zero exato e só nele, porque zero é a ausência do fenômeno, não um limiar:
+  // "auto-PEEP abaixo de 2 também recusa" seria número clínico sem fonte, e é
+  // pergunta para o mentor.
+  if (autoPeep === 0) {
+    return {
+      valor: { ...base, peep: null, faixaPeep: null },
+      base,
+      modulacoes: [
+        {
+          motivo:
+            "DPOC: o auto-PEEP medido foi zero, ou seja, não há aprisionamento aéreo a limitar a PEEP externa. A regra dos 80 a 85% do auto-PEEP perde o referente aqui, e o aplicativo não converte esse achado favorável em alvo de PEEP. A tabela do ARDSnet continua não se aplicando — titule pela resposta do paciente.",
+          sourceKey: "obstrutivo",
+        },
+      ],
+    };
+  }
   return {
     valor: {
       ...base,
@@ -211,16 +263,26 @@ export interface AlvoVentilacao {
   fr: number;
 }
 
-/** Piso de frequência. Cai em obstrutivo, para dar tempo de expirar. */
+/** Piso de frequência do clamp. */
 const FR_MIN_PADRAO = 12;
-const FR_MIN_OBSTRUTIVO = 10;
 
 /**
  * Frequência e volume-minuto.
  *
- * O piso de frequência cai de 12 para 10 em DPOC ou asma: Demoule 2020 orienta
- * frequência baixa e relação I:E de 1:4 a 1:6 justamente para dar tempo de
- * expirar, e o piso padrão vira obstáculo nesse paciente.
+ * O obstrutivo NÃO recebe frequência diferente. A modulação existe porque a
+ * orientação de Demoule 2020 é real e publicada, mas ela informa: o alvo é a
+ * relação I:E de 1:4 a 1:6, e quem regula a frequência é o terapeuta.
+ *
+ * Houve aqui um piso obstrutivo de 10, e ele era falso duas vezes. Primeiro
+ * porque o peso predito se cancela na conta — `veL` é `predBW * 100 / 1000` e
+ * `vcTargetMl` é `predBW * 6` ou `predBW * 7` —, então `bruto` é sempre 17 ou
+ * 14 e nenhum dos dois pisos jamais entra em vigor: a tela afirmava um
+ * rebaixamento que nunca acontecia. Segundo porque o 10 não é publicado nem é
+ * parecer do mentor: nenhuma fonte publica piso de frequência em obstrutivo, e
+ * a pergunta está aberta com ele. Não reintroduza um número aqui.
+ *
+ * `valor` igual a `base` com `modulacoes` não vazia é legítimo, e é o mesmo que
+ * `alvoPaco2` faz: a modulação carrega informação, não alteração de número.
  *
  * A relação I:E não é calculada aqui: o aplicativo não conhece o tempo
  * inspiratório configurado no ventilador.
@@ -241,12 +303,12 @@ export function sugerirVentilacao(
     perfil.patologias.includes("dpoc") || perfil.patologias.includes("asma");
   if (!obstrutivo) return semModulacao(base);
   return {
-    valor: { veL, fr: Math.max(FR_MIN_OBSTRUTIVO, Math.min(35, bruto)) },
+    valor: base,
     base,
     modulacoes: [
       {
         motivo:
-          "Obstrutivo: piso de frequência baixado para dar tempo de expirar. A relação I:E alvo é de 1:4 a 1:6, e o aplicativo não a calcula porque não conhece o tempo inspiratório configurado.",
+          "Obstrutivo (DPOC ou asma): o alvo é a relação I:E de 1:4 a 1:6, para dar tempo de expirar. Quem regula a frequência é o terapeuta, à beira do leito: o aplicativo não altera a frequência sugerida e não calcula a relação I:E, porque não conhece o tempo inspiratório configurado no ventilador.",
         sourceKey: "obstrutivo",
       },
     ],

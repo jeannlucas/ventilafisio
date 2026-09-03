@@ -50,7 +50,10 @@ describe("sugerirVc", () => {
     const a = sugerirVc(perfil({ obeso: true }))!;
     expect(a.modulacoes).toHaveLength(1);
     expect(a.modulacoes[0].motivo).toMatch(/obes/i);
-    expect(a.modulacoes[0].sourceKey).toBe("vcKg");
+    // Chave própria: o parecer do mentor sustenta a faixa 6-8 DO OBESO. Sob
+    // `vcKg` ele passaria a ser citado no rodapé de todo paciente, embaixo da
+    // faixa 4-6, que ele não sustenta.
+    expect(a.modulacoes[0].sourceKey).toBe("vcKgObeso");
   });
 
   // `base` guarda o que seria sem modulação: é isso que a tela mostra como
@@ -117,11 +120,16 @@ describe("sugerirPeepFio2", () => {
 
 describe("sugerirVentilacao", () => {
   it("deriva a frequência do volume-minuto de 100 ml por kg de peso predito", () => {
-    const a = sugerirVentilacao(70, 420, perfilCom([]))!;
+    const p = perfilCom([]);
+    const a = sugerirVentilacao(p.pbw, sugerirVc(p).valor.target, p)!;
     expect(a.valor.veL).toBeCloseTo(7, 6);
     expect(a.valor.fr).toBe(17);
   });
 
+  // Os dois casos abaixo exercitam o CLAMP, e só ele: o peso predito se cancela
+  // na conta, então nenhum alvo que `sugerirVc` produz chega perto de 12 ou de
+  // 35. Por isso o volume alvo aqui é digitado à mão, ao contrário do teste
+  // acima, e por isso estes dois não provam nada sobre paciente nenhum.
   it("limita a frequência ao piso de 12", () => {
     expect(sugerirVentilacao(70, 1000, perfilCom([]))!.valor.fr).toBe(12);
   });
@@ -137,33 +145,63 @@ describe("sugerirVentilacao", () => {
 });
 
 describe("sugerirVentilacao por patologia", () => {
-  // O piso de 12 é obstáculo em obstrutivo: Demoule orienta frequência baixa
-  // para dar tempo de expirar.
-  it("sem patologia, o piso de frequência é 12", () => {
-    const a = sugerirVentilacao(70, 700, perfilCom([]))!;
-    expect(a.valor.fr).toBe(12);
+  // Fixture ALCANÇÁVEL: o alvo de volume vem de `sugerirVc`, e não de um número
+  // digitado à mão. Um volume que a aplicação nunca produz exercita um ramo que
+  // nenhum paciente alcança, e foi assim que o piso obstrutivo de 10 ficou
+  // "testado" enquanto na tela ele nunca entrava em vigor.
+  const frDe = (patologias: PatologiaKey[], over: Partial<PerfilClinico> = {}) => {
+    const p = perfilCom(patologias, over);
+    return sugerirVentilacao(p.pbw, sugerirVc(p).valor.target, p)!;
+  };
+
+  it("sem patologia, não há modulação de frequência", () => {
+    const a = frDe([]);
     expect(a.modulacoes).toEqual([]);
+    expect(a.valor.fr).toBe(a.base.fr);
   });
 
-  it("DPOC baixa o piso de frequência para 10", () => {
-    const a = sugerirVentilacao(70, 700, perfilCom(["dpoc"]))!;
-    expect(a.valor.fr).toBe(10);
-    expect(a.base.fr).toBe(12);
-    expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+  // O ponto do item 1: o aplicativo NÃO rebaixa a frequência do obstrutivo. O
+  // peso predito se cancela em `bruto = veL / vcTarget`, então o piso jamais
+  // entrava em vigor e a tela afirmava um rebaixamento que nunca acontecia.
+  it("a frequência do obstrutivo é idêntica à do não obstrutivo, mesmo peso e mesmo alvo de volume", () => {
+    const semPatologia = frDe([]);
+    for (const patologia of ["dpoc", "asma"] as const) {
+      const a = frDe([patologia]);
+      expect(a.valor.fr).toBe(semPatologia.valor.fr);
+      expect(a.valor.fr).toBe(a.base.fr);
+    }
   });
 
-  it("asma também baixa o piso", () => {
-    expect(sugerirVentilacao(70, 700, perfilCom(["asma"]))!.valor.fr).toBe(10);
+  // Vale também no obeso, cujo alvo de volume é outro (7 ml/kg, não 6): a
+  // igualdade é entre obstrutivo e não obstrutivo COM O MESMO alvo, não uma
+  // frequência fixa.
+  it("a igualdade vale no obeso, cujo alvo de volume é outro", () => {
+    expect(frDe(["dpoc"], { obeso: true }).valor.fr).toBe(frDe([], { obeso: true }).valor.fr);
+    expect(frDe(["dpoc"], { obeso: true }).valor.fr).not.toBe(frDe(["dpoc"]).valor.fr);
+  });
+
+  // A modulação continua existindo (Demoule 2020 é real e publicado), mas
+  // passa a dizer só o que é verdade. Se alguém reintroduzir a afirmação de
+  // rebaixamento, é aqui que fica vermelho.
+  it("a modulação do obstrutivo não afirma rebaixamento nem piso de frequência", () => {
+    for (const patologia of ["dpoc", "asma"] as const) {
+      const a = frDe([patologia]);
+      expect(a.modulacoes).toHaveLength(1);
+      expect(a.modulacoes[0].motivo).not.toMatch(/baixad|piso/i);
+      expect(a.modulacoes[0].motivo).toMatch(/1:4 a 1:6/);
+      expect(a.modulacoes[0].motivo).toMatch(/terapeuta/i);
+      expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+    }
   });
 
   // Lesão cerebral aguda não mexe na frequência: o alvo dela é de PaCO₂, e
   // vem por outra função.
   it("lesão cerebral aguda não modula a frequência", () => {
-    expect(sugerirVentilacao(70, 700, perfilCom(["lesao_cerebral_aguda"]))!.modulacoes).toEqual([]);
+    expect(frDe(["lesao_cerebral_aguda"]).modulacoes).toEqual([]);
   });
 
   it("continua devolvendo null sem peso predito ou volume alvo", () => {
-    expect(sugerirVentilacao(null, 700, perfilCom([]))).toBeNull();
+    expect(sugerirVentilacao(null, 420, perfilCom([]))).toBeNull();
     expect(sugerirVentilacao(70, null, perfilCom([]))).toBeNull();
   });
 });
@@ -270,11 +308,40 @@ describe("sugerirPeepFio2 por patologia", () => {
     expect(a.valor.faixaPeep).toEqual({ min: 8, max: 8.5 });
   });
 
-  // Auto-PEEP ZERO é medida: ausência de aprisionamento. A faixa é 0 a 0, e
-  // isso é resultado, não dado faltando.
-  it("auto-PEEP zero produz faixa zero, não ausência de faixa", () => {
+  // Auto-PEEP ZERO é medida, e boa: ausência de aprisionamento aéreo. A faixa
+  // de 80 a 85% perde o referente ali, e o aplicativo recusa número — antes
+  // disso ele multiplicava o zero por 0,8 e prescrevia "0,0 a 0,0 cmH₂O" a um
+  // paciente que podia estar com P/F 150.
+  //
+  // Recusar por zero NÃO é confundir zero com ausência: os dois caminhos
+  // recusam, por razões diferentes, e o par de testes abaixo é o que separa os
+  // dois textos. Se alguém fundir os dois ramos, um deles fica vermelho.
+  it("auto-PEEP zero é lido como medida e recusa faixa, com motivo próprio", () => {
     const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), 0);
-    expect(a.valor.faixaPeep).toEqual({ min: 0, max: 0 });
+    expect(a.valor.peep).toBeNull();
+    expect(a.valor.faixaPeep).toBeNull();
+    expect(a.modulacoes).toHaveLength(1);
+    expect(a.modulacoes[0].motivo).toMatch(/zero/i);
+    expect(a.modulacoes[0].motivo).toMatch(/aprisionamento/i);
+    // O motivo do zero NÃO é o do não medido.
+    expect(a.modulacoes[0].motivo).not.toMatch(/não foi medido/i);
+  });
+
+  it("o motivo do auto-PEEP não medido não é o do auto-PEEP zero", () => {
+    const ausente = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), null).modulacoes[0].motivo;
+    const zero = sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), 0).modulacoes[0].motivo;
+    expect(ausente).toMatch(/não foi medido/i);
+    expect(ausente).not.toBe(zero);
+  });
+
+  // O corte é em zero EXATO, e só nele: zero é a ausência do fenômeno, não um
+  // limiar. Um piso do tipo "abaixo de 2 também recusa" seria número clínico
+  // sem fonte.
+  it("auto-PEEP pequeno mas diferente de zero continua produzindo faixa", () => {
+    expect(sugerirPeepFio2(150, 95, perfilCom(["dpoc"]), 1).valor.faixaPeep).toEqual({
+      min: 0.8,
+      max: 0.85,
+    });
   });
 
   // Duas patologias marcadas: aplica-se o teto da asma, e a modulação declara
@@ -293,9 +360,10 @@ describe("sugerirPeepFio2 por patologia", () => {
   // o mentor. O que a modulação não pode fazer é afirmar uma comparação que o
   // código não faz.
   it("com auto-PEEP baixo, o teto da asma não é o menor dos dois, e o texto não afirma que seja", () => {
+    // 80% de 4 é 3,2, abaixo dos 5 aplicados. Fica como comentário e não como
+    // asserção: `expect(4 * 0.8).toBeLessThan(5)` só afirmava aritmética de JS.
     const a = sugerirPeepFio2(150, 95, perfilCom(["dpoc", "asma"]), 4);
     expect(a.valor.peep).toBe(5);
-    expect(4 * 0.8).toBeLessThan(5);
     expect(a.modulacoes).toHaveLength(1);
     expect(a.modulacoes[0].motivo).not.toMatch(/conservador|mais restritiv/i);
   });
@@ -303,5 +371,72 @@ describe("sugerirPeepFio2 por patologia", () => {
   it("o preset de admissão continua valendo sem gasometria nem oximetria", () => {
     const a = sugerirPeepFio2(null, null, perfilCom([]), null);
     expect(a.valor.presetAdmissao).toBe(true);
+  });
+
+  // ---------- O preset não passa na frente do obstrutivo com auto-PEEP ----------
+  // Cenário corriqueiro: dia sem gasometria, com os parâmetros do ventilador e
+  // o auto-PEEP registrados. O portão do preset vinha ANTES do da patologia,
+  // então o auto-PEEP recém-digitado era descartado em silêncio e a caixa
+  // mostrava "5 cmH₂O · tabela ARDSnet" — a tabela que não se aplica ao DPOC.
+  it("obstrutivo sem gasometria mas com auto-PEEP recebe a faixa, não o preset", () => {
+    const a = sugerirPeepFio2(null, null, perfilCom(["dpoc"]), 10);
+    expect(a.valor.presetAdmissao).toBe(false);
+    expect(a.valor.faixaPeep).toEqual({ min: 8, max: 8.5 });
+    expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+  });
+
+  it("asma sem gasometria mas com auto-PEEP recebe o teto da asma, não o preset", () => {
+    const a = sugerirPeepFio2(null, null, perfilCom(["asma"]), 10);
+    expect(a.valor.presetAdmissao).toBe(false);
+    expect(a.valor.peep).toBe(5);
+    expect(a.modulacoes[0].motivo).toMatch(/asma/i);
+  });
+
+  // Sem auto-PEEP o preset continua devolvendo 5 — não se tira do terapeuta o
+  // ponto de partida na hora de montar o ventilador. O que ele deixa de fazer é
+  // sair calado.
+  it("obstrutivo sem gasometria e sem auto-PEEP recebe o preset COM modulação", () => {
+    for (const patologia of ["dpoc", "asma"] as const) {
+      const a = sugerirPeepFio2(null, null, perfilCom([patologia]), null);
+      expect(a.valor.peep).toBe(5);
+      expect(a.valor.presetAdmissao).toBe(true);
+      expect(a.modulacoes).toHaveLength(1);
+      expect(a.modulacoes[0].motivo).toMatch(/ponto de partida/i);
+      expect(a.modulacoes[0].motivo).toMatch(/auto-PEEP/i);
+      expect(a.modulacoes[0].sourceKey).toBe("obstrutivo");
+    }
+  });
+
+  it("sem patologia obstrutiva o preset continua sem modulação nenhuma", () => {
+    expect(sugerirPeepFio2(null, null, perfilCom([]), null).modulacoes).toEqual([]);
+    // Auto-PEEP medido em quem não é obstrutivo não abre o portão: a regra dos
+    // 80 a 85% é da patologia, não do campo.
+    expect(sugerirPeepFio2(null, null, perfilCom([]), 10).valor.presetAdmissao).toBe(true);
+  });
+
+  // ---------- A recusa de piso de PEEP na obesidade ----------
+  // A review provou por mutação que esta recusa não tinha guarda nenhuma:
+  // injetando `if (perfil.obeso) peep = Math.max(peep, 10)` mais a modulação
+  // correspondente, a suíte inteira ficava verde. O único teste que a
+  // mencionava escopava o `not.toHaveTextContent(/\d/)` no elemento do aviso,
+  // que é texto constante.
+  //
+  // A P/F de 350 é o que dá tração: a tabela devolve PEEP 5, então um piso de
+  // 10 MUDA o número. Com P/F 150 a tabela já dá 10 e a mutação passaria
+  // despercebida.
+  it("no obeso sem patologia obstrutiva, a PEEP não ganha piso nem modulação", () => {
+    const a = sugerirPeepFio2(350, 98, perfil({ obeso: true }), null);
+    expect(a.valor.peep).toBe(5);
+    expect(a.valor.peep).toBe(a.base.peep);
+    expect(a.valor.faixaPeep).toBeNull();
+    expect(a.modulacoes).toEqual([]);
+  });
+
+  it("o obeso recebe exatamente a mesma PEEP do não obeso, em toda a tabela", () => {
+    for (const pf of [350, 250, 150, 50]) {
+      expect(sugerirPeepFio2(pf, 98, perfil({ obeso: true }), null).valor.peep).toBe(
+        sugerirPeepFio2(pf, 98, perfil({ obeso: false }), null).valor.peep
+      );
+    }
   });
 });

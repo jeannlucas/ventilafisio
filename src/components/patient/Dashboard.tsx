@@ -27,12 +27,20 @@ import { LinhaModulacaoSimples } from "./LinhaModulacaoSimples";
  * divergiria é justamente o caso em que não há número.
  */
 export function textoPeep(alvo: Alvo<AlvoPeepFio2>): { big: string; sub: string } {
-  const { peep, faixaPeep } = alvo.valor;
+  const { peep, faixaPeep, presetAdmissao } = alvo.valor;
   if (peep != null) {
-    return {
-      big: `${fmt(peep, 0)} cmH₂O`,
-      sub: alvo.modulacoes.length > 0 ? "limitada pela patologia · ver abaixo" : "tabela ARDSnet",
-    };
+    // "tabela ARDSnet" só quando o número VEIO da tabela. O preset de admissão
+    // (sem gasometria e sem oximetria) não vem: rotulá-lo assim afirmava a
+    // tabela justamente onde o motor não a consultou, e no obstrutivo afirmava
+    // a tabela que a fase declara não se aplicar.
+    const sub = presetAdmissao
+      ? alvo.modulacoes.length > 0
+        ? "preset inicial · ver abaixo"
+        : "preset inicial · titular pela gasometria/SpO₂"
+      : alvo.modulacoes.length > 0
+        ? "limitada pela patologia · ver abaixo"
+        : "tabela ARDSnet";
+    return { big: `${fmt(peep, 0)} cmH₂O`, sub };
   }
   if (faixaPeep != null) {
     return {

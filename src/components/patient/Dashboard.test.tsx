@@ -162,15 +162,25 @@ describe("Dashboard", () => {
 
   // Item 3 da onda de fechamento: o rodapé do painel de sugestão precisa
   // citar a fonte da própria modulação que ele exibe, não só vcTarget/
-  // peepFio2. THRESHOLD_SOURCES.vcKg inclui "amib_sbpt_2024", que não
-  // aparece via vcTarget nem peepFio2 (os dois só citam ardsnet_2000) —
-  // por isso é a citação certa para provar que o rodapé deriva das
-  // modulações do alvo, e não uma lista de chaves decorada à mão.
+  // peepFio2. A chave da modulação da obesidade é `vcKgObeso`, que resolve
+  // para o parecer do mentor e não aparece via vcTarget nem peepFio2 (os dois
+  // só citam ardsnet_2000) — por isso é a citação certa para provar que o
+  // rodapé deriva das modulações do alvo, e não de uma lista decorada à mão.
   it("cita a fonte da modulação no rodapé do painel de sugestão inicial", () => {
     renderDashboard({ height_cm: 170, weight_kg: 95 });
 
     const painel = screen.getByText(/Sugestão inicial/).closest("section")!;
-    expect(within(painel).getByText(/AMIB\/SBPT, 2024/)).toBeInTheDocument();
+    expect(within(painel).getByText(/Parecer clínico \(VC no obeso\)/)).toBeInTheDocument();
+  });
+
+  // O outro lado do mesmo par, e o defeito do item 5: enquanto o parecer
+  // estava em `vcKg`, ele era citado nos rodapés escritos à mão dos HeroCards
+  // — ou seja, na tela de TODO paciente, embaixo de um card mostrando a faixa
+  // 4–6 do não obeso, que o parecer não sustenta.
+  it("não cita o parecer do VC no obeso na tela de quem não é obeso", () => {
+    renderDashboard({ height_cm: 170, weight_kg: 70 });
+
+    expect(screen.queryByText(/Parecer clínico \(VC no obeso\)/)).not.toBeInTheDocument();
   });
 
   // ---------- Fase 8: as modulações por patologia na tela ----------
@@ -191,6 +201,70 @@ describe("Dashboard", () => {
   it("DPOC com auto-PEEP mostra a faixa", () => {
     renderDashboard({ comorbidities: ["dpoc"] }, { pao2: 150, fio2: 100, spo2: 95, auto_peep: 10 });
     expect(screen.getByTestId("sug-peep")).toHaveTextContent("8");
+  });
+
+  // Auto-PEEP ZERO: a caixa mostrava "0.0–0.0 cmH₂O · fração do auto-PEEP
+  // medido" para um paciente com P/F 150 — prescrição de ZEEP nascida de
+  // multiplicar um achado favorável por 0,8. Agora não sai dígito nenhum, e a
+  // linha diz por quê.
+  it("DPOC com auto-PEEP zero não mostra dígito nenhum na caixa da PEEP", () => {
+    renderDashboard({ comorbidities: ["dpoc"] }, { pao2: 150, fio2: 100, spo2: 95, auto_peep: 0 });
+    expect(screen.getByTestId("sug-peep")).not.toHaveTextContent(/\d/);
+    const linha = screen.getByTestId("peep-modulacao");
+    expect(linha).toHaveTextContent(/zero/i);
+    expect(linha).toHaveTextContent(/aprisionamento/i);
+    // O texto do zero não é o do não medido: são recusas diferentes.
+    expect(linha).not.toHaveTextContent(/não foi medido/i);
+  });
+
+  // Dia sem gasometria e sem oximetria, com o auto-PEEP registrado: o portão
+  // do preset vinha antes do da patologia e descartava a medida em silêncio,
+  // mostrando "5 cmH₂O · tabela ARDSnet" — a tabela que não se aplica ao DPOC.
+  it("DPOC sem gasometria mas com auto-PEEP recebe a faixa, não o preset", () => {
+    renderDashboard(
+      { comorbidities: ["dpoc"] },
+      { pao2: null, fio2: null, spo2: null, auto_peep: 10 }
+    );
+    const caixa = screen.getByTestId("sug-peep");
+    expect(caixa).toHaveTextContent("8");
+    expect(caixa).not.toHaveTextContent(/ARDSnet/i);
+  });
+
+  // Sem auto-PEEP o 5 continua, porque é ponto de partida para montar o
+  // ventilador. O que ele deixa de fazer é sair calado e rotulado de ARDSnet.
+  it("obstrutivo sem gasometria e sem auto-PEEP mostra o preset com modulação, e sem dizer ARDSnet", () => {
+    renderDashboard(
+      { comorbidities: ["dpoc"] },
+      { pao2: null, fio2: null, spo2: null, auto_peep: null }
+    );
+    const caixa = screen.getByTestId("sug-peep");
+    expect(caixa).toHaveTextContent("5");
+    expect(caixa).not.toHaveTextContent(/ARDSnet/i);
+    expect(screen.getByTestId("peep-modulacao")).toHaveTextContent(/ponto de partida/i);
+  });
+
+  // A linha da modulação de frequência não era referenciada por teste nenhum,
+  // e era justamente ela que afirmava um rebaixamento inexistente.
+  it("a linha de modulação da frequência informa a relação I:E e não afirma rebaixamento", () => {
+    renderDashboard({ comorbidities: ["dpoc"] }, { pao2: 150, fio2: 100, spo2: 95 });
+    const linha = screen.getByTestId("ventilacao-modulacao");
+    expect(linha).toHaveTextContent(/1:4 a 1:6/);
+    expect(linha).not.toHaveTextContent(/baixad|piso/i);
+  });
+
+  it("sem patologia obstrutiva não há linha de modulação da frequência", () => {
+    renderDashboard({}, { pao2: 150, fio2: 100, spo2: 95 });
+    expect(screen.queryByTestId("ventilacao-modulacao")).not.toBeInTheDocument();
+  });
+
+  // A frequência mostrada ao obstrutivo é a mesma do não obstrutivo: a
+  // modulação informa, não muda número.
+  it("a frequência exibida ao obstrutivo é a mesma do não obstrutivo", () => {
+    const { unmount } = renderDashboard({}, { pao2: 150, fio2: 100, spo2: 95 });
+    const semPatologia = screen.getByText(/^\d+ \/min$/).textContent;
+    unmount();
+    renderDashboard({ comorbidities: ["dpoc"] }, { pao2: 150, fio2: 100, spo2: 95 });
+    expect(screen.getByText(/^\d+ \/min$/).textContent).toBe(semPatologia);
   });
 
   // A obesidade não ganha número de PEEP: o PROBESE é intraoperatório e
@@ -267,6 +341,32 @@ describe("textoPeep", () => {
   it("mostra o número quando o motor deu número", () => {
     const t = textoPeep(alvoPeep({ fio2: 50, peep: 8, faixaPeep: null, presetAdmissao: false }));
     expect(t.big).toContain("8");
+  });
+
+  // O preset de admissão NÃO vem da tabela: o motor devolve 5 sem consultá-la,
+  // porque não há gasometria nem oximetria para escolher a linha. Rotulá-lo de
+  // "tabela ARDSnet" afirmava a tabela onde ela não foi usada — e no
+  // obstrutivo, a tabela que a fase declara não se aplicar.
+  it("não diz 'tabela ARDSnet' quando o número é o preset de admissão", () => {
+    const t = textoPeep(alvoPeep({ fio2: 100, peep: 5, faixaPeep: null, presetAdmissao: true }));
+    expect(t.big).toContain("5");
+    expect(t.sub).not.toMatch(/ARDSnet/i);
+    expect(t.sub).toMatch(/preset/i);
+  });
+
+  it("remete à modulação quando o preset vem acompanhado de uma", () => {
+    const t = textoPeep(
+      alvoPeep({ fio2: 100, peep: 5, faixaPeep: null, presetAdmissao: true }, undefined, [
+        { motivo: "Obstrutivo: ponto de partida inicial.", sourceKey: "obstrutivo" },
+      ])
+    );
+    expect(t.sub).not.toMatch(/ARDSnet/i);
+    expect(t.sub).toMatch(/abaixo/i);
+  });
+
+  it("só diz 'tabela ARDSnet' quando o número veio mesmo da tabela", () => {
+    const t = textoPeep(alvoPeep({ fio2: 50, peep: 8, faixaPeep: null, presetAdmissao: false }));
+    expect(t.sub).toMatch(/ARDSnet/i);
   });
 
   it("mostra a faixa quando o motor deu faixa", () => {

@@ -225,7 +225,16 @@ describe("fontes do alvo por patologia (Fase 8)", () => {
     expect(ehParecer(r!)).toBe(true);
   });
 
-  it("vcKg passa a citar o parecer junto das publicações", () => {
-    expect(sourcesFor("vcKg").map((r) => r.id)).toContain("parecer_vc_obeso");
+  // O parecer tem chave PRÓPRIA. Sob `vcKg` ele era citado no rodapé de todo
+  // paciente — inclusive embaixo de um card mostrando a faixa 4-6 do não obeso,
+  // que ele não sustenta —, porque `vcKg` aparece em rodapés escritos à mão no
+  // Dashboard.
+  it("o parecer do VC no obeso tem chave própria e não entra em vcKg", () => {
+    expect(sourcesFor("vcKgObeso").map((r) => r.id)).toEqual(["parecer_vc_obeso"]);
+    expect(sourcesFor("vcKg").map((r) => r.id)).not.toContain("parecer_vc_obeso");
+  });
+
+  it("vcKg volta a citar só as duas publicações", () => {
+    expect(sourcesFor("vcKg").map((r) => r.id)).toEqual(["ardsnet_2000", "amib_sbpt_2024"]);
   });
 });
