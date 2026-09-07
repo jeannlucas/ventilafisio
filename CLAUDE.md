@@ -7,7 +7,7 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 03/09/2026: a suíte roda e passa. `pnpm test` devolve **664 testes
+Estado em 04/09/2026: a suíte roda e passa. `pnpm test` devolve **666 testes
 em 28 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
@@ -257,8 +257,31 @@ Quem decide é o terapeuta.
   app também cita, usa **7,32**. A divergência é real e está registrada como
   `parecer_tre_ph` em `src/data/references.ts` — não é erro de digitação e não
   deve ser "corrigida" para 7,32.
-- `MODALIDADES_TESTE` (PSV, CPAP, Tubo T) está marcada **CONTEÚDO A VALIDAR** e
-  não tem fonte. Levar ao mentor.
+
+  Em 04/09/2026 o AMIB/SBPT 2024 foi lido na íntegra e traz **o mesmo 7,35**.
+  Ou seja, o número do mentor tem fonte publicada, e não é só parecer dele
+  contra o Boles. O `parecer_tre_ph` continua onde está — quem escolheu entre
+  os dois valores foi ele —, mas quem for reabrir a divergência precisa saber
+  que o 7,35 não está sozinho.
+- ~~`MODALIDADES_TESTE` sem fonte.~~ **RESOLVIDA em 04/09/2026.** O mentor
+  manteve as três — *"desde que sejam sempre a cunho informativo e sugestões"* —
+  e a pesquisa que sustenta isso está em `docs/dossie-modalidades-tre.md`.
+
+  **As três não são equivalentes**, e o comentário em `src/data/tre.ts` diz
+  qual é qual. O ponto que importa: **CPAP não é nomeado favoravelmente por
+  NENHUMA diretriz** — a AARC 2024 diz literalmente que não foi estudado, e o
+  ATS/CHEST 2017 o coloca no braço contra o qual sugere. Fica na lista porque é
+  usado em cerca de 11% dos testes na prática, e tirá-lo faria o terapeuta
+  registrar modalidade falsa num campo puramente descritivo. Manter não é o
+  mesmo que endossar.
+
+  A compensação automática de tubo (ATC) ficou de fora: o mentor manteve as
+  três. Ela tem seção própria no AMIB/SBPT 2024, mas no capítulo de modos, e
+  nenhuma diretriz a recomenda como modalidade de TRE.
+- **O app grava a modalidade e NÃO grava os parâmetros do teste.** As diretrizes
+  publicam PSV 5-7 cmH₂O, PEEP 0-5, por 30-60 minutos; o app guarda só a
+  palavra. Perguntado em 04/09/2026, o mentor respondeu que **está ideal assim**
+  por ora. É decisão registrada, não lacuna.
 - **O resultado do TRE vale 24 horas** (`VALIDADE_TRE_HORAS`, em
   `src/lib/tre.ts`). Antes da fase o critério expirava sozinho, junto com a
   evolução do dia em que estava gravado; a tabela de sessões perdeu essa
@@ -374,9 +397,11 @@ Duas perguntas abertas, e as duas são acopladas:
    pergunta clínica, e o conserto óbvio da pendência 1 apagaria o único sinal
    correto que esse paciente ainda recebe.
 
-Também segue sem fonte a lista `MODALIDADES_TESTE` da Fase 5, e o `verificada:
-true` das seis publicações novas vale confirmar com ele, porque é o que suprime
-o aviso de "pendente de revisão" na tela.
+A lista `MODALIDADES_TESTE` da Fase 5 saiu desta lista em 04/09/2026. Segue
+aberto o `verificada: true` das seis publicações novas, que vale confirmar com
+ele porque é o que suprime o aviso de "pendente de revisão" na tela — e junto
+com ele o `amib_sbpt_2024`, que está como **não verificado** e cujo PDF oficial
+foi lido em 04/09/2026: o texto está acessível, o que falta é a revisão dele.
 
 ## Esforço, drive e recrutabilidade: o que o app mede e o que ele se recusa a dizer
 
@@ -714,9 +739,8 @@ o comportamento de hoje.
   precisa de máximo**, porque *"em recrutamento já se vi utilizar até 40 de
   PEEP"*. Fica sem teto por decisão, e o efeito colateral fica junto: auto-PEEP
   150 continua virando faixa formatada como alvo.
-- **As modalidades do TRE seguem sem fonte.** Perguntado, o mentor respondeu que
-  não tem referência no momento e liberou procurar uma. Continua marcada como
-  conteúdo a validar.
+- ~~**As modalidades do TRE seguem sem fonte.**~~ Resolvida em 04/09/2026; veja
+  a seção do TRE e `docs/dossie-modalidades-tre.md`.
 
 ## Armadilhas conhecidas
 1. **É software de apoio a decisão clínica, e é repositório PÚBLICO.** Qualquer
@@ -804,7 +828,15 @@ o comportamento de hoje.
     aplicação **se e somente se** há faixa: é invariante derivado, não lista
     escrita à mão, então um sítio novo que produza faixa entra coberto sem
     ninguém lembrar dele.
-19. **Auto-PEEP ZERO é medida real e favorável, e recusa número por motivo
+19. **O critério de CO₂ do TRE tem RESSALVA, e ela é a armadilha nº 5 na
+    forma mais cara.** "PaCO₂ > 50" limpo reprova o retentor crônico por ser o
+    que ele sempre foi, porque o basal dele já passa de 50. As duas ressalvas
+    do AMIB/SBPT 2024 — "exceto em previamente hipercápnicos" e "elevação > 8
+    mmHg sobre o basal" — entraram por decisão do mentor em 04/09/2026 e estão
+    fixadas por teste que assere o texto que vai para a TELA, não a constante.
+    Sem basal registrado vale o 50 puro, decisão dele; o app não guarda basal e
+    não calcula nada ali, quem compara é o terapeuta.
+20. **Auto-PEEP ZERO é medida real e favorável, e recusa número por motivo
     PRÓPRIO.** Zero significa que não há aprisionamento a limitar, ou seja, a
     regra dos 80 a 85% perdeu o referente. Não é a mesma recusa do "não
     medido", e há teste que fica vermelho se alguém fundir os dois textos.

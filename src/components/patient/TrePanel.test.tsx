@@ -100,6 +100,35 @@ describe("TrePanel — em andamento", () => {
     }
   });
 
+  // A ressalva do previamente hipercápnico é a coisa mais fácil desta tela de
+  // alguém "simplificar" de volta para um "PaCO₂ > 50" limpo. Sem ela, o
+  // retentor crônico de CO₂ falha o teste por ser o que ele sempre foi: o
+  // basal dele já é maior que 50. É a armadilha nº 5 do projeto, e aqui ela
+  // reprova um paciente que não falhou em nada.
+  //
+  // A asserção é no detalhe que vai para a TELA, não na constante, porque o
+  // defeito que importa é o terapeuta não ler a ressalva na beira do leito.
+  it("o critério de CO₂ leva as duas ressalvas do AMIB/SBPT 2024 na tela", () => {
+    renderPanel([sessao()]);
+    const co2 = CRITERIOS_FALHA.find((c) => c.key === "hipercapnia")!;
+    expect(screen.getByText(co2.detalhe)).toBeInTheDocument();
+    expect(co2.detalhe).toMatch(/previamente hipercápnicos/i);
+    expect(co2.detalhe).toMatch(/8 mmHg/);
+    expect(co2.detalhe).toMatch(/basal/i);
+  });
+
+  // Os três números de oxigenação foram alinhados ao AMIB/SBPT 2024 em
+  // 04/09/2026. Ficam fixados um a um porque o app usava OUTROS três, e a
+  // diferença é silenciosa: 50 e 40 têm a mesma cara numa revisão apressada.
+  it("o critério de oxigenação usa os três números do AMIB/SBPT 2024", () => {
+    const sat = CRITERIOS_FALHA.find((c) => c.key === "saturacao")!;
+    expect(sat.detalhe).toMatch(/<\s*90%/);
+    expect(sat.detalhe).toMatch(/<\s*60 mmHg/);
+    expect(sat.detalhe).toMatch(/≥\s*40%/);
+    expect(sat.detalhe).not.toMatch(/≥\s*50%/);
+    expect(sat.detalhe).not.toMatch(/≤\s*50 mmHg/);
+  });
+
   // O app não mede os 5 minutos de persistência de cada sinal: quem julga é o
   // terapeuta. Isso precisa estar dito na tela, não só no spec.
   it("diz que a persistência de 5 minutos é julgada pelo terapeuta", () => {
