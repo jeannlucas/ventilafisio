@@ -7,7 +7,7 @@ pelo próprio README.
 ## Modo
 MANUTENÇÃO.
 
-Estado em 04/09/2026: a suíte roda e passa. `pnpm test` devolve **666 testes
+Estado em 04/09/2026: a suíte roda e passa. `pnpm test` devolve **667 testes
 em 28 arquivos** e `pnpm build` (que roda `tsc --noEmit` antes) sai limpo.
 
 O Vitest subiu de 2.1.9 para 3.2.7 em 24/08/2026, e os 156 testes passaram sem
@@ -397,11 +397,20 @@ Duas perguntas abertas, e as duas são acopladas:
    pergunta clínica, e o conserto óbvio da pendência 1 apagaria o único sinal
    correto que esse paciente ainda recebe.
 
-A lista `MODALIDADES_TESTE` da Fase 5 saiu desta lista em 04/09/2026. Segue
-aberto o `verificada: true` das seis publicações novas, que vale confirmar com
-ele porque é o que suprime o aviso de "pendente de revisão" na tela — e junto
-com ele o `amib_sbpt_2024`, que está como **não verificado** e cujo PDF oficial
-foi lido em 04/09/2026: o texto está acessível, o que falta é a revisão dele.
+A lista `MODALIDADES_TESTE` da Fase 5 saiu desta lista em 04/09/2026, e o
+`amib_sbpt_2024` passou a `verificada: true` na mesma data, com aval do mentor.
+
+**`verificada` é endosso clínico do mentor, não conferência bibliográfica.**
+Ler o PDF não basta e não bastou: o texto já estava acessível antes do aval. Há
+teste afirmando isso nos dois sentidos, e um `false` de volta imprimiria
+"pendente de revisão" numa fonte avalizada sem ninguém notar, porque a
+diferença na tela é uma borda âmbar.
+
+**Dez publicações continuam pendentes de revisão**, e entre elas estão as que
+sustentam os números mais usados do app: `ardsnet_2000`, `amato_2015`,
+`gattinoni_2016`, `serpaneto_2018`, `yangtobin_1991`, `boles_2007`,
+`hodgson_2014`, `guerin_2016`, `ferreira_2021` e `duan_2021`. Vale levá-las ao
+mentor de uma vez, em vez de uma por rodada.
 
 ## Esforço, drive e recrutabilidade: o que o app mede e o que ele se recusa a dizer
 

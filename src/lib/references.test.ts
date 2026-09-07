@@ -104,6 +104,17 @@ describe("procedência", () => {
     }
   });
 
+  // `verificada` é ENDOSSO CLÍNICO do mentor, não conferência bibliográfica —
+  // é o teste acima que diz isso, e é por isso que ler o PDF não bastava. O
+  // aval veio em 04/09/2026. Fica fixado porque um `false` de volta faria a
+  // tela imprimir "pendente de revisão" numa fonte já avalizada, e ninguém
+  // notaria: a diferença é uma borda âmbar.
+  it("o AMIB/SBPT 2024 está avalizado pelo mentor", () => {
+    const r = REFERENCES.find((x) => x.id === "amib_sbpt_2024")!;
+    expect(ehParecer(r)).toBe(false);
+    if (!ehParecer(r)) expect(r.verificada).toBe(true);
+  });
+
   it("mantém Amato citado no conceito de driving pressure", () => {
     expect(THRESHOLD_SOURCES.dp).toContain("amato_2015");
   });

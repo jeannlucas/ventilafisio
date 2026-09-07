@@ -118,8 +118,8 @@ export const REFERENCES: Reference[] = [
     veiculo: "AMIB/SBPT, edição de 2024",
     ano: 2024,
     citacaoCurta: "AMIB/SBPT, 2024",
-    verificada: false,
-    nota: "Substitui as Diretrizes Brasileiras de Ventilação Mecânica de 2013.",
+    verificada: true,
+    nota: "Substitui as Diretrizes Brasileiras de Ventilação Mecânica de 2013. Avalizada pelo mentor em 04/09/2026, e o PDF oficial foi lido na íntegra na mesma data: sustenta os critérios de falha do TRE, o pH de 7,35 e as modalidades do teste.",
   },
   {
     id: "dejonghe_2002",
